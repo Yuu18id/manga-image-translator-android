@@ -35,8 +35,6 @@ Translate raw Japanese, Chinese, and Korean manga or comic pages into English, I
 * **Modern Material Design 3 UX:**
   * **Google Photos Style Multi-Select:** Contextual action bar, select all, batch deletion, and fluid animations.
   * **Interactive Reader Screen:** Pinch-to-zoom, pan, double-tap reset, quick original/translated comparison toggle, and native Android Share sheet.
-* **Full Localization:**
-  * Native multi-language UI support for **English**, **Indonesian (Bahasa Indonesia)**, and **Japanese (日本語)**.
 * **History & Persistent Settings:**
   * Built with **Room Database** and **Jetpack DataStore** for persistent settings and offline translation history.
 
