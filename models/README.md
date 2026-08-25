@@ -6,7 +6,7 @@ This directory contains scripts to export the original PyTorch models from `mang
 
 1.  Make sure you are in the `models` directory:
     ```bash
-    cd d:\BAYU\PROJECT\manga-image-translator\android-app\models\
+    cd d:\USER\PROJECT\manga-image-translator\android-app\models\
     ```
 2.  Install the required dependencies:
     ```bash
