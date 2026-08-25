@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Manga Translator</string>
+
+    <!-- Navigasi &amp; Aksi Umum -->
+    <string name="nav_home">Beranda</string>
+    <string name="nav_gallery">Galeri</string>
+    <string name="nav_translate">Terjemahkan</string>
+    <string name="nav_reader">Pembaca</string>
+    <string name="nav_settings">Pengaturan</string>
+    <string name="action_back">Kembali</string>
+    <string name="action_close">Tutup</string>
+    <string name="action_cancel">Batal</string>
+    <string name="action_delete">Hapus</string>
+    <string name="action_clear">Bersihkan</string>
+    <string name="action_clear_all">Hapus Semua</string>
+    <string name="action_retry">Coba Lagi</string>
+    <string name="action_share">Bagikan</string>
+    <string name="action_select_all">Pilih Semua</string>
+    <string name="action_deselect_all">Batalkan Semua</string>
+
+    <!-- Layar Beranda -->
+    <string name="home_hero_title">Pilih Gambar Manga</string>
+    <string name="home_hero_subtitle">Buka gambar atau halaman manga dari galeri perangkat</string>
+    <string name="home_recent_translations">Riwayat Terjemahan</string>
+    <string name="home_no_recent">Belum ada riwayat terjemahan</string>
+    <string name="home_history_gallery">Galeri Riwayat</string>
+
+    <!-- Layar Terjemahan -->
+    <string name="translate_title">Terjemahkan</string>
+    <string name="translate_no_image">Belum Ada Gambar Dipilih</string>
+    <string name="translate_source_lang">Bahasa Asal</string>
+    <string name="translate_target_lang">Bahasa Tujuan</string>
+    <string name="translate_engine">Mesin AI</string>
+    <string name="translate_auto_detect">Otomatis</string>
+    <string name="translate_action_btn">Terjemahkan</string>
+    <string name="translate_open_in_reader">Buka di Reader</string>
+    <string name="translate_toggle_original">Tampilkan Gambar Asli</string>
+    <string name="translate_initializing">Menyiapkan model AI...</string>
+    <string name="translate_complete">Terjemahan selesai</string>
+    <string name="translate_cancelled">Dibatalkan</string>
+    <string name="translate_stage_detection">Mendeteksi teks &amp; balon percakapan...</string>
+    <string name="translate_stage_ocr">Membaca teks (OCR)...</string>
+    <string name="translate_stage_translation">Menerjemahkan teks...</string>
+    <string name="translate_stage_inpainting">Membersihkan teks asli (Inpainting)...</string>
+    <string name="translate_stage_rendering">Menata &amp; merender teks terjemahan...</string>
+
+    <!-- Layar Galeri -->
+    <string name="gallery_title">Galeri</string>
+    <string name="gallery_item_count">%1$d terjemahan</string>
+    <string name="gallery_selected_count">%1$d dipilih</string>
+    <string name="gallery_menu_clear_all">Hapus Semua Riwayat</string>
+    <string name="gallery_empty_title">Belum Ada Hasil Terjemahan</string>
+    <string name="gallery_empty_subtitle">Manga atau gambar yang Anda terjemahkan akan tersimpan rapi secara otomatis di sini.</string>
+    <string name="gallery_dialog_clear_title">Hapus Semua Riwayat\?</string>
+    <string name="gallery_dialog_clear_msg">Seluruh hasil gambar terjemahan akan dihapus permanen dari memori internal perangkat.</string>
+    <string name="gallery_dialog_delete_title">Hapus %1$d Gambar\?</string>
+    <string name="gallery_dialog_delete_msg">Gambar yang dipilih akan dihapus permanen dari riwayat dan penyimpanan.</string>
+
+    <!-- Layar Reader -->
+    <string name="reader_dialog_delete_title">Hapus Gambar\?</string>
+    <string name="reader_dialog_delete_msg">Apakah Anda yakin ingin menghapus hasil terjemahan ini dari riwayat dan penyimpanan\?</string>
+    <string name="reader_show_original">Gambar Asli</string>
+    <string name="reader_show_translated">Hasil Terjemahan</string>
+    <string name="reader_not_found">Gambar terjemahan tidak ditemukan</string>
+
+    <!-- Layar Pengaturan -->
+    <string name="settings_title">Pengaturan</string>
+    <string name="settings_language_engine">Bahasa &amp; Mesin Terjemahan</string>
+    <string name="settings_default_source_lang">Bahasa Asal Default</string>
+    <string name="settings_default_target_lang">Bahasa Tujuan Default</string>
+    <string name="settings_default_translator">Penyedia Terjemahan Default</string>
+    <string name="settings_api_keys">Kunci API (API Keys)</string>
+    <string name="settings_model_quality">Kualitas &amp; Resolusi Model AI</string>
+    <string name="settings_detection_res">Resolusi Deteksi Teks</string>
+    <string name="settings_inpainting_res">Resolusi Inpainting (Hapus Teks)</string>
+    <string name="settings_font_size_offset">Penyesuaian Ukuran Font: %1$d</string>
+    <string name="settings_storage">Penyimpanan</string>
+    <string name="settings_clear_history_btn">Hapus Semua Riwayat Terjemahan</string>
+    <string name="settings_dialog_clear_title">Hapus Riwayat</string>
+    <string name="settings_dialog_clear_msg">Apakah Anda yakin ingin menghapus seluruh riwayat terjemahan\? Tindakan ini tidak dapat dibatalkan.</string>
+    <string name="settings_about">Tentang Aplikasi</string>
+    <string name="settings_version">Versi 1.0.0</string>
+    <string name="settings_developed_by">Dikembangkan oleh @%1$s</string>
+    <string name="settings_github">Repositori GitHub</string>
+</resources>

@@ -1,0 +1,52 @@
+*.iml
+.gradle
+/local.properties
+/.idea
+.idea/
+.idea/caches
+.idea/libraries
+.idea/modules.xml
+.idea/workspace.xml
+.idea/navEditor.xml
+.idea/assetWizardSettings.xml
+.DS_Store
+/build
+*/build
+captures/
+.externalNativeBuild
+.cxx
+*.apk
+*.aab
+*.ap_
+
+# Keystore files
+*.jks
+*.keystore
+
+# Google Services (if any)
+google-services.json
+
+# Large AI Model files (Download from GitHub Releases or Export locally)
+*.onnx
+*.onnx.jar
+*.onnx.data
+*.data
+*.pt
+*.pth
+*.ckpt
+*.bin
+*.tar.gz
+*.zip
+*.tar
+models/exported/
+app/src/main/assets/models/*.onnx
+
+# Python / export temp
+__pycache__/
+*.pyc
+*.pyo
+venv/
+.venv/
+*.log
+*.tmp
+
