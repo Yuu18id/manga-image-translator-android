@@ -108,7 +108,7 @@ graph LR
 ### 1. Clone the Repository
 ```bash
 git clone https://github.com/yuu18id/manga-image-translator.git
-cd manga-image-translator/android-app
+cd manga-image-translator
 ```
 
 > [!IMPORTANT]
@@ -117,9 +117,9 @@ cd manga-image-translator/android-app
 > #### Option A: Download from GitHub Releases (Recommended)
 > 1. Go to the [**GitHub Releases Page**](../../releases) of this repository.
 > 2. Download the pre-converted models archive (`models.zip` or individual `.onnx` files).
-> 3. Place them inside `android-app/app/src/main/assets/models/`:
+> 3. Place them inside `manga-image-translator/app/src/main/assets/models/`:
 >    ```text
->    android-app/app/src/main/assets/
+>    manga-image-translator/app/src/main/assets/
 >    ├── fonts/
 >    │   └── cc-wild-words-roman.ttf
 >    └── models/
@@ -132,7 +132,7 @@ cd manga-image-translator/android-app
 > #### Option B: Self-Export from PyTorch Checkpoints
 > If you prefer exporting the models yourself from base PyTorch checkpoints:
 > ```bash
-> cd android-app/models
+> cd manga-image-translator/models
 > python export_ctd_onnx.py
 > python export_ocr_ctc_onnx.py
 > python export_aot_onnx.py
@@ -140,7 +140,7 @@ cd manga-image-translator/android-app
 > For detailed export options and INT8 quantization, see the [Model Export Guide](models/README.md).
 
 ### 3. Build & Run
-Open the `android-app` folder in Android Studio, or build via command line:
+Open the `manga-image-translator` folder in Android Studio, or build via command line:
 
 ```bash
 # Compile Kotlin and verify build
