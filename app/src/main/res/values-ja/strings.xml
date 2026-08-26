@@ -18,24 +18,53 @@
     <string name="action_share">共有</string>
     <string name="action_select_all">すべて選択</string>
     <string name="action_deselect_all">選択解除</string>
+    <string name="action_apply">適用</string>
+    <string name="action_save">保存</string>
+    <string name="action_edit">編集</string>
+    <string name="action_typeset">写植</string>
+    <string name="action_remove">削除</string>
+    <string name="action_move_up">上へ移動</string>
+    <string name="action_move_down">下へ移動</string>
+    <string name="action_reset">リセット</string>
+    <string name="action_collapse">折りたたむ</string>
+    <string name="action_expand">展開</string>
 
     <!-- Home Screen -->
     <string name="home_hero_title">マンガ画像を選択</string>
     <string name="home_hero_subtitle">端末のギャラリーから画像を開く</string>
-    <string name="home_recent_translations">最近の翻訳</string>
-    <string name="home_no_recent">翻訳履歴はありません</string>
-    <string name="home_history_gallery">履歴ギャラリー</string>
+    <string name="home_single_title">単一ページ</string>
+    <string name="home_single_subtitle">1ページのマンガを翻訳</string>
+    <string name="home_batch_title">一括チャプター翻訳</string>
+    <string name="home_batch_subtitle">フォルダー/チャプターを一括翻訳</string>
+    <string name="home_recent_title">最近の翻訳</string>
+    <string name="home_open_gallery">ギャラリーを開く</string>
+    <string name="home_empty_title">翻訳履歴がありません</string>
+    <string name="home_empty_subtitle">画像を選択して自動AI翻訳を開始してください。</string>
+    <string name="home_select_image">画像を選択</string>
 
     <!-- Translate Screen -->
     <string name="translate_title">画像翻訳</string>
     <string name="translate_no_image">画像が選択されていません</string>
-    <string name="translate_source_lang">翻訳元</string>
-    <string name="translate_target_lang">翻訳先</string>
+    <string name="translate_source_lang">翻訳元言語</string>
+    <string name="translate_target_lang">翻訳先言語</string>
+    <string name="translate_japanese_fixed">日本語</string>
     <string name="translate_engine">翻訳エンジン</string>
-    <string name="translate_auto_detect">自動検出</string>
+    <string name="translate_engine_label">エンジン: %1$s</string>
+    <string name="translate_review_mode">検出プレビュー</string>
+    <string name="translate_select_target">翻訳先言語を選択</string>
+    <string name="translate_search_language">言語を検索...</string>
+    <string name="translate_select_engine">翻訳エンジンを選択</string>
+    <string name="translate_engine_requires_key">設定でAPIキーが必要</string>
+    <string name="translate_engine_free">無料 / 標準</string>
+    <string name="translate_toggle_original">原文</string>
+    <string name="translate_toggle_translated">翻訳後</string>
     <string name="translate_action_btn">翻訳する</string>
+    <string name="translate_action_review_btn">検出確認＆翻訳</string>
     <string name="translate_open_in_reader">リーダーで開く</string>
-    <string name="translate_toggle_original">原文の切り替え</string>
+    <string name="translate_edit_typeset">写植を編集</string>
+    <string name="translate_retranslate_text">テキスト再翻訳</string>
+    <string name="translate_rescan">再スキャン</string>
+    <string name="translate_full_rescan">完全再スキャン</string>
     <string name="translate_initializing">準備中...</string>
     <string name="translate_complete">翻訳が完了しました</string>
     <string name="translate_cancelled">キャンセルされました</string>
@@ -45,17 +74,51 @@
     <string name="translate_stage_inpainting">元画像を修復中...</string>
     <string name="translate_stage_rendering">翻訳テキストを描画中...</string>
 
+    <!-- Detection Review Editor Dialog -->
+    <string name="editor_review_title">吹き出しの確認</string>
+    <string name="editor_bubbles_detected">%1$d 個の吹き出しを検出</string>
+    <string name="editor_selected_bubble">選択中の吹き出し</string>
+    <string name="editor_delete_sfx">削除 / 効果音を無視</string>
+    <string name="editor_continue_translate">翻訳を続行 (%1$d 個)</string>
+    <string name="editor_hint_add">追加モード: マンガの吹き出しを囲んでドラッグ</string>
+    <string name="editor_hint_selected">吹き出し #%1$d: 位置移動または角をドラッグして変形</string>
+    <string name="editor_hint_idle">タップして選択/削除 • 2本指でズーム</string>
+    <string name="editor_action_add_box">枠を追加</string>
+    <string name="editor_action_delete_box">枠を削除</string>
+    <string name="editor_action_reset">リセット</string>
+
+    <!-- Render Typeset Editor Dialog -->
+    <string name="typeset_title">写植とレンダリング編集</string>
+    <string name="typeset_bubbles_count">%1$d 個の吹き出し</string>
+    <string name="typeset_empty_bubble">(空の吹き出し)</string>
+    <string name="typeset_edit_text_btn">テキスト編集</string>
+    <string name="typeset_decrease_font">フォント縮小</string>
+    <string name="typeset_increase_font">フォント拡大</string>
+    <string name="typeset_align_left">左揃え</string>
+    <string name="typeset_align_center">中央揃え</string>
+    <string name="typeset_align_right">右揃え</string>
+    <string name="typeset_hint_idle">吹き出しをタップしてフォント、位置、テキストを調整</string>
+    <string name="typeset_save_apply">保存して適用 (%1$d 個)</string>
+    <string name="typeset_dialog_edit_title">吹き出し #%1$d のテキスト編集</string>
+    <string name="typeset_ocr_label">原文 (OCR):</string>
+    <string name="typeset_translated_label">翻訳テキスト</string>
+
     <!-- Gallery Screen -->
     <string name="gallery_title">ギャラリー</string>
-    <string name="gallery_item_count">%1$d 件の翻訳</string>
+    <string name="gallery_item_count">%1$d 件</string>
     <string name="gallery_selected_count">%1$d 件選択中</string>
     <string name="gallery_menu_clear_all">すべての履歴を削除</string>
     <string name="gallery_empty_title">翻訳履歴がありません</string>
     <string name="gallery_empty_subtitle">翻訳した画像はここに自動保存されます。</string>
     <string name="gallery_dialog_clear_title">すべての履歴を削除しますか\?</string>
     <string name="gallery_dialog_clear_msg">すべての翻訳画像が端末のストレージから完全に削除されます。</string>
-    <string name="gallery_dialog_delete_title">%1$d 件の画像を削除しますか\?</string>
-    <string name="gallery_dialog_delete_msg">選択した画像は履歴とストレージから完全に削除されます。</string>
+    <string name="gallery_dialog_delete_title">%1$d 件のアイテムを削除しますか\?</string>
+    <string name="gallery_dialog_delete_msg">選択したアイテムは履歴とストレージから完全に削除されます。</string>
+    <string name="gallery_retranslate_btn">再翻訳</string>
+    <string name="gallery_album_badge">%1$d ページ</string>
+    <string name="gallery_album_type">チャプターアルバム</string>
+    <string name="gallery_no_image">画像なし</string>
+    <string name="gallery_selected_badge">選択中</string>
 
     <!-- Reader Screen -->
     <string name="reader_dialog_delete_title">画像を削除しますか\?</string>
@@ -63,19 +126,28 @@
     <string name="reader_show_original">原文</string>
     <string name="reader_show_translated">翻訳後</string>
     <string name="reader_not_found">画像が見つかりません</string>
+    <string name="reader_page_indicator">ページ %1$d / %2$d</string>
+    <string name="reader_prev_page">前のページ</string>
+    <string name="reader_next_page">次のページ</string>
 
     <!-- Settings Screen -->
     <string name="settings_title">設定</string>
     <string name="settings_language_engine">言語と翻訳エンジン</string>
-    <string name="settings_default_source_lang">デフォルト翻訳元言語</string>
     <string name="settings_default_target_lang">デフォルト翻訳先言語</string>
     <string name="settings_default_translator">デフォルト翻訳エンジン</string>
     <string name="settings_api_keys">APIキー</string>
-    <string name="settings_model_quality">AIモデル・画質設定</string>
-    <string name="settings_detection_res">検出解像度</string>
-    <string name="settings_inpainting_res">消去解像度 (Inpainting)</string>
-    <string name="settings_font_size_offset">フォントサイズ調整: %1$d</string>
+    <string name="settings_api_keys_subtitle">翻訳プロバイダーのAPIキーを設定します。キーはローカルストレージに安全に保管されます。</string>
+    <string name="settings_key_active">有効</string>
+    <string name="settings_key_configured">キー設定済み (••••••••)</string>
+    <string name="settings_key_none">未設定</string>
+    <string name="settings_get_key">キーを取得</string>
+    <string name="settings_paste_key_hint">APIキーをここに貼り付け...</string>
+    <string name="settings_clear_key">キーを消去</string>
+    <string name="settings_preset_models">人気のプリセットモデル:</string>
+    <string name="settings_hide_key">非表示</string>
+    <string name="settings_show_key">表示</string>
     <string name="settings_storage">ストレージ</string>
+    <string name="settings_storage_subtitle">保存された翻訳画像とキャッシュを削除</string>
     <string name="settings_clear_history_btn">翻訳履歴を削除</string>
     <string name="settings_dialog_clear_title">履歴の削除</string>
     <string name="settings_dialog_clear_msg">すべての翻訳履歴を削除しますか\? この操作は取り消せません。</string>
@@ -83,4 +155,30 @@
     <string name="settings_version">バージョン 1.0.0</string>
     <string name="settings_developed_by">開発者: @%1$s</string>
     <string name="settings_github">GitHub リポジトリ</string>
+
+    <!-- Batch Translation Screen -->
+    <string name="batch_title">一括翻訳</string>
+    <string name="batch_hero_title">一括チャプター翻訳</string>
+    <string name="batch_hero_subtitle">複数のマンガページを選択して順次翻訳</string>
+    <string name="batch_page_count">%1$d ページ選択中</string>
+    <string name="batch_sort_filename">ファイル名で並べ替え</string>
+    <string name="batch_add_pages">ページを追加</string>
+    <string name="batch_start_btn">一括翻訳開始 (%1$d ページ)</string>
+    <string name="batch_processing_progress">%2$d ページ中 %1$d ページを処理中 (%3$d%%)</string>
+    <string name="batch_empty_title">ページが選択されていません</string>
+    <string name="batch_empty_subtitle">下をタップするかギャラリーから複数の画像を選択してください。</string>
+    <string name="batch_select_pages">画像を選択</string>
+    <string name="batch_status_queued">待機中</string>
+    <string name="batch_status_done">完了</string>
+    <string name="batch_status_failed">失敗</string>
+    <string name="batch_read_chapter">チャプターを読む (%1$d ページ)</string>
+    <string name="batch_retry_failed">失敗したページを再試行 (%1$d)</string>
+    <string name="batch_clear_dialog_title">一括リストをクリア</string>
+    <string name="batch_clear_dialog_msg">現在のバッチ内のすべてのページをクリアしてもよろしいですか\?</string>
+    <string name="batch_status_in_progress">チャプターを翻訳中...</string>
+    <string name="batch_status_error">エラーで完了しました</string>
+    <string name="batch_status_all_done">チャプター翻訳完了!</string>
+    <string name="batch_stage_detecting">テキストを検出中...</string>
+    <string name="batch_stage_completed">完了</string>
+    <string name="batch_stage_typeset_updated">写植を更新しました</string>
 </resources>

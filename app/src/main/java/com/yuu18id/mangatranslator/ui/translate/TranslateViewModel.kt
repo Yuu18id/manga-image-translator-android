@@ -384,7 +384,12 @@ class TranslateViewModel @Inject constructor(
                     processingTimeMs = 0L,
                     inpaintedImage = inpainted
                 )
-                val historyId = historyRepository.saveTranslation(updatedResult)
+                val currentHistoryId = _uiState.value.savedHistoryId
+                val historyId = if (currentHistoryId != null) {
+                    historyRepository.updateTranslation(currentHistoryId, updatedResult)
+                } else {
+                    historyRepository.saveTranslation(updatedResult)
+                }
 
                 _progressState.update {
                     it.copy(
@@ -484,13 +489,18 @@ class TranslateViewModel @Inject constructor(
                     processingTimeMs = 0L,
                     inpaintedImage = inpainted
                 )
-                val historyId = historyRepository.saveTranslation(updatedResult)
+                val currentHistoryId = _uiState.value.savedHistoryId
+                val historyId = if (currentHistoryId != null) {
+                    historyRepository.updateTranslation(currentHistoryId, updatedResult)
+                } else {
+                    historyRepository.saveTranslation(updatedResult)
+                }
 
                 _progressState.update {
                     it.copy(
                         isTranslating = false,
                         progress = 1.0f,
-                        stageMessage = "Terjemah ulang teks selesai!"
+                        stageMessage = ""
                     )
                 }
 
@@ -535,7 +545,12 @@ class TranslateViewModel @Inject constructor(
                 _translatedBitmap = resultBitmap
                 _inpaintedBitmap = result.inpaintedImage ?: resultBitmap
                 _currentTextBlocks = result.textBlocks
-                val historyId = historyRepository.saveTranslation(result)
+                val currentHistoryId = _uiState.value.savedHistoryId
+                val historyId = if (currentHistoryId != null) {
+                    historyRepository.updateTranslation(currentHistoryId, result)
+                } else {
+                    historyRepository.saveTranslation(result)
+                }
 
                 _progressState.update {
                     it.copy(

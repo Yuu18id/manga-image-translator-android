@@ -18,44 +18,107 @@
     <string name="action_share">Bagikan</string>
     <string name="action_select_all">Pilih Semua</string>
     <string name="action_deselect_all">Batalkan Semua</string>
+    <string name="action_apply">Terapkan</string>
+    <string name="action_save">Simpan</string>
+    <string name="action_edit">Edit</string>
+    <string name="action_typeset">Typeset</string>
+    <string name="action_remove">Hapus</string>
+    <string name="action_move_up">Geser ke Atas</string>
+    <string name="action_move_down">Geser ke Bawah</string>
+    <string name="action_reset">Reset Awal</string>
+    <string name="action_collapse">Tutup Detail</string>
+    <string name="action_expand">Buka Detail</string>
 
     <!-- Layar Beranda -->
     <string name="home_hero_title">Pilih Gambar Manga</string>
     <string name="home_hero_subtitle">Buka gambar atau halaman manga dari galeri perangkat</string>
-    <string name="home_recent_translations">Riwayat Terjemahan</string>
-    <string name="home_no_recent">Belum ada riwayat terjemahan</string>
-    <string name="home_history_gallery">Galeri Riwayat</string>
+    <string name="home_single_title">Halaman Tunggal</string>
+    <string name="home_single_subtitle">Terjemahkan 1 halaman manga</string>
+    <string name="home_batch_title">Batch Chapter</string>
+    <string name="home_batch_subtitle">Terjemahkan folder / chapter manga</string>
+    <string name="home_recent_title">Terakhir Diterjemahkan</string>
+    <string name="home_open_gallery">Buka Galeri</string>
+    <string name="home_empty_title">Belum Ada Riwayat Terjemahan</string>
+    <string name="home_empty_subtitle">Pilih gambar manga untuk memulai terjemahan otomatis menggunakan AI.</string>
+    <string name="home_select_image">Pilih Gambar Manga</string>
 
     <!-- Layar Terjemahan -->
     <string name="translate_title">Terjemahkan</string>
     <string name="translate_no_image">Belum Ada Gambar Dipilih</string>
     <string name="translate_source_lang">Bahasa Asal</string>
     <string name="translate_target_lang">Bahasa Tujuan</string>
-    <string name="translate_engine">Mesin AI</string>
-    <string name="translate_auto_detect">Otomatis</string>
+    <string name="translate_japanese_fixed">Japanese</string>
+    <string name="translate_engine">Mesin Terjemahan</string>
+    <string name="translate_engine_label">Engine: %1$s</string>
+    <string name="translate_review_mode">Review Deteksi</string>
+    <string name="translate_select_target">Pilih Bahasa Tujuan</string>
+    <string name="translate_search_language">Cari bahasa...</string>
+    <string name="translate_select_engine">Pilih Mesin Terjemahan</string>
+    <string name="translate_engine_requires_key">Memerlukan API Key di Pengaturan</string>
+    <string name="translate_engine_free">Gratis / Bawaan</string>
+    <string name="translate_toggle_original">Asli</string>
+    <string name="translate_toggle_translated">Terjemahan</string>
     <string name="translate_action_btn">Terjemahkan</string>
+    <string name="translate_action_review_btn">Review &amp; Terjemahkan</string>
     <string name="translate_open_in_reader">Buka di Reader</string>
-    <string name="translate_toggle_original">Tampilkan Gambar Asli</string>
+    <string name="translate_edit_typeset">Edit Typeset</string>
+    <string name="translate_retranslate_text">Re-Translate Teks</string>
+    <string name="translate_rescan">Scan Ulang</string>
+    <string name="translate_full_rescan">Scan Ulang Lengkap</string>
     <string name="translate_initializing">Menyiapkan model AI...</string>
     <string name="translate_complete">Terjemahan selesai</string>
     <string name="translate_cancelled">Dibatalkan</string>
-    <string name="translate_stage_detection">Mendeteksi teks &amp; balon percakapan...</string>
+    <string name="translate_stage_detection">Mendeteksi balon teks...</string>
     <string name="translate_stage_ocr">Membaca teks (OCR)...</string>
     <string name="translate_stage_translation">Menerjemahkan teks...</string>
-    <string name="translate_stage_inpainting">Membersihkan teks asli (Inpainting)...</string>
-    <string name="translate_stage_rendering">Menata &amp; merender teks terjemahan...</string>
+    <string name="translate_stage_inpainting">Membersihkan teks asli...</string>
+    <string name="translate_stage_rendering">Merender teks terjemahan...</string>
+
+    <!-- Dialog Review Deteksi -->
+    <string name="editor_review_title">Review Balon Teks</string>
+    <string name="editor_bubbles_detected">%1$d balon terdeteksi</string>
+    <string name="editor_selected_bubble">Balon Terpilih</string>
+    <string name="editor_delete_sfx">Hapus / Abaikan SFX</string>
+    <string name="editor_continue_translate">Lanjutkan Terjemahan (%1$d Balon)</string>
+    <string name="editor_hint_add">Mode Tambah: Tarik kotak di atas balon manga</string>
+    <string name="editor_hint_selected">Balon #%1$d: Geser posisi atau tarik sudut</string>
+    <string name="editor_hint_idle">Ketuk balon untuk edit/hapus • Dua jari untuk zoom</string>
+    <string name="editor_action_add_box">Tambah Kotak</string>
+    <string name="editor_action_delete_box">Hapus Kotak</string>
+    <string name="editor_action_reset">Reset Awal</string>
+
+    <!-- Dialog Edit Typeset -->
+    <string name="typeset_title">Edit Typeset &amp; Render</string>
+    <string name="typeset_bubbles_count">%1$d balon teks</string>
+    <string name="typeset_empty_bubble">(Balon Kosong)</string>
+    <string name="typeset_edit_text_btn">Edit Teks</string>
+    <string name="typeset_decrease_font">Kecilkan Font</string>
+    <string name="typeset_increase_font">Besarkan Font</string>
+    <string name="typeset_align_left">Rata Kiri</string>
+    <string name="typeset_align_center">Rata Tengah</string>
+    <string name="typeset_align_right">Rata Kanan</string>
+    <string name="typeset_hint_idle">Ketuk balon teks untuk mengatur font, posisi, dan teks.</string>
+    <string name="typeset_save_apply">Simpan &amp; Terapkan Render (%1$d Balon)</string>
+    <string name="typeset_dialog_edit_title">Edit Teks Balon #%1$d</string>
+    <string name="typeset_ocr_label">Teks Asli (OCR):</string>
+    <string name="typeset_translated_label">Teks Terjemahan</string>
 
     <!-- Layar Galeri -->
     <string name="gallery_title">Galeri</string>
-    <string name="gallery_item_count">%1$d terjemahan</string>
+    <string name="gallery_item_count">%1$d item</string>
     <string name="gallery_selected_count">%1$d dipilih</string>
     <string name="gallery_menu_clear_all">Hapus Semua Riwayat</string>
     <string name="gallery_empty_title">Belum Ada Hasil Terjemahan</string>
     <string name="gallery_empty_subtitle">Manga atau gambar yang Anda terjemahkan akan tersimpan rapi secara otomatis di sini.</string>
     <string name="gallery_dialog_clear_title">Hapus Semua Riwayat\?</string>
     <string name="gallery_dialog_clear_msg">Seluruh hasil gambar terjemahan akan dihapus permanen dari memori internal perangkat.</string>
-    <string name="gallery_dialog_delete_title">Hapus %1$d Gambar\?</string>
-    <string name="gallery_dialog_delete_msg">Gambar yang dipilih akan dihapus permanen dari riwayat dan penyimpanan.</string>
+    <string name="gallery_dialog_delete_title">Hapus %1$d Item\?</string>
+    <string name="gallery_dialog_delete_msg">Item yang dipilih akan dihapus permanen dari riwayat dan penyimpanan.</string>
+    <string name="gallery_retranslate_btn">Translate Ulang</string>
+    <string name="gallery_album_badge">%1$d Hal</string>
+    <string name="gallery_album_type">Album Chapter</string>
+    <string name="gallery_no_image">Tidak Ada Gambar</string>
+    <string name="gallery_selected_badge">Terpilih</string>
 
     <!-- Layar Reader -->
     <string name="reader_dialog_delete_title">Hapus Gambar\?</string>
@@ -63,19 +126,28 @@
     <string name="reader_show_original">Gambar Asli</string>
     <string name="reader_show_translated">Hasil Terjemahan</string>
     <string name="reader_not_found">Gambar terjemahan tidak ditemukan</string>
+    <string name="reader_page_indicator">Halaman %1$d / %2$d</string>
+    <string name="reader_prev_page">Halaman Sebelumnya</string>
+    <string name="reader_next_page">Halaman Berikutnya</string>
 
     <!-- Layar Pengaturan -->
     <string name="settings_title">Pengaturan</string>
     <string name="settings_language_engine">Bahasa &amp; Mesin Terjemahan</string>
-    <string name="settings_default_source_lang">Bahasa Asal Default</string>
     <string name="settings_default_target_lang">Bahasa Tujuan Default</string>
     <string name="settings_default_translator">Penyedia Terjemahan Default</string>
     <string name="settings_api_keys">Kunci API (API Keys)</string>
-    <string name="settings_model_quality">Kualitas &amp; Resolusi Model AI</string>
-    <string name="settings_detection_res">Resolusi Deteksi Teks</string>
-    <string name="settings_inpainting_res">Resolusi Inpainting (Hapus Teks)</string>
-    <string name="settings_font_size_offset">Penyesuaian Ukuran Font: %1$d</string>
+    <string name="settings_api_keys_subtitle">Atur API key penyedia terjemahan. Kunci disimpan aman di penyimpanan lokal perangkat.</string>
+    <string name="settings_key_active">AKTIF</string>
+    <string name="settings_key_configured">Kunci terkonfigurasi (••••••••)</string>
+    <string name="settings_key_none">Belum ada kunci</string>
+    <string name="settings_get_key">Dapatkan Kunci</string>
+    <string name="settings_paste_key_hint">Tempel API key Anda di sini...</string>
+    <string name="settings_clear_key">Hapus kunci</string>
+    <string name="settings_preset_models">Preset Model Populer:</string>
+    <string name="settings_hide_key">Sembunyikan kunci</string>
+    <string name="settings_show_key">Tampilkan kunci</string>
     <string name="settings_storage">Penyimpanan</string>
+    <string name="settings_storage_subtitle">Hapus file gambar riwayat &amp; cache</string>
     <string name="settings_clear_history_btn">Hapus Semua Riwayat Terjemahan</string>
     <string name="settings_dialog_clear_title">Hapus Riwayat</string>
     <string name="settings_dialog_clear_msg">Apakah Anda yakin ingin menghapus seluruh riwayat terjemahan\? Tindakan ini tidak dapat dibatalkan.</string>
@@ -83,4 +155,30 @@
     <string name="settings_version">Versi 1.0.0</string>
     <string name="settings_developed_by">Dikembangkan oleh @%1$s</string>
     <string name="settings_github">Repositori GitHub</string>
+
+    <!-- Layar Batch Translate -->
+    <string name="batch_title">Batch Translate</string>
+    <string name="batch_hero_title">Batch Chapter Translate</string>
+    <string name="batch_hero_subtitle">Pilih beberapa halaman manga dan terjemahkan secara berurutan</string>
+    <string name="batch_page_count">%1$d halaman dipilih</string>
+    <string name="batch_sort_filename">Urutkan Berdasarkan Nama</string>
+    <string name="batch_add_pages">Tambah Halaman</string>
+    <string name="batch_start_btn">Mulai Terjemahkan (%1$d Halaman)</string>
+    <string name="batch_processing_progress">Memproses %1$d dari %2$d halaman (%3$d%%)</string>
+    <string name="batch_empty_title">Belum Ada Halaman Dipilih</string>
+    <string name="batch_empty_subtitle">Pilih beberapa halaman manga dari galeri Anda untuk memulai batch terjemahan.</string>
+    <string name="batch_select_pages">Pilih Halaman Manga</string>
+    <string name="batch_status_queued">Dalam Antrean</string>
+    <string name="batch_status_done">Selesai</string>
+    <string name="batch_status_failed">Gagal</string>
+    <string name="batch_read_chapter">Baca Chapter (%1$d Halaman)</string>
+    <string name="batch_retry_failed">Coba Ulang yang Gagal (%1$d)</string>
+    <string name="batch_clear_dialog_title">Hapus Batch</string>
+    <string name="batch_clear_dialog_msg">Apakah Anda yakin ingin membersihkan semua halaman dalam batch ini\?</string>
+    <string name="batch_status_in_progress">Menerjemahkan Chapter...</string>
+    <string name="batch_status_error">Selesai dengan Beberapa Error</string>
+    <string name="batch_status_all_done">Terjemahan Chapter Selesai!</string>
+    <string name="batch_stage_detecting">Mendeteksi balon teks...</string>
+    <string name="batch_stage_completed">Selesai</string>
+    <string name="batch_stage_typeset_updated">Typeset diperbarui</string>
 </resources>

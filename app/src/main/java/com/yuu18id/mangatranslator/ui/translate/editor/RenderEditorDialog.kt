@@ -3,12 +3,15 @@ package com.yuu18id.mangatranslator.ui.translate.editor
 import android.graphics.Paint
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.*
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.FormatAlignLeft
+import androidx.compose.material.icons.automirrored.filled.FormatAlignRight
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -16,12 +19,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.yuu18id.mangatranslator.R
 import com.yuu18id.mangatranslator.domain.model.TextAlignment
 import com.yuu18id.mangatranslator.domain.model.TextBlock
-import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.sqrt
 
 fun computeEffectiveFontSize(block: EditableRenderBlock): Float {
     if (block.customFontSize != null) return block.customFontSize
@@ -29,39 +35,12 @@ fun computeEffectiveFontSize(block: EditableRenderBlock): Float {
     val text = block.translatedText.trim()
     if (text.isBlank() || b.width() <= 0 || b.height() <= 0) return 18f
 
-    val maxAllowedWidth = b.width() * 0.94f
-    val maxAllowedHeight = b.height() * 0.92f
-    val paint = Paint()
-
-    var low = 12f
-    var high = min(maxAllowedHeight * 0.50f, 40f).coerceAtLeast(low + 2f)
-    var bestSize = low
-    var iter = 0
-    while (high - low >= 0.5f && iter < 14) {
-        iter++
-        val mid = (low + high) / 2f
-        paint.textSize = mid
-        val words = text.split(Regex("\\s+")).filter { it.isNotEmpty() }
-        var linesCount = 1
-        var curSpan = 0f
-        for (w in words) {
-            val span = paint.measureText(if (curSpan == 0f) w else " $w")
-            if (curSpan + span > maxAllowedWidth && curSpan > 0f) {
-                linesCount++
-                curSpan = paint.measureText(w)
-            } else {
-                curSpan += span
-            }
-        }
-        val totalH = linesCount * (mid * 1.18f)
-        if (totalH <= maxAllowedHeight) {
-            bestSize = mid
-            low = mid
-        } else {
-            high = mid
-        }
-    }
-    return bestSize
+    val maxAllowedWidth = b.width() * 0.92f
+    val maxAllowedHeight = b.height() * 0.90f
+    val len = text.length.coerceAtLeast(1)
+    val area = maxAllowedWidth * maxAllowedHeight
+    val charArea = area / len
+    return sqrt(charArea * 0.70f).coerceIn(10f, 42f)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -96,12 +75,12 @@ fun RenderEditorDialog(
                     title = {
                         Column {
                             Text(
-                                text = "Review Render & Typeset",
+                                text = stringResource(R.string.typeset_title),
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
-                                text = "${blocks.size} balon teks (geser/ubah ukuran/edit kata)",
+                                text = stringResource(R.string.typeset_bubbles_count, blocks.size),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -109,69 +88,40 @@ fun RenderEditorDialog(
                     },
                     navigationIcon = {
                         IconButton(onClick = onDismiss) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Kembali")
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = stringResource(R.string.action_back)
+                            )
                         }
                     },
                     actions = {
                         if (selectedBlock != null) {
-                            // Quick Edit Text Button
-                            IconButton(
-                                onClick = {
-                                    textEditingDraft = selectedBlock.translatedText
-                                    isEditingTextContent = true
-                                }
-                            ) {
-                                Icon(Icons.Default.Edit, contentDescription = "Edit Teks", tint = MaterialTheme.colorScheme.primary)
-                            }
-
-                            // Decrease Font Size (-)
-                            IconButton(
-                                onClick = {
-                                    val cur = computeEffectiveFontSize(selectedBlock)
-                                    val updated = selectedBlock.copy(customFontSize = (cur - 2f).coerceAtLeast(8f))
-                                    blocks = blocks.map { if (it.id == updated.id) updated else it }
-                                }
-                            ) {
-                                Icon(Icons.Default.Remove, contentDescription = "Perkecil Font")
-                            }
-
-                            // Font size display
-                            Text(
-                                text = "${computeEffectiveFontSize(selectedBlock).toInt()}pt",
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = FontWeight.Bold
-                            )
-
-                            // Increase Font Size (+)
-                            IconButton(
-                                onClick = {
-                                    val cur = computeEffectiveFontSize(selectedBlock)
-                                    val updated = selectedBlock.copy(customFontSize = (cur + 2f).coerceAtMost(60f))
-                                    blocks = blocks.map { if (it.id == updated.id) updated else it }
-                                }
-                            ) {
-                                Icon(Icons.Default.Add, contentDescription = "Perbesar Font")
-                            }
-
-                            // Delete Selected Block
                             IconButton(
                                 onClick = {
                                     blocks = blocks.filter { it.id != selectedBlockId }
                                     selectedBlockId = null
                                 }
                             ) {
-                                Icon(Icons.Default.Delete, contentDescription = "Hapus Balon", tint = MaterialTheme.colorScheme.error)
+                                Icon(
+                                    imageVector = Icons.Default.Delete,
+                                    contentDescription = stringResource(R.string.action_delete),
+                                    tint = MaterialTheme.colorScheme.error
+                                )
                             }
                         }
 
-                        // Reset Button
                         IconButton(
                             onClick = {
-                                blocks = initialBlocks.mapIndexed { idx, b -> EditableRenderBlock.fromTextBlock(idx + 1, b) }
+                                blocks = initialBlocks.mapIndexed { idx, b ->
+                                    EditableRenderBlock.fromTextBlock(idx + 1, b)
+                                }
                                 selectedBlockId = null
                             }
                         ) {
-                            Icon(Icons.Default.Refresh, contentDescription = "Reset Awal")
+                            Icon(
+                                imageVector = Icons.Default.Refresh,
+                                contentDescription = stringResource(R.string.action_reset)
+                            )
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
@@ -184,135 +134,216 @@ fun RenderEditorDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .navigationBarsPadding(),
-                    tonalElevation = 8.dp,
-                    shadowElevation = 12.dp,
+                    tonalElevation = 6.dp,
+                    shadowElevation = 10.dp,
                     color = MaterialTheme.colorScheme.surface
                 ) {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 16.dp),
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        // Selected Block Details Strip
-                        AnimatedVisibility(
-                            visible = selectedBlock != null,
-                            enter = fadeIn() + expandVertically(),
-                            exit = fadeOut() + shrinkVertically()
-                        ) {
-                            if (selectedBlock != null) {
-                                Row(
+                        // Inspector Card for Selected Block (Does NOT flicker on drag!)
+                        if (selectedBlock != null) {
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(16.dp),
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                            ) {
+                                Column(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .background(
-                                            MaterialTheme.colorScheme.surfaceVariant,
-                                            RoundedCornerShape(12.dp)
-                                        )
-                                        .padding(horizontal = 12.dp, vertical = 8.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
+                                        .padding(12.dp),
+                                    verticalArrangement = Arrangement.spacedBy(10.dp)
                                 ) {
+                                    // Row 1: Header (ID Badge + Text Preview + Edit Text CTA)
                                     Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                        modifier = Modifier.weight(1f)
-                                    ) {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(24.dp)
-                                                .background(Color(0xFFFFC107), CircleShape),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Text(
-                                                text = "#${selectedBlock.id}",
-                                                style = MaterialTheme.typography.labelSmall,
-                                                fontWeight = FontWeight.Bold,
-                                                color = Color.Black
-                                            )
-                                        }
-                                        Text(
-                                            text = selectedBlock.translatedText.take(20) + if (selectedBlock.translatedText.length > 20) "..." else "",
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            fontWeight = FontWeight.Medium,
-                                            maxLines = 1
-                                        )
-                                    }
-
-                                    Row(
-                                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        // Font Size stepper buttons
-                                        IconButton(
-                                            onClick = {
-                                                val cur = computeEffectiveFontSize(selectedBlock)
-                                                val updated = selectedBlock.copy(customFontSize = (cur - 2f).coerceAtLeast(8f))
-                                                blocks = blocks.map { if (it.id == updated.id) updated else it }
-                                            },
-                                            modifier = Modifier.size(32.dp)
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                            modifier = Modifier.weight(1f)
                                         ) {
-                                            Icon(Icons.Default.Remove, contentDescription = "Kecilkan Font", modifier = Modifier.size(16.dp))
-                                        }
-                                        Text(
-                                            text = "${computeEffectiveFontSize(selectedBlock).toInt()}pt",
-                                            style = MaterialTheme.typography.labelMedium,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                        IconButton(
-                                            onClick = {
-                                                val cur = computeEffectiveFontSize(selectedBlock)
-                                                val updated = selectedBlock.copy(customFontSize = (cur + 2f).coerceAtMost(60f))
-                                                blocks = blocks.map { if (it.id == updated.id) updated else it }
-                                            },
-                                            modifier = Modifier.size(32.dp)
-                                        ) {
-                                            Icon(Icons.Default.Add, contentDescription = "Besarkan Font", modifier = Modifier.size(16.dp))
-                                        }
-
-                                        // Alignment Toggle
-                                        IconButton(
-                                            onClick = {
-                                                val nextAlign = when (selectedBlock.customAlignment) {
-                                                    TextAlignment.CENTER, TextAlignment.AUTO -> TextAlignment.LEFT
-                                                    TextAlignment.LEFT -> TextAlignment.RIGHT
-                                                    TextAlignment.RIGHT -> TextAlignment.CENTER
-                                                    else -> TextAlignment.CENTER
+                                            Surface(
+                                                shape = CircleShape,
+                                                color = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(24.dp)
+                                            ) {
+                                                Box(contentAlignment = Alignment.Center) {
+                                                    Text(
+                                                        text = "#${selectedBlock.id}",
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = MaterialTheme.colorScheme.onPrimary
+                                                    )
                                                 }
-                                                val updated = selectedBlock.copy(customAlignment = nextAlign)
-                                                blocks = blocks.map { if (it.id == updated.id) updated else it }
-                                            },
-                                            modifier = Modifier.size(32.dp)
-                                        ) {
-                                            Icon(
-                                                imageVector = when (selectedBlock.customAlignment) {
-                                                    TextAlignment.LEFT -> Icons.Default.FormatAlignLeft
-                                                    TextAlignment.RIGHT -> Icons.Default.FormatAlignRight
-                                                    TextAlignment.CENTER, TextAlignment.AUTO -> Icons.Default.FormatAlignCenter
-                                                    else -> Icons.Default.FormatAlignCenter
-                                                },
-                                                contentDescription = "Perataan Teks",
-                                                modifier = Modifier.size(18.dp)
+                                            }
+                                            Text(
+                                                text = selectedBlock.translatedText.ifBlank { stringResource(R.string.typeset_empty_bubble) },
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                fontWeight = FontWeight.SemiBold,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
                                             )
                                         }
 
-                                        // Edit Text Button
-                                        Button(
+                                        FilledTonalButton(
                                             onClick = {
                                                 textEditingDraft = selectedBlock.translatedText
                                                 isEditingTextContent = true
                                             },
-                                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp)
+                                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                                            shape = RoundedCornerShape(10.dp)
                                         ) {
                                             Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(14.dp))
                                             Spacer(modifier = Modifier.width(4.dp))
-                                            Text("Edit", style = MaterialTheme.typography.labelSmall)
+                                            Text(stringResource(R.string.typeset_edit_text_btn), style = MaterialTheme.typography.labelMedium)
+                                        }
+                                    }
+
+                                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+
+                                    // Row 2: Typesetting Steppers & Alignment
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        // Font Size Stepper Pill
+                                        Surface(
+                                            shape = RoundedCornerShape(12.dp),
+                                            color = MaterialTheme.colorScheme.surface,
+                                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                                        ) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(2.dp),
+                                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                                            ) {
+                                                IconButton(
+                                                    onClick = {
+                                                        val cur = computeEffectiveFontSize(selectedBlock)
+                                                        val updated = selectedBlock.copy(customFontSize = (cur - 2f).coerceAtLeast(8f))
+                                                        blocks = blocks.map { if (it.id == updated.id) updated else it }
+                                                    },
+                                                    modifier = Modifier.size(32.dp)
+                                                ) {
+                                                    Icon(Icons.Default.Remove, contentDescription = stringResource(R.string.typeset_decrease_font), modifier = Modifier.size(16.dp))
+                                                }
+
+                                                Text(
+                                                    text = "${computeEffectiveFontSize(selectedBlock).toInt()} pt",
+                                                    style = MaterialTheme.typography.labelMedium,
+                                                    fontWeight = FontWeight.Bold,
+                                                    modifier = Modifier.padding(horizontal = 4.dp)
+                                                )
+
+                                                IconButton(
+                                                    onClick = {
+                                                        val cur = computeEffectiveFontSize(selectedBlock)
+                                                        val updated = selectedBlock.copy(customFontSize = (cur + 2f).coerceAtMost(60f))
+                                                        blocks = blocks.map { if (it.id == updated.id) updated else it }
+                                                    },
+                                                    modifier = Modifier.size(32.dp)
+                                                ) {
+                                                    Icon(Icons.Default.Add, contentDescription = stringResource(R.string.typeset_increase_font), modifier = Modifier.size(16.dp))
+                                                }
+                                            }
+                                        }
+
+                                        // Text Alignment Controls
+                                        Surface(
+                                            shape = RoundedCornerShape(12.dp),
+                                            color = MaterialTheme.colorScheme.surface,
+                                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                                        ) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                modifier = Modifier.padding(2.dp)
+                                            ) {
+                                                val currentAlign = selectedBlock.customAlignment ?: TextAlignment.CENTER
+                                                IconButton(
+                                                    onClick = {
+                                                        val updated = selectedBlock.copy(customAlignment = TextAlignment.LEFT)
+                                                        blocks = blocks.map { if (it.id == updated.id) updated else it }
+                                                    },
+                                                    modifier = Modifier.size(32.dp)
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.AutoMirrored.Filled.FormatAlignLeft,
+                                                        contentDescription = stringResource(R.string.typeset_align_left),
+                                                        tint = if (currentAlign == TextAlignment.LEFT) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                                        modifier = Modifier.size(18.dp)
+                                                    )
+                                                }
+                                                IconButton(
+                                                    onClick = {
+                                                        val updated = selectedBlock.copy(customAlignment = TextAlignment.CENTER)
+                                                        blocks = blocks.map { if (it.id == updated.id) updated else it }
+                                                    },
+                                                    modifier = Modifier.size(32.dp)
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.FormatAlignCenter,
+                                                        contentDescription = stringResource(R.string.typeset_align_center),
+                                                        tint = if (currentAlign == TextAlignment.CENTER || currentAlign == TextAlignment.AUTO) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                                        modifier = Modifier.size(18.dp)
+                                                    )
+                                                }
+                                                IconButton(
+                                                    onClick = {
+                                                        val updated = selectedBlock.copy(customAlignment = TextAlignment.RIGHT)
+                                                        blocks = blocks.map { if (it.id == updated.id) updated else it }
+                                                    },
+                                                    modifier = Modifier.size(32.dp)
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.AutoMirrored.Filled.FormatAlignRight,
+                                                        contentDescription = stringResource(R.string.typeset_align_right),
+                                                        tint = if (currentAlign == TextAlignment.RIGHT) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                                        modifier = Modifier.size(18.dp)
+                                                    )
+                                                }
+                                            }
                                         }
                                     }
                                 }
                             }
+                        } else {
+                            // Subtle Guidance Hint
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(12.dp),
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.TouchApp,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(18.dp),
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Text(
+                                        text = stringResource(R.string.typeset_hint_idle),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
                         }
 
-                        // Primary Action Button: Save and Apply Render
+                        // Primary Confirmation Action Button
                         Button(
                             onClick = {
                                 val updatedTextBlocks = blocks.map { it.toTextBlock() }
@@ -320,16 +351,13 @@ fun RenderEditorDialog(
                             },
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(54.dp),
-                            shape = RoundedCornerShape(16.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.primary
-                            )
+                                .height(52.dp),
+                            shape = RoundedCornerShape(16.dp)
                         ) {
-                            Icon(Icons.Default.CheckCircle, contentDescription = null)
+                            Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "Simpan & Terapkan Render (${blocks.size} Balon)",
+                                text = stringResource(R.string.typeset_save_apply, blocks.size),
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold
                             )
@@ -366,17 +394,30 @@ fun RenderEditorDialog(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Icon(Icons.Default.Edit, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                        Text("Edit Teks Terjemahan (#${selectedBlock.id})")
+                        Text(stringResource(R.string.typeset_dialog_edit_title, selectedBlock.id), style = MaterialTheme.typography.titleLarge)
                     }
                 },
                 text = {
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         if (selectedBlock.originalText.isNotBlank()) {
-                            Text(
-                                text = "Teks Asli: ${selectedBlock.originalText}",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(modifier = Modifier.padding(10.dp)) {
+                                    Text(
+                                        text = stringResource(R.string.typeset_ocr_label),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Text(
+                                        text = selectedBlock.originalText,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
+                            }
                         }
                         OutlinedTextField(
                             value = textEditingDraft,
@@ -384,8 +425,8 @@ fun RenderEditorDialog(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .heightIn(min = 120.dp),
-                            label = { Text("Teks Terjemahan") },
-                            shape = RoundedCornerShape(12.dp)
+                            label = { Text(stringResource(R.string.typeset_translated_label)) },
+                            shape = RoundedCornerShape(14.dp)
                         )
                     }
                 },
@@ -395,14 +436,15 @@ fun RenderEditorDialog(
                             val updated = selectedBlock.copy(translatedText = textEditingDraft)
                             blocks = blocks.map { if (it.id == updated.id) updated else it }
                             isEditingTextContent = false
-                        }
+                        },
+                        shape = RoundedCornerShape(10.dp)
                     ) {
-                        Text("Terapkan")
+                        Text(stringResource(R.string.action_apply))
                     }
                 },
                 dismissButton = {
                     TextButton(onClick = { isEditingTextContent = false }) {
-                        Text("Batal")
+                        Text(stringResource(R.string.action_cancel))
                     }
                 }
             )

@@ -21,6 +21,9 @@ interface TranslationHistoryDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertOne(entity: TranslationHistoryEntity): Long
 
+    @androidx.room.Update
+    suspend fun updateOne(entity: TranslationHistoryEntity)
+
     @Query("DELETE FROM translation_history WHERE id = :id")
     suspend fun deleteOne(id: Long)
 

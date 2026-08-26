@@ -16,8 +16,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.yuu18id.mangatranslator.R
 import com.yuu18id.mangatranslator.domain.model.Quadrilateral
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -50,12 +52,12 @@ fun DetectionEditorDialog(
                     title = {
                         Column {
                             Text(
-                                text = "Review Balon Teks",
+                                text = stringResource(R.string.editor_review_title),
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
-                                text = "${boxes.size} balon terdeteksi",
+                                text = stringResource(R.string.editor_bubbles_detected, boxes.size),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -63,7 +65,7 @@ fun DetectionEditorDialog(
                     },
                     navigationIcon = {
                         IconButton(onClick = onDismiss) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Kembali")
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back))
                         }
                     },
                     actions = {
@@ -77,7 +79,7 @@ fun DetectionEditorDialog(
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Delete,
-                                    contentDescription = "Hapus Kotak",
+                                    contentDescription = stringResource(R.string.editor_action_delete_box),
                                     tint = MaterialTheme.colorScheme.error
                                 )
                             }
@@ -93,7 +95,7 @@ fun DetectionEditorDialog(
                         ) {
                             Icon(
                                 imageVector = if (isAddBoxMode) Icons.Default.Check else Icons.Default.AddBox,
-                                contentDescription = "Tambah Kotak"
+                                contentDescription = stringResource(R.string.editor_action_add_box)
                             )
                         }
 
@@ -107,7 +109,7 @@ fun DetectionEditorDialog(
                                 isAddBoxMode = false
                             }
                         ) {
-                            Icon(Icons.Default.Refresh, contentDescription = "Reset Awal")
+                            Icon(Icons.Default.Refresh, contentDescription = stringResource(R.string.editor_action_reset))
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
@@ -165,7 +167,7 @@ fun DetectionEditorDialog(
                                         )
                                     }
                                     Text(
-                                        text = "Balon Terpilih",
+                                        text = stringResource(R.string.editor_selected_bubble),
                                         style = MaterialTheme.typography.bodyMedium,
                                         fontWeight = FontWeight.SemiBold
                                     )
@@ -183,11 +185,11 @@ fun DetectionEditorDialog(
                                 ) {
                                     Icon(
                                         Icons.Default.Delete,
-                                        contentDescription = "Hapus",
+                                        contentDescription = stringResource(R.string.action_delete),
                                         modifier = Modifier.size(16.dp)
                                     )
                                     Spacer(modifier = Modifier.width(6.dp))
-                                    Text("Hapus / Abaikan SFX", style = MaterialTheme.typography.labelMedium)
+                                    Text(stringResource(R.string.editor_delete_sfx), style = MaterialTheme.typography.labelMedium)
                                 }
                             }
                         }
@@ -209,7 +211,7 @@ fun DetectionEditorDialog(
                             Icon(Icons.Default.Translate, contentDescription = null)
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "Lanjutkan Terjemahan (${boxes.size} Balon)",
+                                text = stringResource(R.string.editor_continue_translate, boxes.size),
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold
                             )
@@ -278,9 +280,9 @@ fun DetectionEditorDialog(
                         )
                         Text(
                             text = when {
-                                isAddBoxMode -> "Mode Tambah: Tarik kotak di atas balon manga"
-                                selectedBoxId != null -> "Balon #$selectedBoxId: Geser posisi atau tarik sudut"
-                                else -> "Ketuk balon untuk edit/hapus • Dua jari untuk zoom"
+                                isAddBoxMode -> stringResource(R.string.editor_hint_add)
+                                selectedBoxId != null -> stringResource(R.string.editor_hint_selected, selectedBoxId!!)
+                                else -> stringResource(R.string.editor_hint_idle)
                             },
                             style = MaterialTheme.typography.labelMedium,
                             fontWeight = FontWeight.Medium,

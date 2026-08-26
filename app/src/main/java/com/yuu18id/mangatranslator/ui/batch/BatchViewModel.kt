@@ -4,29 +4,30 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.ImageDecoder
 import android.net.Uri
-import android.os.Build
 import android.provider.OpenableColumns
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.yuu18id.mangatranslator.data.ml.TextRenderer
 import com.yuu18id.mangatranslator.domain.model.*
 import com.yuu18id.mangatranslator.domain.repository.HistoryRepository
 import com.yuu18id.mangatranslator.domain.repository.SettingsRepository
 import com.yuu18id.mangatranslator.domain.usecase.TranslateImageUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.io.File
-import java.io.FileOutputStream
 import java.util.*
 import javax.inject.Inject
 
 @HiltViewModel
 class BatchViewModel @Inject constructor(
     private val translateImageUseCase: TranslateImageUseCase,
+    private val textRenderer: TextRenderer,
     private val settingsRepository: SettingsRepository,
     private val historyRepository: HistoryRepository,
     @ApplicationContext private val context: Context
@@ -36,6 +37,11 @@ class BatchViewModel @Inject constructor(
     val uiState: StateFlow<BatchUiState> = _uiState.asStateFlow()
 
     private var batchJob: Job? = null
+    private var detectionReviewDeferred: CompletableDeferred<List<Quadrilateral>?>? = null
+    private var currentReviewRawMask: Bitmap? = null
+
+    private var currentEditingInpaintedBitmap: Bitmap? = null
+    private var currentEditingOriginalBitmap: Bitmap? = null
 
     init {
         viewModelScope.launch {
@@ -129,6 +135,116 @@ class BatchViewModel @Inject constructor(
         _uiState.update { it.copy(translatorType = type) }
     }
 
+    fun toggleReviewMode() {
+        _uiState.update { it.copy(isReviewModeEnabled = !it.isReviewModeEnabled) }
+    }
+
+    // Detection Review Handling
+    fun confirmDetections(curatedQuads: List<Quadrilateral>) {
+        _uiState.update {
+            it.copy(
+                isShowingDetectionEditor = false,
+                reviewImageBitmap = null,
+                pendingDetections = emptyList(),
+                reviewPageIndex = -1
+            )
+        }
+        detectionReviewDeferred?.complete(curatedQuads)
+        detectionReviewDeferred = null
+    }
+
+    fun dismissDetectionEditor() {
+        _uiState.update {
+            it.copy(
+                isShowingDetectionEditor = false,
+                reviewImageBitmap = null,
+                pendingDetections = emptyList(),
+                reviewPageIndex = -1
+            )
+        }
+        detectionReviewDeferred?.complete(null)
+        detectionReviewDeferred = null
+    }
+
+    // Render Typeset Editor Handling
+    fun openRenderEditor(pageIndex: Int) {
+        val page = _uiState.value.pages.getOrNull(pageIndex) ?: return
+        val historyId = page.historyId ?: return
+
+        viewModelScope.launch(Dispatchers.IO) {
+            val record = historyRepository.getFullHistoryRecord(historyId)
+            if (record != null && record.inpaintedBitmap != null) {
+                currentEditingInpaintedBitmap = record.inpaintedBitmap
+                currentEditingOriginalBitmap = record.originalBitmap ?: record.inpaintedBitmap
+                _uiState.update {
+                    it.copy(
+                        isShowingRenderEditor = true,
+                        renderEditorInpaintedBitmap = record.inpaintedBitmap.asImageBitmap(),
+                        renderEditorBlocks = record.textBlocks,
+                        editingHistoryId = historyId,
+                        editingPageIndex = pageIndex
+                    )
+                }
+            }
+        }
+    }
+
+    fun dismissRenderEditor() {
+        _uiState.update {
+            it.copy(
+                isShowingRenderEditor = false,
+                renderEditorInpaintedBitmap = null,
+                renderEditorBlocks = emptyList(),
+                editingHistoryId = null,
+                editingPageIndex = -1
+            )
+        }
+        currentEditingInpaintedBitmap = null
+        currentEditingOriginalBitmap = null
+    }
+
+    fun applyEditedRender(updatedBlocks: List<TextBlock>) {
+        val inpainted = currentEditingInpaintedBitmap ?: return
+        val historyId = _uiState.value.editingHistoryId ?: return
+        val pageIndex = _uiState.value.editingPageIndex
+
+        dismissRenderEditor()
+
+        viewModelScope.launch {
+            try {
+                val savedConfig = settingsRepository.getTranslationConfig().first()
+                val (newFinalImage, finalizedBlocks) = withContext(Dispatchers.Default) {
+                    textRenderer.renderWithUpdatedBlocks(inpainted, updatedBlocks, savedConfig.render)
+                }
+
+                val original = currentEditingOriginalBitmap ?: inpainted
+                val updatedResult = TranslationResult(
+                    originalImage = original,
+                    translatedImage = newFinalImage,
+                    textBlocks = finalizedBlocks,
+                    config = savedConfig,
+                    timestamp = System.currentTimeMillis(),
+                    processingTimeMs = 0L,
+                    inpaintedImage = inpainted
+                )
+                historyRepository.updateTranslation(historyId, updatedResult)
+
+                if (pageIndex in _uiState.value.pages.indices) {
+                    _uiState.update { current ->
+                        val updatedList = current.pages.toMutableList()
+                        updatedList[pageIndex] = updatedList[pageIndex].copy(
+                            status = BatchPageStatus.COMPLETED,
+                            stageMessage = ""
+                        )
+                        current.copy(pages = updatedList)
+                    }
+                }
+            } catch (e: Exception) {
+                _uiState.update { it.copy(error = "Typeset update error: ${e.message}") }
+            }
+        }
+    }
+
     fun startBatchTranslation() {
         val state = _uiState.value
         val pagesToProcess = state.pages
@@ -156,6 +272,8 @@ class BatchViewModel @Inject constructor(
             )
 
             val total = pagesToProcess.size
+            val currentBatchId = "batch_${System.currentTimeMillis()}"
+            val currentBatchName = "Chapter ($total Pages)"
 
             for (i in pagesToProcess.indices) {
                 val page = _uiState.value.pages[i]
@@ -168,7 +286,7 @@ class BatchViewModel @Inject constructor(
                     updatedList[i] = page.copy(
                         status = BatchPageStatus.PROCESSING,
                         progress = 0f,
-                        stageMessage = "Loading image..."
+                        stageMessage = "Loading..."
                     )
                     current.copy(
                         pages = updatedList,
@@ -183,7 +301,47 @@ class BatchViewModel @Inject constructor(
                         decodeBitmapFromUri(Uri.parse(page.uriString))
                     }
 
-                    translateImageUseCase(originalBitmap, config).collect { pipelineState ->
+                    val pipelineFlow: Flow<PipelineState> = if (state.isReviewModeEnabled) {
+                        // 1. Detection Only
+                        _uiState.update { current ->
+                            val updatedList = current.pages.toMutableList()
+                            updatedList[i] = updatedList[i].copy(
+                                stageMessage = "Detecting text bubbles...",
+                                progress = 0.15f
+                            )
+                            current.copy(pages = updatedList)
+                        }
+
+                        val detResult = translateImageUseCase.detectOnly(originalBitmap, config.detector)
+                        currentReviewRawMask = detResult.mask
+
+                        val deferred = CompletableDeferred<List<Quadrilateral>?>()
+                        detectionReviewDeferred = deferred
+
+                        _uiState.update {
+                            it.copy(
+                                isShowingDetectionEditor = true,
+                                reviewImageBitmap = originalBitmap.asImageBitmap(),
+                                pendingDetections = detResult.textlines,
+                                reviewPageIndex = i
+                            )
+                        }
+
+                        // Wait for user review response
+                        val curatedQuads = deferred.await()
+                        val finalQuads = curatedQuads ?: detResult.textlines
+
+                        translateImageUseCase.executeFromDetections(
+                            image = originalBitmap,
+                            customTextlines = finalQuads,
+                            config = config,
+                            rawMask = currentReviewRawMask
+                        )
+                    } else {
+                        translateImageUseCase(originalBitmap, config)
+                    }
+
+                    pipelineFlow.collect { pipelineState ->
                         when (pipelineState) {
                             is PipelineState.Progress -> {
                                 _uiState.update { current ->
@@ -204,7 +362,7 @@ class BatchViewModel @Inject constructor(
                             is PipelineState.Completed -> {
                                 val result = pipelineState.result
                                 val historyId = withContext(Dispatchers.IO) {
-                                    saveResultToHistory(result, Uri.parse(page.uriString))
+                                    saveResultToHistory(result, currentBatchId, currentBatchName, i)
                                 }
 
                                 _uiState.update { current ->
@@ -213,7 +371,7 @@ class BatchViewModel @Inject constructor(
                                     updatedList[i] = updatedList[i].copy(
                                         status = BatchPageStatus.COMPLETED,
                                         progress = 1.0f,
-                                        stageMessage = "Completed",
+                                        stageMessage = "",
                                         historyId = historyId
                                     )
                                     current.copy(
@@ -242,8 +400,9 @@ class BatchViewModel @Inject constructor(
                         )
                     }
                 } finally {
-                    // Memory safety: Recycle bitmap and invoke GC hint between pages
                     try {
+                        currentReviewRawMask?.recycle()
+                        currentReviewRawMask = null
                         originalBitmap?.recycle()
                         originalBitmap = null
                     } catch (_: Throwable) {}
@@ -262,6 +421,7 @@ class BatchViewModel @Inject constructor(
 
     fun cancelBatchTranslation() {
         batchJob?.cancel()
+        dismissDetectionEditor()
         _uiState.update { current ->
             val updatedList = current.pages.map { page ->
                 if (page.status == BatchPageStatus.PROCESSING || page.status == BatchPageStatus.QUEUED) {
@@ -310,8 +470,18 @@ class BatchViewModel @Inject constructor(
         }
     }
 
-    private suspend fun saveResultToHistory(result: TranslationResult, uri: Uri): Long {
-        return historyRepository.saveTranslation(result)
+    private suspend fun saveResultToHistory(
+        result: TranslationResult,
+        batchId: String,
+        batchName: String,
+        pageIndex: Int
+    ): Long {
+        return historyRepository.saveTranslation(
+            result = result,
+            batchId = batchId,
+            batchName = batchName,
+            pageIndex = pageIndex
+        )
     }
 
     /**

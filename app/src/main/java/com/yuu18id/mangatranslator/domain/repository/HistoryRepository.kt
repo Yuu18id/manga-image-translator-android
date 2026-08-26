@@ -19,7 +19,13 @@ interface HistoryRepository {
     suspend fun getTranslationById(id: Long): TranslationHistoryItem?
     suspend fun getTranslationsByIds(ids: List<Long>): List<TranslationHistoryItem>
     suspend fun getFullHistoryRecord(id: Long): FullHistoryRecord?
-    suspend fun saveTranslation(result: TranslationResult): Long
+    suspend fun saveTranslation(
+        result: TranslationResult,
+        batchId: String? = null,
+        batchName: String? = null,
+        pageIndex: Int = 0
+    ): Long
+    suspend fun updateTranslation(id: Long, result: TranslationResult): Long
     suspend fun deleteTranslation(id: Long)
     suspend fun deleteTranslations(ids: Collection<Long>)
     suspend fun clearHistory()

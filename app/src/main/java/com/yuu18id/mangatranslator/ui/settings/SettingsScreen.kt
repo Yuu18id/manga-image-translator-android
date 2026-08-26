@@ -105,17 +105,6 @@ fun SettingsScreen(
                 icon = Icons.Default.Translate
             ) {
                 SettingsDropdownItem(
-                    label = stringResource(R.string.settings_default_source_lang),
-                    icon = Icons.Default.Language,
-                    options = remember { listOf(Language.JPN) },
-                    selectedOption = uiState.config.translator.sourceLang ?: Language.JPN,
-                    onOptionSelected = viewModel::updateSourceLanguage,
-                    optionLabel = { it?.displayName ?: Language.JPN.displayName }
-                )
-
-                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-
-                SettingsDropdownItem(
                     label = stringResource(R.string.settings_default_target_lang),
                     icon = Icons.Default.Check,
                     options = remember { Language.values().toList() },
@@ -139,93 +128,7 @@ fun SettingsScreen(
             // 2. AI Translation Engines & API Keys
             ApiKeysSettingsSection(viewModel = viewModel, uiState = uiState)
 
-            // 3. Model & Quality Settings
-            SettingsSection(
-                title = stringResource(R.string.settings_model_quality),
-                icon = Icons.Default.Tune
-            ) {
-                SettingsDropdownItem(
-                    label = stringResource(R.string.settings_detection_res),
-                    icon = Icons.Default.CropFree,
-                    options = remember { listOf(1024) },
-                    selectedOption = 1024,
-                    onOptionSelected = viewModel::updateDetectionResolution,
-                    optionLabel = { "1024 px (CTD Model Native)" }
-                )
-
-                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-
-                SettingsDropdownItem(
-                    label = stringResource(R.string.settings_inpainting_res),
-                    icon = Icons.Default.AutoFixHigh,
-                    options = remember { listOf(512) },
-                    selectedOption = 512,
-                    onOptionSelected = viewModel::updateInpaintingResolution,
-                    optionLabel = { "512 px (AOT Model Native)" }
-                )
-
-                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-
-                // Font Size Offset Slider
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                Icons.Default.FormatSize,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Text(
-                                text = "Font Size Offset",
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                        }
-                        Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = MaterialTheme.colorScheme.primaryContainer
-                        ) {
-                            Text(
-                                text = if (uiState.config.render.fontSizeOffset >= 0) "+${uiState.config.render.fontSizeOffset} pt" else "${uiState.config.render.fontSizeOffset} pt",
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    Slider(
-                        value = uiState.config.render.fontSizeOffset.toFloat(),
-                        onValueChange = { viewModel.updateFontSizeOffset(it.toInt()) },
-                        valueRange = -5f..5f,
-                        steps = 9
-                    )
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text("-5 (Smaller)", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text("0 (Auto)", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text("+5 (Larger)", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                }
-            }
-
-            // 4. Storage Management
+            // 3. Storage Management
             SettingsSection(
                 title = stringResource(R.string.settings_storage),
                 icon = Icons.Default.Storage
@@ -265,7 +168,7 @@ fun SettingsScreen(
                                 color = MaterialTheme.colorScheme.error
                             )
                             Text(
-                                text = "Delete saved translation images & cache",
+                                text = stringResource(R.string.settings_storage_subtitle),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -342,7 +245,7 @@ fun ApiKeysSettingsSection(
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Text(
-                text = "Configure API keys for translation providers. Keys are stored securely in local app storage.",
+                text = stringResource(R.string.settings_api_keys_subtitle),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
@@ -456,7 +359,7 @@ fun ProviderApiKeyCard(
                                     color = MaterialTheme.colorScheme.primary
                                 ) {
                                     Text(
-                                        text = "ACTIVE",
+                                        text = stringResource(R.string.settings_key_active),
                                         style = MaterialTheme.typography.labelSmall,
                                         color = MaterialTheme.colorScheme.onPrimary,
                                         modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
@@ -465,7 +368,7 @@ fun ProviderApiKeyCard(
                             }
                         }
                         Text(
-                            text = if (hasKey) "Key configured (••••••••)" else "No key set",
+                            text = if (hasKey) stringResource(R.string.settings_key_configured) else stringResource(R.string.settings_key_none),
                             style = MaterialTheme.typography.labelSmall,
                             color = if (hasKey) Color(0xFF2E7D32) else MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -484,7 +387,7 @@ fun ProviderApiKeyCard(
                     ) {
                         Icon(
                             Icons.AutoMirrored.Filled.OpenInNew,
-                            contentDescription = "Get Key",
+                            contentDescription = stringResource(R.string.settings_get_key),
                             tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(18.dp)
                         )
@@ -495,7 +398,7 @@ fun ProviderApiKeyCard(
                     ) {
                         Icon(
                             imageVector = if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                            contentDescription = if (isExpanded) "Collapse" else "Expand",
+                            contentDescription = if (isExpanded) stringResource(R.string.action_collapse) else stringResource(R.string.action_expand),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
@@ -564,7 +467,7 @@ fun OpenRouterModelSelector(
         )
 
         Text(
-            text = "Popular Preset Models:",
+            text = stringResource(R.string.settings_preset_models),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -609,7 +512,7 @@ fun ApiKeyInputField(
         value = localValue,
         onValueChange = { localValue = it },
         label = { Text(label) },
-        placeholder = { Text("Paste your API key here...") },
+        placeholder = { Text(stringResource(R.string.settings_paste_key_hint)) },
         singleLine = true,
         visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
         modifier = Modifier
@@ -628,12 +531,12 @@ fun ApiKeyInputField(
                             onValueChange("")
                         }
                     ) {
-                        Icon(Icons.Default.Clear, contentDescription = "Clear key", modifier = Modifier.size(18.dp))
+                        Icon(Icons.Default.Clear, contentDescription = stringResource(R.string.settings_clear_key), modifier = Modifier.size(18.dp))
                     }
                 }
                 val icon = if (passwordVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff
                 IconButton(onClick = { passwordVisible = !passwordVisible }) {
-                    Icon(imageVector = icon, contentDescription = if (passwordVisible) "Hide key" else "Show key")
+                    Icon(imageVector = icon, contentDescription = if (passwordVisible) stringResource(R.string.settings_hide_key) else stringResource(R.string.settings_show_key))
                 }
             }
         }

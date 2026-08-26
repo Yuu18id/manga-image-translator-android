@@ -82,7 +82,12 @@ class HistoryRepositoryImpl @Inject constructor(
         )
     }
 
-    override suspend fun saveTranslation(result: TranslationResult): Long = withContext(Dispatchers.IO) {
+    override suspend fun saveTranslation(
+        result: TranslationResult,
+        batchId: String?,
+        batchName: String?,
+        pageIndex: Int
+    ): Long = withContext(Dispatchers.IO) {
         val timestamp = if (result.timestamp > 0) result.timestamp else System.currentTimeMillis()
         
         // Save original image (used as original view and thumbnail)
@@ -115,16 +120,81 @@ class HistoryRepositoryImpl @Inject constructor(
         val entity = TranslationHistoryEntity(
             thumbnailPath = origFile.absolutePath,
             resultPath = transFile.absolutePath,
-            sourceLang = result.config.translator.sourceLang?.name ?: "AUTO",
+            sourceLang = result.config.translator.sourceLang?.name ?: "JPN",
             targetLang = result.config.translator.targetLang.name,
             translatorType = result.config.translator.translatorType.name,
             textBlockCount = result.textBlocks.size,
             timestamp = timestamp,
             processingTimeMs = result.processingTimeMs,
             inpaintedPath = inpaintFile,
-            blocksJsonPath = blocksFile
+            blocksJsonPath = blocksFile,
+            batchId = batchId,
+            batchName = batchName,
+            pageIndex = pageIndex
         )
         historyDao.insertOne(entity)
+    }
+
+    override suspend fun updateTranslation(id: Long, result: TranslationResult): Long = withContext(Dispatchers.IO) {
+        val existing = historyDao.getById(id)
+        if (existing == null) {
+            return@withContext saveTranslation(result)
+        }
+
+        val timestamp = if (result.timestamp > 0) result.timestamp else System.currentTimeMillis()
+
+        // 1. Delete previous translated image file to prevent orphaned storage waste
+        if (existing.resultPath.isNotBlank()) {
+            runCatching { File(existing.resultPath).delete() }
+        }
+
+        // 2. Delete previous text blocks metadata file
+        if (!existing.blocksJsonPath.isNullOrBlank()) {
+            runCatching { File(existing.blocksJsonPath).delete() }
+        }
+
+        // 3. Save new translated image
+        val transFile = File(historyDir, "trans_${timestamp}.png")
+        saveBitmap(result.translatedImage, transFile)
+
+        // 4. Inpainted background image
+        val inpaintFile = if (result.inpaintedImage != null) {
+            if (!existing.inpaintedPath.isNullOrBlank() && File(existing.inpaintedPath).exists()) {
+                existing.inpaintedPath
+            } else {
+                val f = File(historyDir, "inpaint_${timestamp}.png")
+                saveBitmap(result.inpaintedImage, f)
+                f.absolutePath
+            }
+        } else {
+            existing.inpaintedPath
+        }
+
+        // 5. Save updated TextBlocks metadata
+        val blocksFile = if (result.textBlocks.isNotEmpty()) {
+            val f = File(historyDir, "blocks_${timestamp}.json")
+            try {
+                val dtos = result.textBlocks.map { TextBlockDto.fromDomain(it) }
+                f.writeText(json.encodeToString(dtos))
+                f.absolutePath
+            } catch (e: Exception) {
+                null
+            }
+        } else null
+
+        // 6. Update database record in-place
+        val updatedEntity = existing.copy(
+            resultPath = transFile.absolutePath,
+            sourceLang = result.config.translator.sourceLang?.name ?: existing.sourceLang,
+            targetLang = result.config.translator.targetLang.name,
+            translatorType = result.config.translator.translatorType.name,
+            textBlockCount = result.textBlocks.size,
+            timestamp = timestamp,
+            inpaintedPath = inpaintFile,
+            blocksJsonPath = blocksFile
+        )
+        historyDao.updateOne(updatedEntity)
+        id
     }
 
     override suspend fun deleteTranslation(id: Long) = withContext(Dispatchers.IO) {
@@ -179,6 +249,9 @@ class HistoryRepositoryImpl @Inject constructor(
         timestamp = timestamp,
         processingTimeMs = processingTimeMs,
         inpaintedPath = inpaintedPath,
-        blocksJsonPath = blocksJsonPath
+        blocksJsonPath = blocksJsonPath,
+        batchId = batchId,
+        batchName = batchName,
+        pageIndex = pageIndex
     )
 }

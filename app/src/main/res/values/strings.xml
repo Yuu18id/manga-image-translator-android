@@ -2,7 +2,7 @@
 <resources>
     <string name="app_name">Manga Translator</string>
 
-    <!-- Navigation &amp; Common -->
+    <!-- Navigation &amp; Common Actions -->
     <string name="nav_home">Home</string>
     <string name="nav_gallery">Gallery</string>
     <string name="nav_translate">Translate</string>
@@ -18,25 +18,54 @@
     <string name="action_share">Share</string>
     <string name="action_select_all">Select All</string>
     <string name="action_deselect_all">Deselect All</string>
+    <string name="action_apply">Apply</string>
+    <string name="action_save">Save</string>
+    <string name="action_edit">Edit</string>
+    <string name="action_typeset">Typeset</string>
+    <string name="action_remove">Remove</string>
+    <string name="action_move_up">Move Up</string>
+    <string name="action_move_down">Move Down</string>
+    <string name="action_reset">Reset</string>
+    <string name="action_collapse">Collapse</string>
+    <string name="action_expand">Expand</string>
 
     <!-- Home Screen -->
     <string name="home_hero_title">Select Manga Image</string>
     <string name="home_hero_subtitle">Open an image from your device gallery</string>
-    <string name="home_recent_translations">Recent Translations</string>
-    <string name="home_no_recent">No recent translations</string>
-    <string name="home_history_gallery">History Gallery</string>
+    <string name="home_single_title">Single Page</string>
+    <string name="home_single_subtitle">Translate 1 manga page</string>
+    <string name="home_batch_title">Batch Chapter</string>
+    <string name="home_batch_subtitle">Translate folder / chapter</string>
+    <string name="home_recent_title">Recent Translations</string>
+    <string name="home_open_gallery">Open Gallery</string>
+    <string name="home_empty_title">No Translations Yet</string>
+    <string name="home_empty_subtitle">Select a manga image to start automated AI translation.</string>
+    <string name="home_select_image">Select Manga Image</string>
 
     <!-- Translate Screen -->
     <string name="translate_title">Translate</string>
     <string name="translate_no_image">No Image Selected</string>
-    <string name="translate_source_lang">Source</string>
-    <string name="translate_target_lang">Target</string>
-    <string name="translate_engine">Engine</string>
-    <string name="translate_auto_detect">Auto</string>
+    <string name="translate_source_lang">Source Language</string>
+    <string name="translate_target_lang">Target Language</string>
+    <string name="translate_japanese_fixed">Japanese</string>
+    <string name="translate_engine">Translation Engine</string>
+    <string name="translate_engine_label">Engine: %1$s</string>
+    <string name="translate_review_mode">Review Detection</string>
+    <string name="translate_select_target">Select Target Language</string>
+    <string name="translate_search_language">Search language...</string>
+    <string name="translate_select_engine">Select Translation Engine</string>
+    <string name="translate_engine_requires_key">Requires API Key in Settings</string>
+    <string name="translate_engine_free">Free / Built-in</string>
+    <string name="translate_toggle_original">Original</string>
+    <string name="translate_toggle_translated">Translated</string>
     <string name="translate_action_btn">Translate</string>
+    <string name="translate_action_review_btn">Review &amp; Translate</string>
     <string name="translate_open_in_reader">Open in Reader</string>
-    <string name="translate_toggle_original">Toggle Original</string>
-    <string name="translate_initializing">Initializing...</string>
+    <string name="translate_edit_typeset">Edit Typeset</string>
+    <string name="translate_retranslate_text">Re-Translate Text</string>
+    <string name="translate_rescan">Rescan</string>
+    <string name="translate_full_rescan">Full Rescan</string>
+    <string name="translate_initializing">Initializing AI models...</string>
     <string name="translate_complete">Translation complete</string>
     <string name="translate_cancelled">Cancelled</string>
     <string name="translate_stage_detection">Detecting text bubbles...</string>
@@ -45,17 +74,51 @@
     <string name="translate_stage_inpainting">Cleaning original text...</string>
     <string name="translate_stage_rendering">Rendering translated text...</string>
 
+    <!-- Detection Review Editor Dialog -->
+    <string name="editor_review_title">Review Text Bubbles</string>
+    <string name="editor_bubbles_detected">%1$d bubbles detected</string>
+    <string name="editor_selected_bubble">Selected Bubble</string>
+    <string name="editor_delete_sfx">Delete / Ignore SFX</string>
+    <string name="editor_continue_translate">Continue Translation (%1$d Bubbles)</string>
+    <string name="editor_hint_add">Add Mode: Drag a box over the manga bubble</string>
+    <string name="editor_hint_selected">Bubble #%1$d: Drag to move or drag corners to resize</string>
+    <string name="editor_hint_idle">Tap a bubble to edit/delete • Two fingers to zoom</string>
+    <string name="editor_action_add_box">Add Box</string>
+    <string name="editor_action_delete_box">Delete Box</string>
+    <string name="editor_action_reset">Reset Initial</string>
+
+    <!-- Render Typeset Editor Dialog -->
+    <string name="typeset_title">Edit Typeset &amp; Render</string>
+    <string name="typeset_bubbles_count">%1$d text bubbles</string>
+    <string name="typeset_empty_bubble">(Empty Bubble)</string>
+    <string name="typeset_edit_text_btn">Edit Text</string>
+    <string name="typeset_decrease_font">Decrease Font</string>
+    <string name="typeset_increase_font">Increase Font</string>
+    <string name="typeset_align_left">Align Left</string>
+    <string name="typeset_align_center">Align Center</string>
+    <string name="typeset_align_right">Align Right</string>
+    <string name="typeset_hint_idle">Tap a text bubble to adjust font, position, and text.</string>
+    <string name="typeset_save_apply">Save &amp; Apply Render (%1$d Bubbles)</string>
+    <string name="typeset_dialog_edit_title">Edit Bubble Text #%1$d</string>
+    <string name="typeset_ocr_label">Original Text (OCR):</string>
+    <string name="typeset_translated_label">Translated Text</string>
+
     <!-- Gallery Screen -->
     <string name="gallery_title">Gallery</string>
-    <string name="gallery_item_count">%1$d translations</string>
+    <string name="gallery_item_count">%1$d items</string>
     <string name="gallery_selected_count">%1$d selected</string>
     <string name="gallery_menu_clear_all">Clear All History</string>
     <string name="gallery_empty_title">No Translations Yet</string>
-    <string name="gallery_empty_subtitle">Manga or images you translate will automatically appear here.</string>
+    <string name="gallery_empty_subtitle">Manga pages you translate will automatically appear here.</string>
     <string name="gallery_dialog_clear_title">Clear All History\?</string>
-    <string name="gallery_dialog_clear_msg">All translated images will be permanently deleted from internal device storage.</string>
-    <string name="gallery_dialog_delete_title">Delete %1$d Image(s)\?</string>
-    <string name="gallery_dialog_delete_msg">Selected images will be permanently deleted from history and storage.</string>
+    <string name="gallery_dialog_clear_msg">All translated images will be permanently deleted from device storage.</string>
+    <string name="gallery_dialog_delete_title">Delete %1$d Item(s)\?</string>
+    <string name="gallery_dialog_delete_msg">Selected items will be permanently deleted from history and storage.</string>
+    <string name="gallery_retranslate_btn">Re-translate</string>
+    <string name="gallery_album_badge">%1$d Pages</string>
+    <string name="gallery_album_type">Chapter Album</string>
+    <string name="gallery_no_image">No Image</string>
+    <string name="gallery_selected_badge">Selected</string>
 
     <!-- Reader Screen -->
     <string name="reader_dialog_delete_title">Delete Image\?</string>
@@ -63,23 +126,31 @@
     <string name="reader_show_original">Original</string>
     <string name="reader_show_translated">Translated</string>
     <string name="reader_not_found">Translation not found</string>
+    <string name="reader_page_indicator">Page %1$d / %2$d</string>
+    <string name="reader_prev_page">Previous Page</string>
+    <string name="reader_next_page">Next Page</string>
 
     <!-- Settings Screen -->
     <string name="settings_title">Settings</string>
     <string name="settings_language_engine">Language &amp; Engine</string>
-    <string name="settings_default_source_lang">Default Source Language</string>
     <string name="settings_default_target_lang">Default Target Language</string>
     <string name="settings_default_translator">Default Translator Engine</string>
     <string name="settings_api_keys">API Keys</string>
-    <string name="settings_model_quality">Model &amp; Quality Settings</string>
-    <string name="settings_detection_res">Detection Resolution</string>
-    <string name="settings_inpainting_res">Inpainting Resolution</string>
-    <string name="settings_font_size_offset">Font Size Offset: %1$d</string>
+    <string name="settings_api_keys_subtitle">Configure API keys for translation providers. Keys are stored securely in local app storage.</string>
+    <string name="settings_key_active">ACTIVE</string>
+    <string name="settings_key_configured">Key configured (••••••••)</string>
+    <string name="settings_key_none">No key set</string>
+    <string name="settings_get_key">Get Key</string>
+    <string name="settings_paste_key_hint">Paste your API key here...</string>
+    <string name="settings_clear_key">Clear key</string>
+    <string name="settings_preset_models">Popular Preset Models:</string>
+    <string name="settings_hide_key">Hide key</string>
+    <string name="settings_show_key">Show key</string>
     <string name="settings_storage">Storage</string>
+    <string name="settings_storage_subtitle">Delete saved translation images &amp; cache</string>
     <string name="settings_clear_history_btn">Clear Translation History</string>
     <string name="settings_dialog_clear_title">Clear History</string>
     <string name="settings_dialog_clear_msg">Are you sure you want to delete all translation history? This action cannot be undone.</string>
-    <!-- Settings About & Info -->
     <string name="settings_about">About</string>
     <string name="settings_version">Version 1.0.0</string>
     <string name="settings_developed_by">Developed by @%1$s</string>
@@ -96,12 +167,18 @@
     <string name="batch_processing_progress">Processing %1$d of %2$d pages (%3$d%%)</string>
     <string name="batch_empty_title">No Pages Selected</string>
     <string name="batch_empty_subtitle">Tap below or pick multiple manga pages from your gallery to get started.</string>
+    <string name="batch_select_pages">Select Manga Pages</string>
     <string name="batch_status_queued">Queued</string>
     <string name="batch_status_done">Done</string>
     <string name="batch_status_failed">Failed</string>
     <string name="batch_read_chapter">Read Chapter (%1$d Pages)</string>
     <string name="batch_retry_failed">Retry Failed (%1$d)</string>
-    <string name="reader_page_indicator">Page %1$d / %2$d</string>
-    <string name="reader_prev_page">Previous Page</string>
-    <string name="reader_next_page">Next Page</string>
+    <string name="batch_clear_dialog_title">Clear Batch</string>
+    <string name="batch_clear_dialog_msg">Are you sure you want to clear all pages in the current batch\?</string>
+    <string name="batch_status_in_progress">Translating Chapter...</string>
+    <string name="batch_status_error">Batch Completed with Errors</string>
+    <string name="batch_status_all_done">Chapter Translation Completed!</string>
+    <string name="batch_stage_detecting">Detecting text bubbles...</string>
+    <string name="batch_stage_completed">Completed</string>
+    <string name="batch_stage_typeset_updated">Typeset updated</string>
 </resources>

@@ -32,8 +32,9 @@ import coil.request.ImageRequest
 import com.yuu18id.mangatranslator.R
 import com.yuu18id.mangatranslator.domain.model.BatchPageItem
 import com.yuu18id.mangatranslator.domain.model.BatchPageStatus
-import com.yuu18id.mangatranslator.domain.model.PipelineStage
-import com.yuu18id.mangatranslator.ui.translate.DropdownSelector
+import com.yuu18id.mangatranslator.ui.translate.LanguageEngineSelectorBar
+import com.yuu18id.mangatranslator.ui.translate.editor.DetectionEditorDialog
+import com.yuu18id.mangatranslator.ui.translate.editor.RenderEditorDialog
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -59,8 +60,8 @@ fun BatchScreen(
         AlertDialog(
             onDismissRequest = { showClearDialog = false },
             icon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
-            title = { Text(stringResource(R.string.gallery_dialog_clear_title)) },
-            text = { Text("Are you sure you want to clear all pages in the current batch?") },
+            title = { Text(stringResource(R.string.batch_clear_dialog_title)) },
+            text = { Text(stringResource(R.string.batch_clear_dialog_msg)) },
             confirmButton = {
                 Button(
                     onClick = {
@@ -80,186 +81,213 @@ fun BatchScreen(
         )
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Column {
-                        Text(stringResource(R.string.batch_title), fontWeight = FontWeight.Bold)
-                        if (uiState.pages.isNotEmpty()) {
-                            Text(
-                                text = stringResource(R.string.batch_page_count, uiState.pages.size),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+    Box(modifier = Modifier.fillMaxSize()) {
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = {
+                        Column {
+                            Text(stringResource(R.string.batch_title), fontWeight = FontWeight.Bold)
+                            if (uiState.pages.isNotEmpty()) {
+                                Text(
+                                    text = stringResource(R.string.batch_page_count, uiState.pages.size),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = onNavigateBack) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back))
+                        }
+                    },
+                    actions = {
+                        if (uiState.pages.isNotEmpty() && !uiState.isProcessing) {
+                            IconButton(onClick = viewModel::sortByFileName) {
+                                Icon(Icons.Default.SortByAlpha, contentDescription = stringResource(R.string.batch_sort_filename))
+                            }
+                            IconButton(onClick = { showClearDialog = true }) {
+                                Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.action_clear_all))
+                            }
                         }
                     }
-                },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back))
+                )
+            },
+            floatingActionButton = {
+                if (!uiState.isProcessing && uiState.pages.isNotEmpty()) {
+                    FloatingActionButton(
+                        onClick = { multiImagePicker.launch("image/*") },
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.padding(bottom = if (uiState.completedCount < uiState.pages.size) 76.dp else 8.dp)
+                    ) {
+                        Icon(Icons.Default.AddPhotoAlternate, contentDescription = stringResource(R.string.batch_add_pages))
                     }
-                },
-                actions = {
-                    if (uiState.pages.isNotEmpty() && !uiState.isProcessing) {
-                        IconButton(onClick = viewModel::sortByFileName) {
-                            Icon(Icons.Default.SortByAlpha, contentDescription = stringResource(R.string.batch_sort_filename))
+                }
+            }
+        ) { paddingValues ->
+            if (uiState.pages.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(paddingValues),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center,
+                        modifier = Modifier.padding(32.dp)
+                    ) {
+                        Surface(
+                            modifier = Modifier.size(80.dp),
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.primaryContainer
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Default.PhotoLibrary,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(40.dp)
+                                )
+                            }
                         }
-                        IconButton(onClick = { showClearDialog = true }) {
-                            Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.action_clear_all))
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = stringResource(R.string.batch_empty_title),
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = stringResource(R.string.batch_empty_subtitle),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
+                        Spacer(modifier = Modifier.height(24.dp))
+                        Button(
+                            onClick = { multiImagePicker.launch("image/*") },
+                            contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp)
+                        ) {
+                            Icon(Icons.Default.AddPhotoAlternate, contentDescription = null)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(stringResource(R.string.batch_select_pages))
                         }
                     }
                 }
-            )
-        },
-        floatingActionButton = {
-            if (!uiState.isProcessing) {
-                FloatingActionButton(
-                    onClick = { multiImagePicker.launch("image/*") },
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+            } else {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(paddingValues)
+                        .padding(horizontal = 16.dp)
                 ) {
-                    Icon(Icons.Default.AddPhotoAlternate, contentDescription = stringResource(R.string.batch_add_pages))
+                    // Shared Language & Translator & Review Mode Bar
+                    LanguageEngineSelectorBar(
+                        sourceLang = uiState.sourceLang,
+                        targetLang = uiState.targetLang,
+                        translatorType = uiState.translatorType,
+                        isReviewModeEnabled = uiState.isReviewModeEnabled,
+                        isTranslating = uiState.isProcessing,
+                        onSourceLangChanged = viewModel::setSourceLang,
+                        onTargetLangChanged = viewModel::setTargetLang,
+                        onTranslatorTypeChanged = viewModel::setTranslatorType,
+                        onToggleReviewMode = viewModel::toggleReviewMode
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // Overall Batch Progress / Control Banner
+                    if (uiState.isProcessing || uiState.completedCount > 0) {
+                        BatchProgressBanner(
+                            isProcessing = uiState.isProcessing,
+                            total = uiState.pages.size,
+                            completed = uiState.completedCount,
+                            failed = uiState.failedCount,
+                            progress = uiState.overallProgress,
+                            onCancel = viewModel::cancelBatchTranslation,
+                            onReadChapter = {
+                                val completedIds = uiState.pages.mapNotNull { it.historyId }
+                                if (completedIds.isNotEmpty()) {
+                                    onOpenChapterReader(completedIds)
+                                }
+                            },
+                            onRetryFailed = viewModel::startBatchTranslation
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                    }
+
+                    // Page List with Order Management & Typeset Action
+                    LazyColumn(
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        itemsIndexed(
+                            items = uiState.pages,
+                            key = { _, item -> item.id }
+                        ) { index, item ->
+                            BatchPageCard(
+                                item = item,
+                                index = index,
+                                totalCount = uiState.pages.size,
+                                isProcessingActive = uiState.isProcessing,
+                                onMoveUp = { viewModel.movePageUp(index) },
+                                onMoveDown = { viewModel.movePageDown(index) },
+                                onDelete = { viewModel.removePage(item.id) },
+                                onEditTypeset = { viewModel.openRenderEditor(index) }
+                            )
+                        }
+                        item {
+                            Spacer(modifier = Modifier.height(72.dp)) // Padding for FAB
+                        }
+                    }
+
+                    // Bottom Action Button
+                    if (!uiState.isProcessing && uiState.completedCount < uiState.pages.size) {
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 12.dp),
+                            color = MaterialTheme.colorScheme.background
+                        ) {
+                            Button(
+                                onClick = viewModel::startBatchTranslation,
+                                modifier = Modifier.fillMaxWidth(),
+                                contentPadding = PaddingValues(vertical = 14.dp)
+                            ) {
+                                Icon(Icons.Default.Translate, contentDescription = null)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = stringResource(R.string.batch_start_btn, uiState.pages.size - uiState.completedCount),
+                                    style = MaterialTheme.typography.titleMedium
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
-    ) { paddingValues ->
-        if (uiState.pages.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center,
-                    modifier = Modifier.padding(32.dp)
-                ) {
-                    Surface(
-                        modifier = Modifier.size(80.dp),
-                        shape = CircleShape,
-                        color = MaterialTheme.colorScheme.primaryContainer
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                imageVector = Icons.Default.PhotoLibrary,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(40.dp)
-                            )
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        text = stringResource(R.string.batch_empty_title),
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = stringResource(R.string.batch_empty_subtitle),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                    )
-                    Spacer(modifier = Modifier.height(24.dp))
-                    Button(
-                        onClick = { multiImagePicker.launch("image/*") },
-                        contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp)
-                    ) {
-                        Icon(Icons.Default.AddPhotoAlternate, contentDescription = null)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Select Manga Pages")
-                    }
-                }
-            }
-        } else {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues)
-                    .padding(horizontal = 16.dp)
-            ) {
-                // Shared Language & Translator Bar
-                com.yuu18id.mangatranslator.ui.translate.LanguageEngineSelectors(
-                    sourceLang = uiState.sourceLang,
-                    targetLang = uiState.targetLang,
-                    translatorType = uiState.translatorType,
-                    onSourceLangChanged = viewModel::setSourceLang,
-                    onTargetLangChanged = viewModel::setTargetLang,
-                    onTranslatorTypeChanged = viewModel::setTranslatorType
-                )
 
-                Spacer(modifier = Modifier.height(12.dp))
+        // Detection Review Dialog (Pops up when Review Mode is active during batch)
+        if (uiState.isShowingDetectionEditor && uiState.reviewImageBitmap != null) {
+            DetectionEditorDialog(
+                imageBitmap = uiState.reviewImageBitmap!!,
+                initialDetections = uiState.pendingDetections,
+                onDismiss = viewModel::dismissDetectionEditor,
+                onConfirmDetections = viewModel::confirmDetections
+            )
+        }
 
-                // Overall Batch Progress / Control Banner
-                if (uiState.isProcessing || uiState.completedCount > 0) {
-                    BatchProgressBanner(
-                        isProcessing = uiState.isProcessing,
-                        total = uiState.pages.size,
-                        completed = uiState.completedCount,
-                        failed = uiState.failedCount,
-                        progress = uiState.overallProgress,
-                        onCancel = viewModel::cancelBatchTranslation,
-                        onReadChapter = {
-                            val completedIds = uiState.pages.mapNotNull { it.historyId }
-                            if (completedIds.isNotEmpty()) {
-                                onOpenChapterReader(completedIds)
-                            }
-                        },
-                        onRetryFailed = viewModel::startBatchTranslation
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                }
-
-                // Page List with Order Management
-                LazyColumn(
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.weight(1f)
-                ) {
-                    itemsIndexed(
-                        items = uiState.pages,
-                        key = { _, item -> item.id }
-                    ) { index, item ->
-                        BatchPageCard(
-                            item = item,
-                            index = index,
-                            totalCount = uiState.pages.size,
-                            isProcessingActive = uiState.isProcessing,
-                            onMoveUp = { viewModel.movePageUp(index) },
-                            onMoveDown = { viewModel.movePageDown(index) },
-                            onDelete = { viewModel.removePage(item.id) }
-                        )
-                    }
-                    item {
-                        Spacer(modifier = Modifier.height(72.dp)) // Padding for FAB
-                    }
-                }
-
-                // Bottom Action Button
-                if (!uiState.isProcessing && uiState.completedCount < uiState.pages.size) {
-                    Surface(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 12.dp),
-                        color = MaterialTheme.colorScheme.background
-                    ) {
-                        Button(
-                            onClick = viewModel::startBatchTranslation,
-                            modifier = Modifier.fillMaxWidth(),
-                            contentPadding = PaddingValues(vertical = 14.dp)
-                        ) {
-                            Icon(Icons.Default.Translate, contentDescription = null)
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = stringResource(R.string.batch_start_btn, uiState.pages.size - uiState.completedCount),
-                                style = MaterialTheme.typography.titleMedium
-                            )
-                        }
-                    }
-                }
-            }
+        // Render Typeset Editor Dialog (Pops up when user edits typeset of any completed page)
+        if (uiState.isShowingRenderEditor && uiState.renderEditorInpaintedBitmap != null) {
+            RenderEditorDialog(
+                inpaintedBitmap = uiState.renderEditorInpaintedBitmap!!,
+                initialBlocks = uiState.renderEditorBlocks,
+                onDismiss = viewModel::dismissRenderEditor,
+                onConfirmBlocks = viewModel::applyEditedRender
+            )
         }
     }
 }
@@ -288,7 +316,7 @@ fun BatchProgressBanner(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = if (isProcessing) "Translating Chapter..." else if (failed > 0) "Batch Completed with Errors" else "Chapter Translation Completed!",
+                    text = if (isProcessing) stringResource(R.string.batch_status_in_progress) else if (failed > 0) stringResource(R.string.batch_status_error) else stringResource(R.string.batch_status_all_done),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
@@ -350,7 +378,8 @@ fun BatchPageCard(
     isProcessingActive: Boolean,
     onMoveUp: () -> Unit,
     onMoveDown: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onEditTypeset: () -> Unit
 ) {
     val context = LocalContext.current
     val imageRequest = remember(item.uriString) {
@@ -445,7 +474,7 @@ fun BatchPageCard(
 
                 val statusText = when (item.status) {
                     BatchPageStatus.IDLE, BatchPageStatus.QUEUED -> stringResource(R.string.batch_status_queued)
-                    BatchPageStatus.PROCESSING -> item.stageMessage.ifBlank { "Processing..." }
+                    BatchPageStatus.PROCESSING -> item.stageMessage.ifBlank { stringResource(R.string.translate_initializing) }
                     BatchPageStatus.COMPLETED -> stringResource(R.string.batch_status_done)
                     BatchPageStatus.FAILED -> item.errorMessage ?: stringResource(R.string.batch_status_failed)
                     BatchPageStatus.CANCELLED -> stringResource(R.string.translate_cancelled)
@@ -473,27 +502,47 @@ fun BatchPageCard(
                 }
             }
 
-            // Reorder & Delete Actions
+            // Actions: Edit Typeset for completed pages, Reorder & Delete for pending pages
             if (!isProcessingActive && item.status != BatchPageStatus.PROCESSING) {
-                IconButton(
-                    onClick = onMoveUp,
-                    enabled = index > 0,
-                    modifier = Modifier.size(32.dp)
-                ) {
-                    Icon(Icons.Default.ArrowUpward, contentDescription = "Move Up", modifier = Modifier.size(18.dp))
-                }
-                IconButton(
-                    onClick = onMoveDown,
-                    enabled = index < totalCount - 1,
-                    modifier = Modifier.size(32.dp)
-                ) {
-                    Icon(Icons.Default.ArrowDownward, contentDescription = "Move Down", modifier = Modifier.size(18.dp))
-                }
-                IconButton(
-                    onClick = onDelete,
-                    modifier = Modifier.size(32.dp)
-                ) {
-                    Icon(Icons.Default.Close, contentDescription = "Remove", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp))
+                if (item.status == BatchPageStatus.COMPLETED) {
+                    FilledTonalButton(
+                        onClick = onEditTypeset,
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.height(34.dp)
+                    ) {
+                        Icon(Icons.Default.Tune, contentDescription = null, modifier = Modifier.size(14.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(stringResource(R.string.action_typeset), style = MaterialTheme.typography.labelSmall)
+                    }
+                    Spacer(modifier = Modifier.width(4.dp))
+                    IconButton(
+                        onClick = onDelete,
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(Icons.Default.Close, contentDescription = stringResource(R.string.action_remove), tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp))
+                    }
+                } else {
+                    IconButton(
+                        onClick = onMoveUp,
+                        enabled = index > 0,
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(Icons.Default.ArrowUpward, contentDescription = stringResource(R.string.action_move_up), modifier = Modifier.size(18.dp))
+                    }
+                    IconButton(
+                        onClick = onMoveDown,
+                        enabled = index < totalCount - 1,
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(Icons.Default.ArrowDownward, contentDescription = stringResource(R.string.action_move_down), modifier = Modifier.size(18.dp))
+                    }
+                    IconButton(
+                        onClick = onDelete,
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(Icons.Default.Close, contentDescription = stringResource(R.string.action_remove), tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp))
+                    }
                 }
             }
         }

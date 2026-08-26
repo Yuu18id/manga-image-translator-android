@@ -16,5 +16,8 @@ data class TranslationHistoryEntity(
     val timestamp: Long,
     val processingTimeMs: Long,
     val inpaintedPath: String? = null,
-    val blocksJsonPath: String? = null
+    val blocksJsonPath: String? = null,
+    val batchId: String? = null,
+    val batchName: String? = null,
+    val pageIndex: Int = 0
 )

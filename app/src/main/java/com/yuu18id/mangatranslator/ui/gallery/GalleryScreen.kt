@@ -13,35 +13,34 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.SelectAll
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Translate
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
-import coil.request.ImageRequest
-import com.yuu18id.mangatranslator.domain.model.TranslationHistoryItem
-import java.io.File
+import com.yuu18id.mangatranslator.R
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-
-import androidx.compose.material.icons.filled.Translate
-import androidx.compose.ui.res.stringResource
-import com.yuu18id.mangatranslator.R
 
 private val HistoryDateFormat = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
 
@@ -49,13 +48,14 @@ private val HistoryDateFormat = SimpleDateFormat("MMM dd, yyyy", Locale.getDefau
 @Composable
 fun GalleryScreen(
     viewModel: GalleryViewModel = hiltViewModel(),
-    onNavigateBack: () -> Unit,
+    onNavigateBack: (() -> Unit)? = null,
     onNavigateToReader: (String) -> Unit,
-    onNavigateToTranslate: (String) -> Unit = {}
+    onNavigateToTranslate: (String) -> Unit = {},
+    onNavigateToSettings: (() -> Unit)? = null
 ) {
-    val items by viewModel.historyItems.collectAsStateWithLifecycle()
-    var selectedIds by remember { mutableStateOf(setOf<Long>()) }
-    val isSelectionMode by remember { derivedStateOf { selectedIds.isNotEmpty() } }
+    val items by viewModel.galleryItems.collectAsStateWithLifecycle()
+    var selectedKeys by remember { mutableStateOf(setOf<String>()) }
+    val isSelectionMode by remember { derivedStateOf { selectedKeys.isNotEmpty() } }
 
     var showClearAllDialog by remember { mutableStateOf(false) }
     var showBatchDeleteDialog by remember { mutableStateOf(false) }
@@ -63,7 +63,7 @@ fun GalleryScreen(
 
     // Intercept back button when in selection mode
     BackHandler(enabled = isSelectionMode) {
-        selectedIds = emptySet()
+        selectedKeys = emptySet()
     }
 
     // Clear All Dialog
@@ -97,13 +97,14 @@ fun GalleryScreen(
         AlertDialog(
             onDismissRequest = { showBatchDeleteDialog = false },
             icon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
-            title = { Text(stringResource(R.string.gallery_dialog_delete_title, selectedIds.size)) },
+            title = { Text(stringResource(R.string.gallery_dialog_delete_title, selectedKeys.size)) },
             text = { Text(stringResource(R.string.gallery_dialog_delete_msg)) },
             confirmButton = {
                 Button(
                     onClick = {
-                        viewModel.deleteSelectedItems(selectedIds)
-                        selectedIds = emptySet()
+                        val idsToDelete = items.filter { it.key in selectedKeys }.flatMap { it.allIds }
+                        viewModel.deleteSelectedItems(idsToDelete)
+                        selectedKeys = emptySet()
                         showBatchDeleteDialog = false
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
@@ -126,22 +127,22 @@ fun GalleryScreen(
                 TopAppBar(
                     title = {
                         Text(
-                            text = stringResource(R.string.gallery_selected_count, selectedIds.size),
+                            text = stringResource(R.string.gallery_selected_count, selectedKeys.size),
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.SemiBold
                         )
                     },
                     navigationIcon = {
-                        IconButton(onClick = { selectedIds = emptySet() }) {
+                        IconButton(onClick = { selectedKeys = emptySet() }) {
                             Icon(Icons.Default.Close, contentDescription = stringResource(R.string.action_close))
                         }
                     },
                     actions = {
                         IconButton(onClick = {
-                            selectedIds = if (selectedIds.size == items.size) {
+                            selectedKeys = if (selectedKeys.size == items.size) {
                                 emptySet()
                             } else {
-                                items.map { it.id }.toSet()
+                                items.map { it.key }.toSet()
                             }
                         }) {
                             Icon(Icons.Default.SelectAll, contentDescription = stringResource(R.string.action_select_all))
@@ -163,7 +164,7 @@ fun GalleryScreen(
                 TopAppBar(
                     title = {
                         Column {
-                            Text(stringResource(R.string.gallery_title), style = MaterialTheme.typography.titleLarge)
+                            Text(stringResource(R.string.gallery_title), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                             if (items.isNotEmpty()) {
                                 Text(
                                     stringResource(R.string.gallery_item_count, items.size),
@@ -174,8 +175,10 @@ fun GalleryScreen(
                         }
                     },
                     navigationIcon = {
-                        IconButton(onClick = onNavigateBack) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back))
+                        if (onNavigateBack != null) {
+                            IconButton(onClick = onNavigateBack) {
+                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back))
+                            }
                         }
                     },
                     actions = {
@@ -205,7 +208,19 @@ fun GalleryScreen(
                                 }
                             }
                         }
-                    }
+
+                        if (onNavigateToSettings != null) {
+                            IconButton(onClick = onNavigateToSettings) {
+                                Icon(
+                                    imageVector = Icons.Default.Settings,
+                                    contentDescription = stringResource(R.string.nav_settings)
+                                )
+                            }
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.surface
+                    )
                 )
             }
         }
@@ -263,34 +278,55 @@ fun GalleryScreen(
             ) {
                 items(
                     items = items,
-                    key = { it.id },
-                    contentType = { "gallery_item" }
+                    key = { it.key },
+                    contentType = { if (it is GalleryUiItem.Album) "album_item" else "single_item" }
                 ) { item ->
-                    val isSelected by remember { derivedStateOf { selectedIds.contains(item.id) } }
-                    GalleryItemCard(
-                        item = item,
-                        isSelected = isSelected,
-                        isSelectionMode = isSelectionMode,
-                        onClick = {
-                            if (isSelectionMode) {
-                                selectedIds = if (isSelected) {
-                                    selectedIds - item.id
-                                } else {
-                                    selectedIds + item.id
+                    val isSelected by remember { derivedStateOf { selectedKeys.contains(item.key) } }
+
+                    when (item) {
+                        is GalleryUiItem.Single -> {
+                            GallerySingleCard(
+                                item = item,
+                                isSelected = isSelected,
+                                isSelectionMode = isSelectionMode,
+                                onClick = {
+                                    if (isSelectionMode) {
+                                        selectedKeys = if (isSelected) selectedKeys - item.key else selectedKeys + item.key
+                                    } else {
+                                        onNavigateToReader(item.item.id.toString())
+                                    }
+                                },
+                                onLongClick = {
+                                    if (!isSelectionMode) {
+                                        selectedKeys = setOf(item.key)
+                                    }
+                                },
+                                onReTranslate = {
+                                    onNavigateToTranslate("history:${item.item.id}")
                                 }
-                            } else {
-                                onNavigateToReader(item.id.toString())
-                            }
-                        },
-                        onLongClick = {
-                            if (!isSelectionMode) {
-                                selectedIds = setOf(item.id)
-                            }
-                        },
-                        onReTranslate = {
-                            onNavigateToTranslate("history:${item.id}")
+                            )
                         }
-                    )
+                        is GalleryUiItem.Album -> {
+                            GalleryAlbumCard(
+                                album = item,
+                                isSelected = isSelected,
+                                isSelectionMode = isSelectionMode,
+                                onClick = {
+                                    if (isSelectionMode) {
+                                        selectedKeys = if (isSelected) selectedKeys - item.key else selectedKeys + item.key
+                                    } else {
+                                        val idsArg = item.pageItems.map { it.id }.joinToString(",")
+                                        onNavigateToReader(idsArg)
+                                    }
+                                },
+                                onLongClick = {
+                                    if (!isSelectionMode) {
+                                        selectedKeys = setOf(item.key)
+                                    }
+                                }
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -299,18 +335,14 @@ fun GalleryScreen(
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun GalleryItemCard(
-    item: TranslationHistoryItem,
+fun GallerySingleCard(
+    item: GalleryUiItem.Single,
     isSelected: Boolean,
     isSelectionMode: Boolean,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
-    onReTranslate: () -> Unit = {}
+    onReTranslate: () -> Unit
 ) {
-    val imagePath = remember(item.resultPath, item.thumbnailPath) {
-        if (item.resultPath.isNotBlank()) item.resultPath else item.thumbnailPath
-    }
-
     val dateString = remember(item.timestamp) {
         HistoryDateFormat.format(Date(item.timestamp))
     }
@@ -328,10 +360,10 @@ fun GalleryItemCard(
             )
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
-            if (imagePath.isNotBlank()) {
+            if (item.coverPath.isNotBlank()) {
                 AsyncImage(
-                    model = imagePath,
-                    contentDescription = "Translated Manga Page",
+                    model = item.coverPath,
+                    contentDescription = null,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize()
                 )
@@ -342,11 +374,11 @@ fun GalleryItemCard(
                         .background(MaterialTheme.colorScheme.surfaceVariant),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("No Image", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(stringResource(R.string.gallery_no_image), color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
 
-            // Top Overlay: Badges and Selection Checkmark
+            // Top Overlay: Language Badge & Selection Checkmark
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -354,7 +386,7 @@ fun GalleryItemCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.Top
             ) {
-                // Language & Engine Pill
+                // Language Pill
                 Surface(
                     color = Color.Black.copy(alpha = 0.65f),
                     shape = RoundedCornerShape(6.dp)
@@ -369,31 +401,8 @@ fun GalleryItemCard(
                     )
                 }
 
-                // Google Photos style selection indicator
                 if (isSelectionMode) {
-                    if (isSelected) {
-                        Surface(
-                            shape = CircleShape,
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(26.dp)
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    imageVector = Icons.Default.CheckCircle,
-                                    contentDescription = "Terpilih",
-                                    tint = MaterialTheme.colorScheme.onPrimary,
-                                    modifier = Modifier.size(26.dp)
-                                )
-                            }
-                        }
-                    } else {
-                        Surface(
-                            shape = CircleShape,
-                            color = Color.Black.copy(alpha = 0.4f),
-                            border = BorderStroke(2.dp, Color.White),
-                            modifier = Modifier.size(24.dp)
-                        ) {}
-                    }
+                    SelectionIndicator(isSelected = isSelected)
                 }
             }
 
@@ -416,7 +425,7 @@ fun GalleryItemCard(
                         Box(contentAlignment = Alignment.Center) {
                             Icon(
                                 imageVector = Icons.Default.Translate,
-                                contentDescription = "Translate Ulang",
+                                contentDescription = stringResource(R.string.gallery_retranslate_btn),
                                 tint = Color.White,
                                 modifier = Modifier.size(16.dp)
                             )
@@ -441,5 +450,183 @@ fun GalleryItemCard(
                 }
             }
         }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+fun GalleryAlbumCard(
+    album: GalleryUiItem.Album,
+    isSelected: Boolean,
+    isSelectionMode: Boolean,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit
+) {
+    val dateString = remember(album.timestamp) {
+        HistoryDateFormat.format(Date(album.timestamp))
+    }
+
+    Card(
+        shape = RoundedCornerShape(14.dp),
+        border = if (isSelected) BorderStroke(2.5.dp, MaterialTheme.colorScheme.primary) else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)),
+        elevation = CardDefaults.cardElevation(if (isSelected) 6.dp else 3.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .aspectRatio(0.72f)
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick
+            )
+    ) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            if (album.coverPath.isNotBlank()) {
+                AsyncImage(
+                    model = album.coverPath,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(MaterialTheme.colorScheme.surfaceVariant),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(stringResource(R.string.gallery_no_image), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+
+            // Dark subtle scrim gradient at bottom for text contrast
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .fillMaxHeight(0.5f)
+                    .align(Alignment.BottomCenter)
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.85f))
+                        )
+                    )
+            )
+
+            // Top Overlay: Language Pill & Page Count Album Pill
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top
+            ) {
+                // Language Pill
+                Surface(
+                    color = Color.Black.copy(alpha = 0.65f),
+                    shape = RoundedCornerShape(6.dp)
+                ) {
+                    Text(
+                        text = "${album.sourceLang.code} → ${album.targetLang.code}",
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            color = Color.White,
+                            fontWeight = FontWeight.SemiBold
+                        ),
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
+                    )
+                }
+
+                if (isSelectionMode) {
+                    SelectionIndicator(isSelected = isSelected)
+                } else {
+                    // Album Multi-Page Badge
+                    Surface(
+                        color = MaterialTheme.colorScheme.primary,
+                        shape = RoundedCornerShape(6.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.MenuBook,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onPrimary,
+                                modifier = Modifier.size(12.dp)
+                            )
+                            Spacer(modifier = Modifier.width(3.dp))
+                            Text(
+                                text = stringResource(R.string.gallery_album_badge, album.pageCount),
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    color = MaterialTheme.colorScheme.onPrimary,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Bottom Overlay: Album Title & Date
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .align(Alignment.BottomCenter)
+                    .padding(8.dp)
+            ) {
+                Text(
+                    text = album.title,
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold
+                    ),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = stringResource(R.string.gallery_album_type),
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            color = Color.White.copy(alpha = 0.8f)
+                        )
+                    )
+                    Text(
+                        text = dateString,
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            color = Color.White.copy(alpha = 0.8f)
+                        )
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SelectionIndicator(isSelected: Boolean) {
+    if (isSelected) {
+        Surface(
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(26.dp)
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    imageVector = Icons.Default.CheckCircle,
+                    contentDescription = stringResource(R.string.gallery_selected_badge),
+                    tint = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier.size(26.dp)
+                )
+            }
+        }
+    } else {
+        Surface(
+            shape = CircleShape,
+            color = Color.Black.copy(alpha = 0.4f),
+            border = BorderStroke(2.dp, Color.White),
+            modifier = Modifier.size(24.dp)
+        ) {}
     }
 }

@@ -2,31 +2,47 @@ package com.yuu18id.mangatranslator.ui.translate
 
 import android.content.Intent
 import android.graphics.Bitmap
+import androidx.compose.animation.*
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.Dispatchers
 import com.yuu18id.mangatranslator.R
 import com.yuu18id.mangatranslator.domain.model.Language
 import com.yuu18id.mangatranslator.domain.model.PipelineStage
 import com.yuu18id.mangatranslator.domain.model.TranslatorType
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import java.io.File
 import java.io.FileOutputStream
 
@@ -61,25 +77,32 @@ fun TranslateScreen(
         Scaffold(
             topBar = {
                 TopAppBar(
-                    title = { Text(stringResource(R.string.translate_title)) },
+                    title = {
+                        Text(
+                            text = stringResource(R.string.translate_title),
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold
+                        )
+                    },
                     navigationIcon = {
                         IconButton(onClick = onNavigateBack) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back))
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = stringResource(R.string.action_back)
+                            )
                         }
                     },
                     actions = {
-                        if (uiState.translatedImage != null) {
-                            IconButton(onClick = viewModel::toggleShowOriginal) {
-                                Icon(
-                                    imageVector = if (uiState.showOriginal) Icons.Default.Visibility else Icons.Default.VisibilityOff,
-                                    contentDescription = stringResource(R.string.translate_toggle_original)
-                                )
-                            }
-                        }
                         IconButton(onClick = onNavigateToSettings) {
-                            Icon(Icons.Default.Settings, contentDescription = stringResource(R.string.nav_settings))
+                            Icon(
+                                imageVector = Icons.Default.Settings,
+                                contentDescription = stringResource(R.string.nav_settings)
+                            )
                         }
-                    }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.surface
+                    )
                 )
             },
             snackbarHost = { SnackbarHost(snackbarHostState) }
@@ -88,44 +111,44 @@ fun TranslateScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(paddingValues)
-                    .padding(16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                // Main Image View (Isolated from progress updates)
+                // 1. Interactive Preview Area with Toggle Original & Zoom
                 TranslateImageViewer(
                     originalImage = uiState.originalImage,
                     translatedImage = uiState.translatedImage,
                     showOriginal = uiState.showOriginal,
+                    onToggleOriginal = viewModel::toggleShowOriginal,
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxWidth()
                 )
 
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Selectors (Remembered lists to prevent allocations)
-                LanguageEngineSelectors(
+                // 2. Language & Engine Selection Bar (Material 3 Card & Modal Sheet)
+                LanguageEngineSelectorBar(
                     sourceLang = uiState.sourceLang,
                     targetLang = uiState.targetLang,
                     translatorType = uiState.translatorType,
+                    isReviewModeEnabled = uiState.isReviewModeEnabled,
+                    isTranslating = progressState.isTranslating,
                     onSourceLangChanged = viewModel::setSourceLang,
                     onTargetLangChanged = viewModel::setTargetLang,
-                    onTranslatorTypeChanged = viewModel::setTranslatorType
+                    onTranslatorTypeChanged = viewModel::setTranslatorType,
+                    onToggleReviewMode = viewModel::toggleReviewMode
                 )
 
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Progress Indicator
+                // 3. Progress Card
                 if (progressState.isTranslating) {
                     TranslationProgressCard(
                         stage = progressState.currentStage,
                         progress = progressState.progress,
                         message = progressState.stageMessage
                     )
-                    Spacer(modifier = Modifier.height(16.dp))
                 }
 
-                // Action Buttons
+                // 4. Primary Action Controls
                 TranslateActionButtons(
                     isTranslating = progressState.isTranslating,
                     isReviewModeEnabled = uiState.isReviewModeEnabled,
@@ -136,7 +159,6 @@ fun TranslateScreen(
                     onCancel = viewModel::cancelTranslation,
                     onTranslate = viewModel::startTranslation,
                     onFastRetranslate = { viewModel.retranslateTextOnly() },
-                    onToggleReviewMode = viewModel::toggleReviewMode,
                     onOpenRenderEditor = viewModel::openRenderEditor,
                     onOpenReader = { uiState.savedHistoryId?.let { onOpenInReader?.invoke(it) } },
                     onShare = {
@@ -190,64 +212,458 @@ fun TranslateImageViewer(
     originalImage: ImageBitmap?,
     translatedImage: ImageBitmap?,
     showOriginal: Boolean,
+    onToggleOriginal: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Box(
-        modifier = modifier.background(MaterialTheme.colorScheme.surfaceVariant),
-        contentAlignment = Alignment.Center
+    var scale by remember { mutableFloatStateOf(1f) }
+    var offset by remember { mutableStateOf(Offset.Zero) }
+
+    Surface(
+        modifier = modifier
+            .clip(RoundedCornerShape(18.dp))
+            .pointerInput(Unit) {
+                detectTransformGestures { _, pan, zoom, _ ->
+                    scale = (scale * zoom).coerceIn(1f, 4f)
+                    if (scale == 1f) {
+                        offset = Offset.Zero
+                    } else {
+                        offset += pan
+                    }
+                }
+            },
+        shape = RoundedCornerShape(18.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+        tonalElevation = 1.dp
     ) {
-        val imageBitmap = if (showOriginal) originalImage else (translatedImage ?: originalImage)
-        if (imageBitmap != null) {
-            Image(
-                bitmap = imageBitmap,
-                contentDescription = "Translation Image",
-                modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Fit
-            )
-        } else {
-            Text(stringResource(R.string.translate_no_image), color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            val imageBitmap = if (showOriginal) originalImage else (translatedImage ?: originalImage)
+            if (imageBitmap != null) {
+                Image(
+                    bitmap = imageBitmap,
+                    contentDescription = "Translation Image",
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .graphicsLayer(
+                            scaleX = scale,
+                            scaleY = scale,
+                            translationX = offset.x,
+                            translationY = offset.y
+                        ),
+                    contentScale = ContentScale.Fit
+                )
+            } else {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Image,
+                        contentDescription = null,
+                        modifier = Modifier.size(48.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                    )
+                    Text(
+                        text = stringResource(R.string.translate_no_image),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            // Quick Comparison Pill (when translation result is ready)
+            if (translatedImage != null && originalImage != null) {
+                Surface(
+                    shape = RoundedCornerShape(20.dp),
+                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.90f),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                    shadowElevation = 4.dp,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        FilterChip(
+                            selected = showOriginal,
+                            onClick = onToggleOriginal,
+                            label = { Text(stringResource(R.string.translate_toggle_original), style = MaterialTheme.typography.labelSmall) },
+                            border = null,
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                            ),
+                            modifier = Modifier.height(30.dp)
+                        )
+                        Spacer(modifier = Modifier.width(2.dp))
+                        FilterChip(
+                            selected = !showOriginal,
+                            onClick = onToggleOriginal,
+                            label = { Text(stringResource(R.string.translate_toggle_translated), style = MaterialTheme.typography.labelSmall) },
+                            border = null,
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                            ),
+                            modifier = Modifier.height(30.dp)
+                        )
+                    }
+                }
+            }
         }
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun LanguageEngineSelectors(
+fun LanguageEngineSelectorBar(
     sourceLang: Language?,
     targetLang: Language,
     translatorType: TranslatorType,
+    isReviewModeEnabled: Boolean,
+    isTranslating: Boolean,
     onSourceLangChanged: (Language?) -> Unit,
     onTargetLangChanged: (Language) -> Unit,
-    onTranslatorTypeChanged: (TranslatorType) -> Unit
+    onTranslatorTypeChanged: (TranslatorType) -> Unit,
+    onToggleReviewMode: () -> Unit
 ) {
-    val sourceOptions = remember { listOf(Language.JPN) }
-    val targetOptions = remember { Language.values().toList() }
-    val translatorOptions = remember { TranslatorType.values().toList() }
+    var showTargetLangSheet by remember { mutableStateOf(false) }
+    var showEngineSheet by remember { mutableStateOf(false) }
 
-    Row(
+    Column(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceEvenly
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        DropdownSelector(
-            label = stringResource(R.string.translate_source_lang),
-            options = sourceOptions,
-            selectedOption = sourceLang ?: Language.JPN,
-            onOptionSelected = onSourceLangChanged,
-            optionLabel = { it?.displayName ?: Language.JPN.displayName }
+        // 1. Language Pair Card (Google Translate / DeepL Style)
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                // Source Language (Dedicated Japanese Manga Source)
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(horizontal = 8.dp, vertical = 6.dp)
+                ) {
+                    Text(
+                        text = stringResource(R.string.translate_source_lang),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = stringResource(R.string.translate_japanese_fixed),
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+
+                // Arrow indicator
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                    modifier = Modifier.size(16.dp)
+                )
+
+                // Target Language
+                TextButton(
+                    onClick = { if (!isTranslating) showTargetLangSheet = true },
+                    enabled = !isTranslating,
+                    modifier = Modifier.weight(1f),
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = stringResource(R.string.translate_target_lang),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = targetLang.displayName,
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+            }
+        }
+
+        // 2. Engine Selector & Review Deteksi Chips
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Engine Selector Chip
+            FilterChip(
+                selected = true,
+                onClick = { if (!isTranslating) showEngineSheet = true },
+                enabled = !isTranslating,
+                label = {
+                    Text(
+                        text = stringResource(R.string.translate_engine_label, translatorType.displayName),
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                },
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Default.SmartToy,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
+                },
+                trailingIcon = {
+                    Icon(
+                        imageVector = Icons.Default.ArrowDropDown,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                },
+                modifier = Modifier.weight(1f)
+            )
+
+            // Review Deteksi Chip
+            FilterChip(
+                selected = isReviewModeEnabled,
+                onClick = onToggleReviewMode,
+                enabled = !isTranslating,
+                label = {
+                    Text(
+                        text = stringResource(R.string.translate_review_mode),
+                        style = MaterialTheme.typography.labelMedium
+                    )
+                },
+                leadingIcon = {
+                    Icon(
+                        imageVector = if (isReviewModeEnabled) Icons.Default.Check else Icons.Default.HighlightAlt,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            )
+        }
+    }
+
+    // Modal Bottom Sheet: Target Language Selection
+    if (showTargetLangSheet) {
+        LanguageSelectionSheet(
+            title = "Pilih Bahasa Tujuan",
+            languages = Language.values().toList(),
+            selectedLanguage = targetLang,
+            onSelect = {
+                onTargetLangChanged(it)
+                showTargetLangSheet = false
+            },
+            onDismiss = { showTargetLangSheet = false }
         )
-        DropdownSelector(
-            label = stringResource(R.string.translate_target_lang),
-            options = targetOptions,
-            selectedOption = targetLang,
-            onOptionSelected = onTargetLangChanged,
-            optionLabel = { it.displayName }
+    }
+
+    // Modal Bottom Sheet: Translation Engine Selection
+    if (showEngineSheet) {
+        EngineSelectionSheet(
+            selectedEngine = translatorType,
+            engines = TranslatorType.values().toList(),
+            onSelect = {
+                onTranslatorTypeChanged(it)
+                showEngineSheet = false
+            },
+            onDismiss = { showEngineSheet = false }
         )
-        DropdownSelector(
-            label = stringResource(R.string.translate_engine),
-            options = translatorOptions,
-            selectedOption = translatorType,
-            onOptionSelected = onTranslatorTypeChanged,
-            optionLabel = { it.displayName }
-        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun LanguageSelectionSheet(
+    title: String,
+    languages: List<Language>,
+    selectedLanguage: Language,
+    onSelect: (Language) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var searchQuery by remember { mutableStateOf("") }
+    val filteredLanguages = remember(searchQuery, languages) {
+        if (searchQuery.isBlank()) languages
+        else languages.filter {
+            it.displayName.contains(searchQuery, ignoreCase = true) ||
+            it.nativeName.contains(searchQuery, ignoreCase = true) ||
+            it.code.contains(searchQuery, ignoreCase = true)
+        }
+    }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        dragHandle = { BottomSheetDefaults.DragHandle() }
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 8.dp)
+                .padding(bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            )
+
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                modifier = Modifier.fillMaxWidth(),
+                placeholder = { Text(stringResource(R.string.translate_search_language)) },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                shape = RoundedCornerShape(14.dp),
+                singleLine = true
+            )
+
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 380.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                items(filteredLanguages, key = { it.code }) { lang ->
+                    val isSelected = lang == selectedLanguage
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp)),
+                        color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+                        onClick = { onSelect(lang) }
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text(
+                                    text = lang.displayName,
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                    color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = "${lang.nativeName} (${lang.code})",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            if (isSelected) {
+                                Icon(
+                                    imageVector = Icons.Default.Check,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun EngineSelectionSheet(
+    selectedEngine: TranslatorType,
+    engines: List<TranslatorType>,
+    onSelect: (TranslatorType) -> Unit,
+    onDismiss: () -> Unit
+) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        dragHandle = { BottomSheetDefaults.DragHandle() }
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 8.dp)
+                .padding(bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                text = stringResource(R.string.translate_select_engine),
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            )
+
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 380.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                items(engines, key = { it.name }) { engine ->
+                    val isSelected = engine == selectedEngine
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp)),
+                        color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+                        onClick = { onSelect(engine) }
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text(
+                                    text = engine.displayName,
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                    color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = if (engine.requiresApiKey) stringResource(R.string.translate_engine_requires_key) else stringResource(R.string.translate_engine_free),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            if (isSelected) {
+                                Icon(
+                                    imageVector = Icons.Default.Check,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -265,22 +681,53 @@ fun TranslationProgressCard(
         PipelineStage.RENDERING -> stringResource(R.string.translate_stage_rendering)
     }
 
-    Card(modifier = Modifier.fillMaxWidth()) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
+    ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Text(text = stageTitle, style = MaterialTheme.typography.titleMedium)
-            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = stageTitle,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+                Text(
+                    text = "${(progress * 100).toInt()}%",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+
             LinearProgressIndicator(
                 progress = { progress },
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(6.dp)
+                    .clip(RoundedCornerShape(3.dp))
             )
+
             if (message.isNotBlank()) {
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(text = message, style = MaterialTheme.typography.bodySmall)
+                Text(
+                    text = message,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
         }
     }
@@ -297,7 +744,6 @@ fun TranslateActionButtons(
     onCancel: () -> Unit,
     onTranslate: () -> Unit,
     onFastRetranslate: () -> Unit,
-    onToggleReviewMode: () -> Unit,
     onOpenRenderEditor: () -> Unit,
     onOpenReader: () -> Unit,
     onShare: () -> Unit
@@ -305,46 +751,44 @@ fun TranslateActionButtons(
     if (isTranslating) {
         Button(
             onClick = onCancel,
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(52.dp),
+            shape = RoundedCornerShape(16.dp),
             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
         ) {
-            Text(stringResource(R.string.action_cancel))
+            Icon(Icons.Default.Close, contentDescription = null)
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(stringResource(R.string.action_cancel), fontWeight = FontWeight.Bold)
         }
     } else {
         if (!hasTranslated) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            Button(
+                onClick = onTranslate,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp),
+                shape = RoundedCornerShape(16.dp),
+                enabled = hasOriginal
             ) {
-                FilterChip(
-                    selected = isReviewModeEnabled,
-                    onClick = onToggleReviewMode,
-                    label = { Text("Review Deteksi", style = MaterialTheme.typography.labelMedium) },
-                    leadingIcon = {
-                        Icon(
-                            imageVector = if (isReviewModeEnabled) Icons.Default.Check else Icons.Default.HighlightAlt,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
+                Icon(
+                    imageVector = if (isReviewModeEnabled) Icons.Default.HighlightAlt else Icons.Default.Translate,
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp)
                 )
-                Button(
-                    onClick = onTranslate,
-                    modifier = Modifier.weight(1f),
-                    enabled = hasOriginal
-                ) {
-                    Icon(Icons.Default.Translate, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(if (isReviewModeEnabled) "Review & Translate" else stringResource(R.string.translate_action_btn))
-                }
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = if (isReviewModeEnabled) stringResource(R.string.translate_action_review_btn) else stringResource(R.string.translate_action_btn),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
             }
         } else {
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                // Primary Action Row: Open Reader & Edit Typeset
+                // Primary Action Row: Open in Reader & Edit Typeset
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -353,98 +797,76 @@ fun TranslateActionButtons(
                     Button(
                         onClick = onOpenReader,
                         enabled = savedHistoryId != null,
-                        modifier = Modifier.weight(1f)
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier
+                            .weight(1.2f)
+                            .height(48.dp)
                     ) {
-                        Icon(Icons.AutoMirrored.Filled.MenuBook, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(stringResource(R.string.translate_open_in_reader), maxLines = 1)
+                        Icon(Icons.AutoMirrored.Filled.MenuBook, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(stringResource(R.string.translate_open_in_reader), maxLines = 1, fontWeight = FontWeight.Bold)
                     }
                     OutlinedButton(
                         onClick = onOpenRenderEditor,
-                        modifier = Modifier.weight(1f)
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(48.dp)
                     ) {
-                        Icon(Icons.Default.Tune, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Edit Typeset", maxLines = 1)
+                        Icon(Icons.Default.Tune, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(stringResource(R.string.translate_edit_typeset), maxLines = 1, fontWeight = FontWeight.SemiBold)
                     }
                 }
 
-                // Secondary Action Row: Fast Re-translate (Instant Text Only) & Options
+                // Secondary Action Row: Re-Translate Text Only & Secondary Options
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     if (canFastRetranslate) {
                         FilledTonalButton(
                             onClick = onFastRetranslate,
-                            modifier = Modifier.weight(1f)
+                            shape = RoundedCornerShape(14.dp),
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(46.dp)
                         ) {
-                            Icon(Icons.Default.Bolt, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("Re-Translate Teks", maxLines = 1)
+                            Icon(Icons.Default.Translate, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(stringResource(R.string.translate_retranslate_text), maxLines = 1, style = MaterialTheme.typography.labelLarge)
                         }
                     } else {
                         Button(
                             onClick = onTranslate,
-                            modifier = Modifier.weight(1f)
+                            shape = RoundedCornerShape(14.dp),
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(46.dp)
                         ) {
                             Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("Scan Ulang", maxLines = 1)
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(stringResource(R.string.translate_rescan), maxLines = 1)
                         }
                     }
 
-                    IconButton(onClick = onShare) {
+                    FilledTonalIconButton(
+                        onClick = onShare,
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier.size(46.dp)
+                    ) {
                         Icon(Icons.Default.Share, contentDescription = stringResource(R.string.action_share))
                     }
-                    IconButton(onClick = onTranslate) {
-                        Icon(Icons.Default.Refresh, contentDescription = "Full Rescan")
+
+                    FilledTonalIconButton(
+                        onClick = onTranslate,
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier.size(46.dp)
+                    ) {
+                        Icon(Icons.Default.Refresh, contentDescription = stringResource(R.string.translate_full_rescan))
                     }
                 }
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun <T> DropdownSelector(
-    label: String,
-    options: List<T>,
-    selectedOption: T,
-    onOptionSelected: (T) -> Unit,
-    optionLabel: (T) -> String
-) {
-    var expanded by remember { mutableStateOf(false) }
-
-    ExposedDropdownMenuBox(
-        expanded = expanded,
-        onExpandedChange = { expanded = !expanded },
-        modifier = Modifier.width(110.dp)
-    ) {
-        OutlinedTextField(
-            value = optionLabel(selectedOption),
-            onValueChange = {},
-            readOnly = true,
-            label = { Text(label, style = MaterialTheme.typography.labelSmall) },
-            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-            colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
-            modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable, true),
-            textStyle = MaterialTheme.typography.bodySmall
-        )
-        ExposedDropdownMenu(
-            expanded = expanded,
-            onDismissRequest = { expanded = false }
-        ) {
-            options.forEach { selectionOption ->
-                DropdownMenuItem(
-                    text = { Text(optionLabel(selectionOption)) },
-                    onClick = {
-                        onOptionSelected(selectionOption)
-                        expanded = false
-                    }
-                )
             }
         }
     }

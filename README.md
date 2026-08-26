@@ -6,49 +6,74 @@
 [![ONNX Runtime](https://img.shields.io/badge/ONNX%20Runtime-Mobile-orange.svg?style=flat&logo=onnx)](https://onnxruntime.ai)
 [![License](https://img.shields.io/badge/License-GPL%20v3-red.svg?style=flat)](LICENSE)
 
-An advanced, native Android port based on the original [**zyddnys/manga-image-translator**](https://github.com/zyddnys/manga-image-translator) project, bringing **offline & on-device AI manga translation** to mobile devices powered by **ONNX Runtime Mobile**, **OpenCV**, and **Jetpack Compose (Material Design 3)**.
+Native Android application based on [zyddnys/manga-image-translator](https://github.com/zyddnys/manga-image-translator), providing on-device AI manga translation, interactive text bubble correction, manual typesetting adjustment, and chapter batch processing powered by ONNX Runtime Mobile, OpenCV, and Jetpack Compose (Material Design 3).
 
-Specifically optimized for translating raw **Japanese Manga (`JA / JPN`)** into **English, Indonesian, and other target languages** directly on your phone with comic-grade typesetting and neural inpainting.
+Optimized specifically for translating raw **Japanese Manga (`JA / JPN`)** into **English, Indonesian, and other target languages** directly on mobile devices with comic-grade typesetting and neural inpainting.
 
 > [!WARNING]
 > ### Disclaimer
-> **This Android application is an experimental mobile port and proof-of-concept.**
-> **Hardware Variation:** Running heavy deep learning models (CTD, OCR, AOT-GAN) directly on-device requires significant RAM and CPU/NPU processing. Performance may vary widely depending on device specifications.
-> **Source Language Specialization:** The on-device 48px CTC OCR model and vocabulary dictionary (`alphabet-all-v5.txt`) are specifically trained on Japanese Manga characters (Kanji, Hiragana, Katakana, Romaji/Symbols). Translating non-Japanese comics is not supported.
-> **Edge Cases & Imperfections:** Highly stylized handwritten text, dense SFX, complex gradients, or low-resolution scans may occasionally yield detection or inpainting imperfections.
-> **Active Development:** Features and architecture are subject to continuous iteration. Pull Requests and community contributions are welcome, but please manage expectations regarding instant bugfixes for arbitrary comic formats.
+> * **Hardware Requirements:** Running deep learning models (CTD, 48px CTC OCR, AOT-GAN) directly on-device requires sufficient RAM and CPU processing. Performance depends on device specifications.
+> * **Source Language Specialization:** The on-device 48px CTC OCR model and dictionary are specialized for Japanese Manga typography (Kanji, Hiragana, Katakana, Romaji, and common comic symbols). Translating non-Japanese comics is not supported.
+> * **Edge Cases:** Highly distorted handwritten script, dense sound effects (SFX), or degraded low-resolution scans may require manual adjustment via the built-in interactive editors.
 
 ---
 
-## Features
+## Key Features
 
-* **On-Device AI Pipeline:**
-  * **Comic Text Detection (CTD):** Deep learning segmentation to accurately detect text bubbles, panel dialogues, and SFX across complex manga layouts.
-  * **48px CTC OCR (Japanese Manga):** High-precision character recognition supporting both vertical and horizontal Japanese text lines.
-  * **AOT-GAN Inpainting:** Neural image inpainting that erases original text while seamlessly reconstructing background art and screen tones.
-* **Multi-Engine Translation Support:**
-  * Cloud LLM & API Integration: **DeepL**, **OpenAI (GPT-4o / GPT-3.5)**, **Google Gemini**, **DeepSeek**, **Groq**, and **Papago**.
-  * Customizable API keys with persistent encrypted storage.
-* **Comic-Grade Typography & Rendering:**
-  * Built-in **CC Wild Words** comic typeface with automatic line-wrapping and hyphenation.
-  * Bold, clean white outlines (`strokeWidth`) around black text for maximum readability over illustrations.
-  * Automatic text orientation detection and spatial clustering.
-* **Modern Material Design 3 UX:**
-  * **Google Photos Style Multi-Select:** Contextual action bar, select all, batch deletion, and fluid animations.
-  * **Interactive Reader Screen:** Pinch-to-zoom, pan, double-tap reset, quick original/translated comparison toggle, and native Android Share sheet.
-* **History & Persistent Settings:**
-  * Built with **Room Database** and **Jetpack DataStore** for persistent settings and offline translation history.
+### 1. On-Device AI Pipeline
+* **Comic Text Detection (CTD):** Deep learning segmentation to identify dialogue bubbles, rectangular narrative boxes, and panel textlines across complex layouts.
+* **48px CTC OCR (Japanese Manga):** High-precision text recognition supporting vertical and horizontal Japanese textlines.
+* **AOT-GAN Inpainting:** Neural image inpainting that removes original Japanese text strokes while preserving background artwork and screentones.
+
+### 2. Interactive Correction & Typeset Editing
+* **Detection Review Editor:**
+  * Interactive canvas with pinch-to-zoom, pan, and double-tap gestures.
+  * Add custom bounding boxes over missed dialogue bubbles.
+  * Move and resize detection boundaries using corner drag handles.
+  * Remove unwanted bounding boxes or ignore stylized sound effects (SFX).
+* **Typeset & Render Editor:**
+  * Real-time text block inspector directly over the inpainted image.
+  * Modify translated dialogue text manually.
+  * Adjust font size with increment/decrement steppers.
+  * Adjust text alignment (Left, Center, Right).
+  * Reposition and resize text rendered areas with live canvas updates.
+  * Save modifications directly back to the database and update stored image files.
+
+### 3. Batch Chapter Translation
+* Select multiple manga pages from device storage or gallery.
+* Automatic filename sorting for correct chapter page ordering.
+* Sequential pipeline processing with live stage progress indicators.
+* Page-level detection review and individual typeset editing for completed pages.
+* Chapter album grouping in the gallery database with multi-page reader support.
+
+### 4. Translation Engines
+* Cloud API integration: **DeepL**, **Google Gemini**, **OpenAI (GPT-4o / GPT-4o-mini)**, **DeepSeek**, **Groq**, **OpenRouter**, and **Naver Papago**.
+* Encrypted local storage for provider API keys.
+* Fast re-translate capability to switch engines without re-running OCR and inpainting.
+
+### 5. Gallery & Reader
+* Chapter album grouping and single-page history cards.
+* Instant toggle between original Japanese scan and translated output.
+* Multi-select management with batch deletion.
+* Native image sharing via Android system share sheet.
+
+### 6. Comprehensive Localization
+* Full multi-language user interface support:
+  * English (Default)
+  * Indonesian (Bahasa Indonesia)
+  * Japanese (日本語)
 
 ---
 
-## Architecture & Tech Stack
+## Architecture
 
-The application follows **Clean Architecture** and **MVVM / MVI** best practices:
+The application is built using Clean Architecture principles and MVVM pattern:
 
 ```text
 ┌───────────────────────────────────────────────────────────┐
 │                    Presentation Layer                     │
 │  Jetpack Compose • Material 3 • Navigation • ViewModels   │
+│  Interactive Canvas Editors (Detection & Render Editors)  │
 └─────────────────────────────┬─────────────────────────────┘
                               │
 ┌─────────────────────────────▼─────────────────────────────┐
@@ -62,118 +87,109 @@ The application follows **Clean Architecture** and **MVVM / MVI** best practices
 └───────────────────────────────────────────────────────────┘
 ```
 
-* **UI Framework:** [Jetpack Compose](https://developer.android.com/jetpack/compose) with Material Design 3 components.
-* **Dependency Injection:** [Hilt](https://dagger.dev/hilt/)
-* **AI Runtime:** [ONNX Runtime Mobile](https://onnxruntime.ai/docs/get-started/with-java.html)
-* **Computer Vision:** [OpenCV Android SDK 4.9.0](https://opencv.org/)
-* **Image Loading:** [Coil Compose](https://coil-kt.github.io/coil/compose/)
-* **Database & Storage:** Room Database & Jetpack DataStore Preferences
-* **Concurrency:** Kotlin Coroutines & Asynchronous Flow
+* **UI Framework:** Jetpack Compose with Material Design 3
+* **Dependency Injection:** Hilt
+* **AI Runtime:** ONNX Runtime Mobile
+* **Computer Vision:** OpenCV Android SDK
+* **Image Loading:** Coil Compose
+* **Local Storage:** Room Database (v3) & Jetpack DataStore Preferences
+* **Asynchronous Operations:** Kotlin Coroutines & Flow
 
 ---
 
-## AI Translation Pipeline
-
-The on-device inference workflow executes sequentially with real-time UI progress feedback:
+## Translation Pipeline Workflow
 
 ```mermaid
-graph LR
+graph TD
     A[Manga Image] --> B[CTD Text Detection]
-    B --> C[Spatial Clustering]
-    C --> D[48px CTC OCR]
-    D --> E[Textline Merger]
-    E --> F[Translator Engine]
-    F --> G[AOT Inpainting]
-    G --> H[Canvas Typography Renderer]
-    H --> I[Translated Manga]
+    B --> C{Review Mode Enabled?}
+    C -- Yes --> D[Interactive Detection Editor]
+    C -- No --> E[Spatial Clustering]
+    D --> E
+    E --> F[48px CTC OCR]
+    F --> G[Textline Merger]
+    G --> H[Translation Engine]
+    H --> I[AOT Inpainting]
+    I --> J[Canvas Typography Renderer]
+    J --> K{Manual Edit Requested?}
+    K -- Yes --> L[Interactive Typeset Editor]
+    K -- No --> M[Final Translated Manga]
+    L --> M
 ```
 
-1. **Detection:** CTD segments text probability heatmaps (1024×1024) and extracts precise polygon contours.
-2. **OCR:** Textline crops are transformed and processed by the 48px CTC model to extract text.
-3. **Textline Merging:** Disjointed vertical/horizontal textlines within the same bubble are unified into coherent dialogue blocks.
-4. **Translation:** Dialogue is translated via your chosen engine (DeepL, Gemini, OpenAI, etc.).
-5. **Inpainting:** AOT-GAN paints over original Japanese text strokes.
-6. **Typesetting & Rendering:** Translated text is measured, wrapped, outlined, and drawn using Android 2D Canvas with Comic Wild Words font.
+1. **Detection:** CTD produces text probability maps to isolate speech bubble coordinates.
+2. **Review (Optional):** User inspects, adds, resizes, or removes detection boxes before OCR.
+3. **OCR:** 48px CTC model extracts Japanese characters from cropped text regions.
+4. **Textline Merging:** Merges disjointed vertical/horizontal textlines belonging to the same bubble.
+5. **Translation:** Translates text via the configured translation engine.
+6. **Inpainting:** AOT-GAN neural network cleans Japanese text strokes from the original image.
+7. **Rendering & Typesetting:** Calculates line wrapping, applies white outlines, and draws text with CC Wild Words typeface.
+8. **Typeset Editor (Optional):** User can fine-tune text alignment, font size, position, and wording.
 
 ---
 
-## Getting Started & Build Instructions
+## Build & Setup Instructions
 
 ### Prerequisites
-* **Android Studio:** Ladybug (2024.2.1+) or newer.
-* **JDK:** Java 17 or Java 21.
-* **Android SDK:** Compile SDK 35, Min SDK 26 (Android 8.0+).
+* Android Studio Ladybug (2024.2.1+) or newer.
+* JDK 17 or JDK 21.
+* Android SDK: Compile SDK 35, Min SDK 26 (Android 8.0+).
 
-### 1. Clone the Repository
+### 1. Clone Repository
 ```bash
 git clone https://github.com/yuu18id/manga-image-translator.git
-cd manga-image-translator
+cd manga-image-translator/android-app
 ```
 
-> [!IMPORTANT]
-> ### AI Models Download
->
-> #### Option A: Download from GitHub Releases (Recommended)
-> 1. Go to the [**GitHub Releases Page**](../../releases) of this repository.
-> 2. Download the pre-converted models archive (`models.zip` or individual `.onnx` files).
-> 3. Place them inside `manga-image-translator/app/src/main/assets/models/`:
->    ```text
->    manga-image-translator/app/src/main/assets/
->    ├── fonts/
->    │   └── cc-wild-words-roman.ttf
->    └── models/
->        ├── alphabet-all-v5.txt
->        ├── ctd_detector.onnx
->        ├── ocr_ctc_48px.onnx
->        └── aot_inpainter.onnx
->    ```
->
-> #### Option B: Self-Export from PyTorch Checkpoints
-> If you prefer exporting the models yourself from base PyTorch checkpoints:
-> ```bash
-> cd manga-image-translator/models
-> python export_ctd_onnx.py
-> python export_ocr_ctc_onnx.py
-> python export_aot_onnx.py
-> ```
-> For detailed export options and INT8 quantization, see the [Model Export Guide](models/README.md).
+### 2. Model Assets Placement
+Place required ONNX models and dictionary files inside `app/src/main/assets/`:
 
-### 3. Build & Run
-Open the `manga-image-translator` folder in Android Studio, or build via command line:
+```text
+app/src/main/assets/
+├── fonts/
+│   └── cc-wild-words-roman.ttf
+└── models/
+    ├── alphabet-all-v5.txt
+    ├── ctd_detector.onnx
+    ├── ocr_ctc_48px.onnx
+    └── aot_inpainter.onnx
+```
 
+Pre-converted models can be downloaded from the repository Releases section or exported from base PyTorch checkpoints using the conversion scripts in `models/`.
+
+### 3. Build APK
 ```bash
-# Compile Kotlin and verify build
+# Verify compilation
 ./gradlew compileDebugKotlin
 
-# Assemble Debug APK
+# Build Debug APK
 ./gradlew assembleDebug
 ```
-The generated APK will be available at:
+
+Generated APK output directory:
 `app/build/outputs/apk/debug/app-debug.apk`
 
 ---
 
-## Configuration & Settings
+## Settings & Configuration
 
-Inside the app's **Settings** screen, you can configure:
-* **Default Languages:** Source language is fixed to **Japanese (日本語)**, with customizable default target language (*English, Indonesian, etc.*).
-* **Translation Provider:** Choose default translator (DeepL, Gemini, OpenAI, Groq, Papago).
-* **API Keys:** Securely store API keys for cloud translation engines.
-* **Model Quality:** Adjust text detection resolution (1024 / 1536 / 2048) and inpainting resolution (512 / 1024 / 2048).
-* **Typography:** Adjust font size offset (-5 to +5).
+The application **Settings** screen provides configuration for:
+* **Translation Engine:** Select default provider (DeepL, Gemini, OpenAI, Groq, DeepSeek, OpenRouter, Papago).
+* **API Keys:** Securely input and store provider keys.
+* **Target Language:** Select default output language (English, Indonesian, etc.).
+* **Storage Management:** View and clear translation cache and historical rendered image files.
 
 ---
 
-## Acknowledgements & Credits
+## Acknowledgements
 
-* **Core Research & Base Project:** This application is directly ported and inspired by the incredible open-source work of [**zyddnys/manga-image-translator**](https://github.com/zyddnys/manga-image-translator). Sincere gratitude to the original creators and contributors!
-* **Comic Text Detection (CTD):** [dmMaze/ComicTextDetector](https://github.com/dmMaze/ComicTextDetector) for the state-of-the-art manga text detection model.
-* **Neural Inpainting:** [AOT-GAN](https://github.com/researchmm/AOT-GAN-for-Inpainting) for background art restoration.
-* **CTC OCR:** 48px CTC OCR model trained by the manga translation community.
-* **Typography:** Comic font *CC Wild Words Roman*.
+* **Base Project:** [zyddnys/manga-image-translator](https://github.com/zyddnys/manga-image-translator) for the original research, pipeline architecture, and training pipelines.
+* **Comic Text Detector:** [dmMaze/ComicTextDetector](https://github.com/dmMaze/ComicTextDetector) for the deep learning text detection model.
+* **Neural Inpainting:** [AOT-GAN](https://github.com/researchmm/AOT-GAN-for-Inpainting) for background reconstruction.
+* **Typography:** *CC Wild Words Roman* comic typeface.
 
 ---
 
 ## License
 
-This project is licensed under the **GNU General Public License v3.0 (GPLv3)**. See the root [LICENSE](../LICENSE) file for details.
+This project is licensed under the **GNU General Public License v3.0 (GPLv3)**. See the [LICENSE](../LICENSE) file for full details.

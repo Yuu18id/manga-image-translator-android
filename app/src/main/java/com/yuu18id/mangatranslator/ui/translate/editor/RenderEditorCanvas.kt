@@ -28,6 +28,16 @@ import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.min
 
+private enum class CanvasDragMode {
+    NONE,
+    PAN,
+    MOVE_BOX,
+    RESIZE_CORNER_0, // Top-Left
+    RESIZE_CORNER_1, // Top-Right
+    RESIZE_CORNER_2, // Bottom-Right
+    RESIZE_CORNER_3  // Bottom-Left
+}
+
 @Composable
 fun RenderEditorCanvas(
     inpaintedBitmap: ImageBitmap,
@@ -52,40 +62,102 @@ fun RenderEditorCanvas(
     val imageWidth = inpaintedBitmap.width.toFloat()
     val imageHeight = inpaintedBitmap.height.toFloat()
 
+    val currentBlocks by rememberUpdatedState(blocks)
+    val currentSelectedBlockId by rememberUpdatedState(selectedBlockId)
+    val currentOnSelectBlock by rememberUpdatedState(onSelectBlock)
+    val currentOnUpdateBlock by rememberUpdatedState(onUpdateBlock)
+
+    // Remembered Paint objects for zero-allocation 60 FPS rendering
+    val testPaint = remember(typeface) {
+        Paint(Paint.ANTI_ALIAS_FLAG or Paint.SUBPIXEL_TEXT_FLAG).apply {
+            this.typeface = typeface
+        }
+    }
+    val fillPaint = remember(typeface) {
+        Paint(Paint.ANTI_ALIAS_FLAG or Paint.SUBPIXEL_TEXT_FLAG).apply {
+            this.typeface = typeface
+            color = android.graphics.Color.BLACK
+        }
+    }
+    val strokePaint = remember(typeface) {
+        Paint(Paint.ANTI_ALIAS_FLAG or Paint.SUBPIXEL_TEXT_FLAG).apply {
+            this.typeface = typeface
+            color = android.graphics.Color.WHITE
+            style = Paint.Style.STROKE
+            strokeJoin = Paint.Join.ROUND
+            strokeCap = Paint.Cap.ROUND
+        }
+    }
+    val borderPaint = remember {
+        Paint().apply {
+            style = Paint.Style.STROKE
+            color = android.graphics.Color.argb(255, 255, 152, 0)
+        }
+    }
+    val bgHighlightPaint = remember {
+        Paint().apply {
+            style = Paint.Style.FILL
+            color = android.graphics.Color.argb(40, 255, 152, 0)
+        }
+    }
+    val shadowPaint = remember {
+        Paint().apply {
+            style = Paint.Style.FILL
+            color = android.graphics.Color.argb(100, 0, 0, 0)
+        }
+    }
+    val handleFillPaint = remember {
+        Paint().apply {
+            style = Paint.Style.FILL
+            color = android.graphics.Color.WHITE
+        }
+    }
+    val handleBorderPaint = remember {
+        Paint().apply {
+            style = Paint.Style.STROKE
+            color = android.graphics.Color.argb(255, 255, 109, 0)
+        }
+    }
+
     Box(
         modifier = modifier
             .fillMaxSize()
             .background(Color(0xFF181818))
-            .pointerInput(blocks, selectedBlockId, scale, offset) {
+            .pointerInput(Unit) {
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false)
-                    
+
+                    val activeBlocks = currentBlocks
+                    val activeSelectedId = currentSelectedBlockId
+
                     val viewWidth = size.width.toFloat()
                     val viewHeight = size.height.toFloat()
                     val baseScale = min(viewWidth / imageWidth, viewHeight / imageHeight)
                     val fitWidth = imageWidth * baseScale
                     val fitHeight = imageHeight * baseScale
-                    val centerX = viewWidth / 2f + offset.x
-                    val centerY = viewHeight / 2f + offset.y
-                    val imgLeft = centerX - (fitWidth * scale) / 2f
-                    val imgTop = centerY - (fitHeight * scale) / 2f
-                    val currentDisplayScale = baseScale * scale
 
-                    fun screenToImage(pos: Offset): PointF {
-                        val ix = (pos.x - imgLeft) / currentDisplayScale
-                        val iy = (pos.y - imgTop) / currentDisplayScale
+                    fun screenToImage(pos: Offset, s: Float, off: Offset): PointF {
+                        val cX = viewWidth / 2f + off.x
+                        val cY = viewHeight / 2f + off.y
+                        val iLeft = cX - (fitWidth * s) / 2f
+                        val iTop = cY - (fitHeight * s) / 2f
+                        val dScale = baseScale * s
+                        val ix = (pos.x - iLeft) / dScale
+                        val iy = (pos.y - iTop) / dScale
                         return PointF(ix, iy)
                     }
 
-                    val downImgPt = screenToImage(down.position)
-                    val selectedBlock = blocks.find { it.id == selectedBlockId }
+                    val downImgPt = screenToImage(down.position, scale, offset)
+                    val selectedBlock = activeBlocks.find { it.id == activeSelectedId }
+                    val currentDisplayScale = baseScale * scale
 
-                    // 1. Check if hit corner handle of currently selected block (touch target radius ~24dp)
-                    var activeDragMode = DragMode.NONE
-                    var activeTargetBlock: EditableRenderBlock? = null
+                    var activeDragMode = CanvasDragMode.NONE
+                    var initialBounds: RectF? = null
+                    var dragTargetBlockId: Int? = null
 
+                    // 1. Check if hit corner handle of currently selected block (touch target radius ~26dp)
                     if (selectedBlock != null) {
-                        val handleHitRadiusImg = (24.dp.toPx()) / currentDisplayScale
+                        val handleHitRadiusImg = (26.dp.toPx()) / currentDisplayScale
                         val b = selectedBlock.bounds
                         val corners = listOf(
                             PointF(b.left, b.top),
@@ -100,30 +172,33 @@ fun RenderEditorCanvas(
                             ).toFloat()
                             if (dist <= handleHitRadiusImg) {
                                 activeDragMode = when (ci) {
-                                    0 -> DragMode.RESIZE_CORNER_0
-                                    1 -> DragMode.RESIZE_CORNER_1
-                                    2 -> DragMode.RESIZE_CORNER_2
-                                    else -> DragMode.RESIZE_CORNER_3
+                                    0 -> CanvasDragMode.RESIZE_CORNER_0
+                                    1 -> CanvasDragMode.RESIZE_CORNER_1
+                                    2 -> CanvasDragMode.RESIZE_CORNER_2
+                                    else -> CanvasDragMode.RESIZE_CORNER_3
                                 }
-                                activeTargetBlock = selectedBlock
+                                initialBounds = RectF(selectedBlock.bounds)
+                                dragTargetBlockId = selectedBlock.id
                                 break
                             }
                         }
                     }
 
                     // 2. If not corner handle, check if hit body of any block
-                    if (activeDragMode == DragMode.NONE) {
-                        val hitBlock = blocks.reversed().find { it.bounds.contains(downImgPt.x, downImgPt.y) }
+                    if (activeDragMode == CanvasDragMode.NONE) {
+                        val hitBlock = activeBlocks.reversed().find { it.bounds.contains(downImgPt.x, downImgPt.y) }
                         if (hitBlock != null) {
-                            onSelectBlock(hitBlock.id)
-                            activeDragMode = DragMode.MOVE_BOX
-                            activeTargetBlock = hitBlock
+                            currentOnSelectBlock(hitBlock.id)
+                            activeDragMode = CanvasDragMode.MOVE_BOX
+                            initialBounds = RectF(hitBlock.bounds)
+                            dragTargetBlockId = hitBlock.id
                         } else {
-                            activeDragMode = DragMode.PAN
+                            activeDragMode = CanvasDragMode.PAN
                         }
                     }
 
                     var isMoved = false
+                    val minSize = 20f
 
                     while (true) {
                         val event = awaitPointerEvent()
@@ -137,50 +212,63 @@ fun RenderEditorCanvas(
                             scale = (scale * zoom).coerceIn(0.5f, 6.0f)
                             offset += pan
                             event.changes.forEach { it.consume() }
-                            activeDragMode = DragMode.NONE
+                            activeDragMode = CanvasDragMode.NONE
                             isMoved = true
                         } else if (activePointers.size == 1) {
                             val change = activePointers.first()
-                            val dragDelta = change.position - change.previousPosition
-                            val totalDistFromDown = (change.position - down.position).getDistance()
+                            val distFromDown = (change.position - down.position).getDistance()
 
-                            if (totalDistFromDown > 6f) {
+                            if (distFromDown > 4f) {
                                 isMoved = true
                             }
 
                             if (isMoved) {
                                 change.consume()
-                                val curImgPt = screenToImage(change.position)
+                                if (activeDragMode == CanvasDragMode.PAN) {
+                                    offset += (change.position - change.previousPosition)
+                                } else if (initialBounds != null && dragTargetBlockId != null) {
+                                    val curImgPt = screenToImage(change.position, scale, offset)
+                                    val totalDx = curImgPt.x - downImgPt.x
+                                    val totalDy = curImgPt.y - downImgPt.y
 
-                                val block = activeTargetBlock?.let { target -> blocks.find { it.id == target.id } }
-                                if (block != null) {
-                                    when (activeDragMode) {
-                                        DragMode.MOVE_BOX -> {
-                                            val dxImg = dragDelta.x / currentDisplayScale
-                                            val dyImg = dragDelta.y / currentDisplayScale
-                                            val moved = block.moveBy(dxImg, dyImg, imageWidth, imageHeight)
-                                            onUpdateBlock(moved)
+                                    val targetBlock = currentBlocks.find { it.id == dragTargetBlockId }
+                                    if (targetBlock != null) {
+                                        val init = initialBounds
+                                        val newBounds = when (activeDragMode) {
+                                            CanvasDragMode.MOVE_BOX -> {
+                                                val w = init.width()
+                                                val h = init.height()
+                                                val newL = (init.left + totalDx).coerceIn(0f, imageWidth - w)
+                                                val newT = (init.top + totalDy).coerceIn(0f, imageHeight - h)
+                                                RectF(newL, newT, newL + w, newT + h)
+                                            }
+                                            CanvasDragMode.RESIZE_CORNER_0 -> { // Top-Left (Anchor is Bottom-Right)
+                                                val newL = (init.left + totalDx).coerceIn(0f, init.right - minSize)
+                                                val newT = (init.top + totalDy).coerceIn(0f, init.bottom - minSize)
+                                                RectF(newL, newT, init.right, init.bottom)
+                                            }
+                                            CanvasDragMode.RESIZE_CORNER_1 -> { // Top-Right (Anchor is Bottom-Left)
+                                                val newR = (init.right + totalDx).coerceIn(init.left + minSize, imageWidth)
+                                                val newT = (init.top + totalDy).coerceIn(0f, init.bottom - minSize)
+                                                RectF(init.left, newT, newR, init.bottom)
+                                            }
+                                            CanvasDragMode.RESIZE_CORNER_2 -> { // Bottom-Right (Anchor is Top-Left)
+                                                val newR = (init.right + totalDx).coerceIn(init.left + minSize, imageWidth)
+                                                val newB = (init.bottom + totalDy).coerceIn(init.top + minSize, imageHeight)
+                                                RectF(init.left, init.top, newR, newB)
+                                            }
+                                            CanvasDragMode.RESIZE_CORNER_3 -> { // Bottom-Left (Anchor is Top-Right)
+                                                val newL = (init.left + totalDx).coerceIn(0f, init.right - minSize)
+                                                val newB = (init.bottom + totalDy).coerceIn(init.top + minSize, imageHeight)
+                                                RectF(newL, init.top, init.right, newB)
+                                            }
+                                            else -> null
                                         }
-                                        DragMode.RESIZE_CORNER_0 -> {
-                                            val resized = block.resizeCornerAnchor(0, curImgPt, imageWidth, imageHeight)
-                                            onUpdateBlock(resized)
+
+                                        if (newBounds != null) {
+                                            currentOnUpdateBlock(targetBlock.copy(bounds = newBounds))
                                         }
-                                        DragMode.RESIZE_CORNER_1 -> {
-                                            val resized = block.resizeCornerAnchor(1, curImgPt, imageWidth, imageHeight)
-                                            onUpdateBlock(resized)
-                                        }
-                                        DragMode.RESIZE_CORNER_2 -> {
-                                            val resized = block.resizeCornerAnchor(2, curImgPt, imageWidth, imageHeight)
-                                            onUpdateBlock(resized)
-                                        }
-                                        DragMode.RESIZE_CORNER_3 -> {
-                                            val resized = block.resizeCornerAnchor(3, curImgPt, imageWidth, imageHeight)
-                                            onUpdateBlock(resized)
-                                        }
-                                        else -> {}
                                     }
-                                } else if (activeDragMode == DragMode.PAN) {
-                                    offset += dragDelta
                                 }
                             }
                         }
@@ -188,24 +276,23 @@ fun RenderEditorCanvas(
 
                     // If released without dragging -> Treat as Tap to select/deselect
                     if (!isMoved) {
-                        val hit = blocks.reversed().find { it.bounds.contains(downImgPt.x, downImgPt.y) }
-                        onSelectBlock(hit?.id)
+                        val tapHit = currentBlocks.reversed().find { it.bounds.contains(downImgPt.x, downImgPt.y) }
+                        currentOnSelectBlock(tapHit?.id)
                     }
                 }
             }
     ) {
         Canvas(modifier = Modifier.fillMaxSize()) {
-            val viewWidth = size.width
-            val viewHeight = size.height
+            val canvasW = size.width
+            val canvasH = size.height
 
-            val baseScale = min(viewWidth / imageWidth, viewHeight / imageHeight)
-            val fitWidth = imageWidth * baseScale
-            val fitHeight = imageHeight * baseScale
-            val centerX = viewWidth / 2f + offset.x
-            val centerY = viewHeight / 2f + offset.y
-            val imgLeft = centerX - (fitWidth * scale) / 2f
-            val imgTop = centerY - (fitHeight * scale) / 2f
+            val baseScale = min(canvasW / imageWidth, canvasH / imageHeight)
             val currentDisplayScale = baseScale * scale
+
+            val displayedW = imageWidth * currentDisplayScale
+            val displayedH = imageHeight * currentDisplayScale
+            val imgLeft = (canvasW - displayedW) / 2f + offset.x
+            val imgTop = (canvasH - displayedH) / 2f + offset.y
 
             drawIntoCanvas { canvas ->
                 val nativeCanvas = canvas.nativeCanvas
@@ -225,10 +312,6 @@ fun RenderEditorCanvas(
                     val b = block.bounds
                     val text = block.translatedText.trim()
                     if (text.isBlank() || b.width() <= 0 || b.height() <= 0) continue
-
-                    val testPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.SUBPIXEL_TEXT_FLAG).apply {
-                        this.typeface = typeface
-                    }
 
                     fun wrapText(textToWrap: String, p: Paint, maxSpan: Float): List<String> {
                         val lines = mutableListOf<String>()
@@ -272,7 +355,7 @@ fun RenderEditorCanvas(
                         var bestLines: List<String>? = null
 
                         var iter = 0
-                        while (high - low >= 0.5f && iter < 14) {
+                        while (high - low >= 0.5f && iter < 10) {
                             iter++
                             val mid = (low + high) / 2f
                             testPaint.textSize = mid
@@ -294,28 +377,17 @@ fun RenderEditorCanvas(
                         finalLines = bestLines ?: wrapText(text, testPaint, maxAllowedWidth)
                     }
 
-                    val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.SUBPIXEL_TEXT_FLAG).apply {
-                        this.typeface = typeface
-                        textSize = fontSize
-                        color = android.graphics.Color.BLACK
-                        textAlign = when (block.customAlignment) {
-                            TextAlignment.LEFT -> Paint.Align.LEFT
-                            TextAlignment.RIGHT -> Paint.Align.RIGHT
-                            TextAlignment.CENTER, TextAlignment.AUTO -> Paint.Align.CENTER
-                            else -> Paint.Align.CENTER
-                        }
+                    fillPaint.textSize = fontSize
+                    fillPaint.textAlign = when (block.customAlignment) {
+                        TextAlignment.LEFT -> Paint.Align.LEFT
+                        TextAlignment.RIGHT -> Paint.Align.RIGHT
+                        TextAlignment.CENTER, TextAlignment.AUTO -> Paint.Align.CENTER
+                        else -> Paint.Align.CENTER
                     }
 
-                    val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.SUBPIXEL_TEXT_FLAG).apply {
-                        this.typeface = typeface
-                        textSize = fontSize
-                        color = android.graphics.Color.WHITE
-                        style = Paint.Style.STROKE
-                        strokeWidth = max(4.0f, fontSize * 0.28f)
-                        strokeJoin = Paint.Join.ROUND
-                        strokeCap = Paint.Cap.ROUND
-                        textAlign = fillPaint.textAlign
-                    }
+                    strokePaint.textSize = fontSize
+                    strokePaint.strokeWidth = max(4.0f, fontSize * 0.28f)
+                    strokePaint.textAlign = fillPaint.textAlign
 
                     val fm = fillPaint.fontMetrics
                     val lineHeight = fm.descent - fm.ascent
@@ -339,34 +411,14 @@ fun RenderEditorCanvas(
                     // 3. Selection Box & High-Visibility Handles
                     if (isSelected) {
                         val strokeWInImg = 2.5.dp.toPx() / currentDisplayScale
-                        val borderPaint = Paint().apply {
-                            style = Paint.Style.STROKE
-                            strokeWidth = strokeWInImg
-                            color = android.graphics.Color.argb(255, 255, 152, 0)
-                        }
-                        val bgHighlightPaint = Paint().apply {
-                            style = Paint.Style.FILL
-                            color = android.graphics.Color.argb(40, 255, 152, 0)
-                        }
+                        borderPaint.strokeWidth = strokeWInImg
 
                         nativeCanvas.drawRect(b.left, b.top, b.right, b.bottom, bgHighlightPaint)
                         nativeCanvas.drawRect(b.left, b.top, b.right, b.bottom, borderPaint)
 
-                        // 4 corner handles (Crisp white fill with bold orange ring & shadow)
+                        // 4 corner handles
                         val handleRadius = (8.dp.toPx()) / currentDisplayScale
-                        val shadowPaint = Paint().apply {
-                            style = Paint.Style.FILL
-                            color = android.graphics.Color.argb(100, 0, 0, 0)
-                        }
-                        val handleFillPaint = Paint().apply {
-                            style = Paint.Style.FILL
-                            color = android.graphics.Color.WHITE
-                        }
-                        val handleBorderPaint = Paint().apply {
-                            style = Paint.Style.STROKE
-                            strokeWidth = 2.5.dp.toPx() / currentDisplayScale
-                            color = android.graphics.Color.argb(255, 255, 109, 0)
-                        }
+                        handleBorderPaint.strokeWidth = 2.5.dp.toPx() / currentDisplayScale
 
                         val corners = listOf(
                             PointF(b.left, b.top),

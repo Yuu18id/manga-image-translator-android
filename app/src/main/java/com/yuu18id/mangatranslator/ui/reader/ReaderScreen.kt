@@ -189,7 +189,7 @@ fun ReaderScreen(
                     }) {
                         Icon(
                             Icons.Default.Translate,
-                            contentDescription = "Translate Ulang",
+                            contentDescription = stringResource(R.string.gallery_retranslate_btn),
                             tint = Color.White
                         )
                     }
