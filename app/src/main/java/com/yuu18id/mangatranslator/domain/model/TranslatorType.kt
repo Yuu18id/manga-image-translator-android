@@ -2,6 +2,7 @@ package com.yuu18id.mangatranslator.domain.model
 
 enum class TranslatorType(val displayName: String, val requiresApiKey: Boolean) {
     OPENAI("OpenAI", true),
+    OPENROUTER("OpenRouter", true),
     DEEPL("DeepL", true),
     GEMINI("Gemini", true),
     GOOGLE("Google Translate", false),

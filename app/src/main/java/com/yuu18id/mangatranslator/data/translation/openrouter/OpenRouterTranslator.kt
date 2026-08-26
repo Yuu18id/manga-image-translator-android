@@ -1,4 +1,4 @@
-package com.yuu18id.mangatranslator.data.translation.deepseek
+package com.yuu18id.mangatranslator.data.translation.openrouter
 
 import com.yuu18id.mangatranslator.data.ml.CloudTranslator
 import com.yuu18id.mangatranslator.domain.model.TextBlock
@@ -17,7 +17,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
-class DeepSeekTranslator @Inject constructor(
+class OpenRouterTranslator @Inject constructor(
     private val client: OkHttpClient,
     private val settingsRepository: SettingsRepository
 ) : CloudTranslator {
@@ -42,9 +42,9 @@ class DeepSeekTranslator @Inject constructor(
     ): List<TextBlock> {
         if (textBlocks.isEmpty()) return emptyList()
 
-        val apiKey = settingsRepository.getApiKey(TranslatorType.DEEPSEEK).firstOrNull()
+        val apiKey = settingsRepository.getApiKey(TranslatorType.OPENROUTER).firstOrNull()
         if (apiKey.isNullOrBlank()) {
-            throw Exception("DeepSeek API Key is missing")
+            throw Exception("OpenRouter API Key is missing. Please set it in Settings.")
         }
 
         val sourceLang = config.sourceLang?.displayName ?: "Auto"
@@ -55,8 +55,11 @@ class DeepSeekTranslator @Inject constructor(
             textBlocks
         )
 
+        val selectedModel = settingsRepository.getOpenRouterModel().firstOrNull()?.takeIf { it.isNotBlank() }
+            ?: "google/gemini-2.0-flash-001"
+
         val requestBody = ChatRequest(
-            model = "deepseek-chat",
+            model = selectedModel,
             messages = listOf(
                 Message(
                     role = "system",
@@ -68,17 +71,20 @@ class DeepSeekTranslator @Inject constructor(
 
         val body = json.encodeToString(requestBody).toRequestBody("application/json".toMediaType())
         val request = Request.Builder()
-            .url("https://api.deepseek.com/chat/completions")
+            .url("https://openrouter.ai/api/v1/chat/completions")
             .addHeader("Authorization", "Bearer $apiKey")
+            .addHeader("HTTP-Referer", "https://github.com/Yuu18id/manga-image-translator")
+            .addHeader("X-Title", "Manga Image Translator Android")
             .post(body)
             .build()
 
         val response = client.newCall(request).execute()
         if (!response.isSuccessful) {
-            throw Exception("Translation failed: ${response.code} ${response.message}")
+            val errBody = response.body?.string() ?: ""
+            throw Exception("OpenRouter translation failed (${response.code}): $errBody")
         }
 
-        val responseBody = response.body?.string() ?: throw Exception("Empty response body")
+        val responseBody = response.body?.string() ?: throw Exception("Empty response body from OpenRouter")
         val chatResponse = json.decodeFromString<ChatResponse>(responseBody)
         val content = chatResponse.choices.firstOrNull()?.message?.content ?: ""
 

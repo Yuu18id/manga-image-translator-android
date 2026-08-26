@@ -8,12 +8,13 @@
 
 An advanced, native Android port based on the original [**zyddnys/manga-image-translator**](https://github.com/zyddnys/manga-image-translator) project, bringing **offline & on-device AI manga translation** to mobile devices powered by **ONNX Runtime Mobile**, **OpenCV**, and **Jetpack Compose (Material Design 3)**.
 
-Translate raw Japanese, Chinese, and Korean manga or comic pages into English, Indonesian, and other languages directly on your phone with comic-grade typesetting and inpainting.
+Specifically optimized for translating raw **Japanese Manga (`JA / JPN`)** into **English, Indonesian, and other target languages** directly on your phone with comic-grade typesetting and neural inpainting.
 
 > [!WARNING]
 > ### Disclaimer
 > **This Android application is an experimental mobile port and proof-of-concept.**
 > **Hardware Variation:** Running heavy deep learning models (CTD, OCR, AOT-GAN) directly on-device requires significant RAM and CPU/NPU processing. Performance may vary widely depending on device specifications.
+> **Source Language Specialization:** The on-device 48px CTC OCR model and vocabulary dictionary (`alphabet-all-v5.txt`) are specifically trained on Japanese Manga characters (Kanji, Hiragana, Katakana, Romaji/Symbols). Translating non-Japanese comics is not supported.
 > **Edge Cases & Imperfections:** Highly stylized handwritten text, dense SFX, complex gradients, or low-resolution scans may occasionally yield detection or inpainting imperfections.
 > **Active Development:** Features and architecture are subject to continuous iteration. Pull Requests and community contributions are welcome, but please manage expectations regarding instant bugfixes for arbitrary comic formats.
 
@@ -23,7 +24,7 @@ Translate raw Japanese, Chinese, and Korean manga or comic pages into English, I
 
 * **On-Device AI Pipeline:**
   * **Comic Text Detection (CTD):** Deep learning segmentation to accurately detect text bubbles, panel dialogues, and SFX across complex manga layouts.
-  * **48px CTC OCR:** High-precision character recognition supporting both vertical and horizontal Japanese/CJK text lines.
+  * **48px CTC OCR (Japanese Manga):** High-precision character recognition supporting both vertical and horizontal Japanese text lines.
   * **AOT-GAN Inpainting:** Neural image inpainting that erases original text while seamlessly reconstructing background art and screen tones.
 * **Multi-Engine Translation Support:**
   * Cloud LLM & API Integration: **DeepL**, **OpenAI (GPT-4o / GPT-3.5)**, **Google Gemini**, **DeepSeek**, **Groq**, and **Papago**.
@@ -155,7 +156,7 @@ The generated APK will be available at:
 ## Configuration & Settings
 
 Inside the app's **Settings** screen, you can configure:
-* **Default Languages:** Set default source language (*Auto-Detect, Japanese, Chinese, etc.*) and default target language (*English, Indonesian, etc.*).
+* **Default Languages:** Source language is fixed to **Japanese (日本語)**, with customizable default target language (*English, Indonesian, etc.*).
 * **Translation Provider:** Choose default translator (DeepL, Gemini, OpenAI, Groq, Papago).
 * **API Keys:** Securely store API keys for cloud translation engines.
 * **Model Quality:** Adjust text detection resolution (1024 / 1536 / 2048) and inpainting resolution (512 / 1024 / 2048).

@@ -9,4 +9,6 @@ interface SettingsRepository {
     suspend fun saveTranslationConfig(config: TranslationConfig)
     fun getApiKey(translatorType: TranslatorType): Flow<String>
     suspend fun saveApiKey(translatorType: TranslatorType, key: String)
+    fun getOpenRouterModel(): Flow<String>
+    suspend fun saveOpenRouterModel(modelId: String)
 }

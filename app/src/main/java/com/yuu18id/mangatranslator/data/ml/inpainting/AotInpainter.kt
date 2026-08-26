@@ -17,7 +17,7 @@ class AotInpainter @Inject constructor(
 ) : Inpainter {
 
     @Suppress("UNCHECKED_CAST")
-    override suspend fun inpaint(image: Bitmap, mask: Bitmap, config: InpaintConfig): Bitmap {
+    override suspend fun inpaint(image: Bitmap, mask: Bitmap, config: InpaintConfig): Bitmap = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
         val env = onnxModelManager.ortEnvironment
         val session = onnxModelManager.createSession(OnnxModelManager.ModelType.AOT_INPAINTER, useNnapi = false)
 
@@ -31,29 +31,41 @@ class AotInpainter @Inject constructor(
         val resizedImage = Bitmap.createScaledBitmap(image, targetW, targetH, true)
         val resizedMask = Bitmap.createScaledBitmap(mask, targetW, targetH, true)
 
-        val inputTensor = prepareInputTensor(resizedImage, resizedMask, env)
-        val inputName = session.inputNames.iterator().next()
-        val result = session.run(mapOf(inputName to inputTensor))
+        var inputTensor: OnnxTensor? = null
+        var result: ai.onnxruntime.OrtSession.Result? = null
 
-        val outputTensor = result.get(0) as OnnxTensor
-        val floatBuffer = outputTensor.floatBuffer
-        val outputFloatArray = FloatArray(floatBuffer.remaining())
-        floatBuffer.get(outputFloatArray)
+        try {
+            inputTensor = prepareInputTensor(resizedImage, resizedMask, env)
+            val inputName = session.inputNames.iterator().next()
+            result = session.run(mapOf(inputName to inputTensor))
 
-        val inpaintedResized = denormalizeOutput(outputFloatArray, targetW, targetH)
-        val inpaintedOriginalSize = Bitmap.createScaledBitmap(inpaintedResized, image.width, image.height, true)
-        val finalResult = blendBitmaps(image, inpaintedOriginalSize, mask)
+            val outputTensor = result.get(0) as OnnxTensor
+            val floatBuffer = outputTensor.floatBuffer
+            val outputFloatArray = FloatArray(floatBuffer.remaining())
+            floatBuffer.get(outputFloatArray)
 
-        inputTensor.close()
-        result.close()
+            val inpaintedResized = denormalizeOutput(outputFloatArray, targetW, targetH)
+            val inpaintedOriginalSize = Bitmap.createScaledBitmap(inpaintedResized, image.width, image.height, true)
+            val finalResult = blendBitmaps(image, inpaintedOriginalSize, mask)
 
-        return finalResult
+            if (inpaintedResized != inpaintedOriginalSize) inpaintedResized.recycle()
+            if (inpaintedOriginalSize != finalResult) inpaintedOriginalSize.recycle()
+
+            return@withContext finalResult
+        } finally {
+            if (resizedImage != image) resizedImage.recycle()
+            if (resizedMask != mask) resizedMask.recycle()
+            inputTensor?.close()
+            result?.close()
+        }
     }
 
     private fun prepareInputTensor(image: Bitmap, mask: Bitmap, env: OrtEnvironment): OnnxTensor {
         val w = image.width
         val h = image.height
-        val floatBuffer = FloatBuffer.allocate(1 * 4 * h * w)
+        val byteBuffer = java.nio.ByteBuffer.allocateDirect(1 * 4 * h * w * 4)
+            .order(java.nio.ByteOrder.nativeOrder())
+        val floatBuffer = byteBuffer.asFloatBuffer()
 
         val imagePixels = IntArray(w * h)
         image.getPixels(imagePixels, 0, w, 0, 0, w, h)

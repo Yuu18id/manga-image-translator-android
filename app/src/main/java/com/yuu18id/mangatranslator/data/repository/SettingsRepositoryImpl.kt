@@ -29,7 +29,7 @@ class SettingsRepositoryImpl @Inject constructor(
     override fun getTranslationConfig(): Flow<TranslationConfig> {
         return settingsDataStore.preferencesFlow.map { prefs ->
             val translatorTypeName = prefs[androidx.datastore.preferences.core.stringPreferencesKey(KEY_TRANSLATOR_TYPE)] ?: TranslatorType.NONE.name
-            val sourceLangName = prefs[androidx.datastore.preferences.core.stringPreferencesKey(KEY_SOURCE_LANG)] ?: ""
+            val sourceLangName = prefs[androidx.datastore.preferences.core.stringPreferencesKey(KEY_SOURCE_LANG)] ?: Language.JPN.name
             val targetLangName = prefs[androidx.datastore.preferences.core.stringPreferencesKey(KEY_TARGET_LANG)] ?: Language.ENG.name
             val detectionSize = prefs[androidx.datastore.preferences.core.intPreferencesKey(KEY_DETECTION_SIZE)] ?: 1024
             val inpaintingSize = prefs[androidx.datastore.preferences.core.intPreferencesKey(KEY_INPAINTING_SIZE)] ?: 512
@@ -37,8 +37,8 @@ class SettingsRepositoryImpl @Inject constructor(
 
             val translatorType = runCatching { TranslatorType.valueOf(translatorTypeName) }.getOrDefault(TranslatorType.NONE)
             val sourceLang = if (sourceLangName.isNotBlank()) {
-                runCatching { Language.valueOf(sourceLangName) }.getOrNull()
-            } else null
+                runCatching { Language.valueOf(sourceLangName) }.getOrDefault(Language.JPN)
+            } else Language.JPN
             val targetLang = runCatching { Language.valueOf(targetLangName) }.getOrDefault(Language.ENG)
 
             TranslationConfig(
@@ -75,5 +75,13 @@ class SettingsRepositoryImpl @Inject constructor(
 
     override suspend fun saveApiKey(translatorType: TranslatorType, key: String) {
         settingsDataStore.saveApiKey(translatorType.name, key)
+    }
+
+    override fun getOpenRouterModel(): Flow<String> {
+        return settingsDataStore.getConfigString("openrouter_model", "google/gemini-2.0-flash-001")
+    }
+
+    override suspend fun saveOpenRouterModel(modelId: String) {
+        settingsDataStore.saveConfigString("openrouter_model", modelId.trim())
     }
 }

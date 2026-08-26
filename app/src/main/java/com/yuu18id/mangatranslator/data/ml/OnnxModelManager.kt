@@ -107,13 +107,8 @@ class OnnxModelManager @Inject constructor(
         getModelFile(type)?.delete()
     }
 
-    fun createSession(type: ModelType, useNnapi: Boolean = true): OrtSession {
-        // If requesting without NNAPI, always create fresh session (don't reuse potentially NNAPI-enabled cached one)
-        if (!useNnapi) {
-            sessionCache.remove(type)?.close()
-        } else {
-            sessionCache[type]?.let { return it }
-        }
+    fun createSession(type: ModelType, useNnapi: Boolean = false): OrtSession {
+        sessionCache[type]?.let { return it }
 
         val file = getModelFile(type) ?: throw IllegalStateException("Model ${type.filename} not available in assets or storage")
         val options = configureSessionOptions(useNnapi)
@@ -135,8 +130,11 @@ class OnnxModelManager @Inject constructor(
 
     private fun configureSessionOptions(useNnapi: Boolean): OrtSession.SessionOptions {
         val options = OrtSession.SessionOptions()
-        options.setIntraOpNumThreads(4)
-        options.setOptimizationLevel(OrtSession.SessionOptions.OptLevel.EXTENDED_OPT)
+        val availableCores = Runtime.getRuntime().availableProcessors()
+        val numThreads = availableCores.coerceIn(2, 4)
+        options.setIntraOpNumThreads(numThreads)
+        options.setInterOpNumThreads(1)
+        options.setOptimizationLevel(OrtSession.SessionOptions.OptLevel.BASIC_OPT)
         if (useNnapi) {
             try {
                 options.addNnapi()

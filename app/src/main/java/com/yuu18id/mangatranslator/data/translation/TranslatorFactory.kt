@@ -7,6 +7,7 @@ import com.yuu18id.mangatranslator.data.translation.gemini.GeminiTranslator
 import com.yuu18id.mangatranslator.data.translation.google.GoogleTranslator
 import com.yuu18id.mangatranslator.data.translation.groq.GroqTranslator
 import com.yuu18id.mangatranslator.data.translation.openai.OpenAiTranslator
+import com.yuu18id.mangatranslator.data.translation.openrouter.OpenRouterTranslator
 import com.yuu18id.mangatranslator.data.translation.papago.PapagoTranslator
 import com.yuu18id.mangatranslator.domain.model.TranslatorType
 import javax.inject.Inject
@@ -16,6 +17,7 @@ import javax.inject.Singleton
 @Singleton
 class TranslatorFactory @Inject constructor(
     private val openAiTranslatorProvider: Provider<OpenAiTranslator>,
+    private val openRouterTranslatorProvider: Provider<OpenRouterTranslator>,
     private val deepLTranslatorProvider: Provider<DeepLTranslator>,
     private val geminiTranslatorProvider: Provider<GeminiTranslator>,
     private val deepSeekTranslatorProvider: Provider<DeepSeekTranslator>,
@@ -27,6 +29,7 @@ class TranslatorFactory @Inject constructor(
     fun getTranslator(type: TranslatorType): CloudTranslator {
         return when (type) {
             TranslatorType.OPENAI -> openAiTranslatorProvider.get()
+            TranslatorType.OPENROUTER -> openRouterTranslatorProvider.get()
             TranslatorType.DEEPL -> deepLTranslatorProvider.get()
             TranslatorType.GEMINI -> geminiTranslatorProvider.get()
             TranslatorType.DEEPSEEK -> deepSeekTranslatorProvider.get()

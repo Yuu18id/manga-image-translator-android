@@ -35,6 +35,13 @@ class HistoryRepositoryImpl @Inject constructor(
         historyDao.getById(id)?.toDomain()
     }
 
+    override suspend fun getTranslationsByIds(ids: List<Long>): List<TranslationHistoryItem> = withContext(Dispatchers.IO) {
+        val entities = historyDao.getByIds(ids)
+        // Preserve the original order from ids
+        val entityMap = entities.associateBy { it.id }
+        ids.mapNotNull { id -> entityMap[id]?.toDomain() }
+    }
+
     override suspend fun saveTranslation(result: TranslationResult): Long = withContext(Dispatchers.IO) {
         val timestamp = if (result.timestamp > 0) result.timestamp else System.currentTimeMillis()
         

@@ -49,19 +49,19 @@ class GroqTranslator @Inject constructor(
 
         val sourceLang = config.sourceLang?.displayName ?: "Auto"
         val targetLang = config.targetLang.displayName
-
-        val prompt = buildString {
-            append("Translate the following manga text from $sourceLang to $targetLang.\n")
-            append("Maintain the context, tone, and formatting.\n\n")
-            textBlocks.forEachIndexed { index, block ->
-                append("${index + 1}: [${block.text}]\n")
-            }
-        }
+        val prompt = com.yuu18id.mangatranslator.data.translation.prompt.LlmPromptConfig.buildUserPrompt(
+            sourceLang,
+            targetLang,
+            textBlocks
+        )
 
         val requestBody = ChatRequest(
             model = "llama-3.3-70b-versatile",
             messages = listOf(
-                Message(role = "system", content = "You are a professional manga translator."),
+                Message(
+                    role = "system",
+                    content = com.yuu18id.mangatranslator.data.translation.prompt.LlmPromptConfig.SYSTEM_PROMPT
+                ),
                 Message(role = "user", content = prompt)
             )
         )
@@ -86,11 +86,11 @@ class GroqTranslator @Inject constructor(
         val resultBlocks = textBlocks.map { it.copy() }.toMutableList()
 
         for (line in translatedLines) {
-            val match = Regex("""^(\d+):\s*(?:\[(.*?)\]|(.*))""").find(line.trim())
+            val match = Regex("""^(\d+)[\s.:\-]+(?:\[(.*?)\]|(.*))""").find(line.trim())
             if (match != null) {
                 val index = match.groupValues[1].toIntOrNull()?.minus(1)
                 val text = match.groupValues[2].takeIf { it.isNotEmpty() } ?: match.groupValues[3]
-                if (index != null && index in resultBlocks.indices) {
+                if (index != null && index in resultBlocks.indices && !text.isNullOrBlank()) {
                     resultBlocks[index] = resultBlocks[index].copy(translatedText = text.trim())
                 }
             }

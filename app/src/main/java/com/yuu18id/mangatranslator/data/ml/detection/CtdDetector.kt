@@ -45,8 +45,10 @@ class CtdDetector @Inject constructor(
         Utils.bitmapToMat(image, mat)
         Imgproc.cvtColor(mat, mat, Imgproc.COLOR_RGBA2RGB)
 
-        // Letterbox resizing (1024x1024)
-        val targetSize = config.detectionSize.coerceAtLeast(TARGET_SIZE)
+        val inputTensorInfo = session.inputInfo.values.firstOrNull()?.info as? ai.onnxruntime.TensorInfo
+        val shape = inputTensorInfo?.shape
+        val modelTargetH = shape?.getOrNull(2)?.takeIf { it > 0 }?.toInt() ?: TARGET_SIZE
+        val targetSize = modelTargetH
         val scale = min(targetSize.toFloat() / originalW, targetSize.toFloat() / originalH)
         val newW = (originalW * scale).toInt()
         val newH = (originalH * scale).toInt()
@@ -79,103 +81,115 @@ class CtdDetector @Inject constructor(
             }
         }
 
-        val floatBuffer = FloatBuffer.wrap(floatArray)
-        val inputTensor = OnnxTensor.createTensor(
-            env,
-            floatBuffer,
-            longArrayOf(1, 3, targetSize.toLong(), targetSize.toLong())
-        )
+        val byteBuffer = java.nio.ByteBuffer.allocateDirect(3 * targetSize * targetSize * 4)
+            .order(java.nio.ByteOrder.nativeOrder())
+        val floatBuffer = byteBuffer.asFloatBuffer()
+        floatBuffer.put(floatArray)
+        floatBuffer.rewind()
 
-        val inputName = session.inputNames.iterator().next()
-        val result = session.run(mapOf(inputName to inputTensor))
-
-        // Outputs: [0] blk [1, 64512, 7], [1] seg (mask [1, 1, 1024, 1024]), [2] det (lines [1, 2, 1024, 1024])
-        val maskOnnxTensor = result.get(1) as OnnxTensor
-        val linesOnnxTensor = result.get(2) as OnnxTensor
-
-        val maskFlat = FloatArray(targetSize * targetSize)
-        val linesFlat = FloatArray(targetSize * targetSize)
-
-        maskOnnxTensor.floatBuffer.get(maskFlat)
-        // det has 2 channels; channel 0 contains the textline probability heatmap
-        linesOnnxTensor.floatBuffer.get(linesFlat)
-
+        var inputTensor: OnnxTensor? = null
+        var result: ai.onnxruntime.OrtSession.Result? = null
         val maskMat = Mat(targetSize, targetSize, CvType.CV_32FC1)
         val linesMat = Mat(targetSize, targetSize, CvType.CV_32FC1)
-        maskMat.put(0, 0, maskFlat)
-        linesMat.put(0, 0, linesFlat)
-
-        // Unpad from bottom/right: submat(0, newH, 0, newW)
-        val maskCropped = maskMat.submat(0, newH, 0, newW)
-        val linesCropped = linesMat.submat(0, newH, 0, newW)
-
+        var maskCropped: Mat? = null
+        var linesCropped: Mat? = null
         val maskResized = Mat()
-        Imgproc.resize(maskCropped, maskResized, Size(originalW.toDouble(), originalH.toDouble()))
         val linesResized = Mat()
-        Imgproc.resize(linesCropped, linesResized, Size(originalW.toDouble(), originalH.toDouble()))
-
-        // Binarize using textThreshold, then evaluate contours with boxThreshold
-        val binaryLines = DetectionPostProcessor.binarize(linesResized, config.textThreshold)
-        val contours = ArrayList<org.opencv.core.MatOfPoint>()
+        var binaryLines: Mat? = null
         val hierarchy = Mat()
-        Imgproc.findContours(binaryLines, contours, hierarchy, Imgproc.RETR_LIST, Imgproc.CHAIN_APPROX_SIMPLE)
-
-        val textlines = mutableListOf<Pair<List<Point>, Float>>()
-        for (contour in contours) {
-            if (contour.rows() < 4) {
-                contour.release()
-                continue
-            }
-            val (box, shortSide) = DetectionPostProcessor.getMiniBoxes(contour)
-            if (shortSide < 3) {
-                contour.release()
-                continue
-            }
-            
-            // Score against the actual text contour strokes (matching Python CTD SegDetectorRepresenter)
-            val contourPoints = contour.toList()
-            val score = DetectionPostProcessor.boxScoreFast(linesResized, contourPoints)
-            if (score < config.boxThreshold) {
-                contour.release()
-                continue
-            }
-            
-            val unclippedBox = DetectionPostProcessor.unclipContour(contour, config.unclipRatio)
-            textlines.add(Pair(unclippedBox, score))
-            contour.release()
-        }
-
-        val nmsBoxes = DetectionPostProcessor.nonMaxSuppression(textlines, 0.3f)
-        val quadrilaterals = nmsBoxes.map { (pts, score) ->
-            val pointFs = pts.map { android.graphics.PointF(it.x.toFloat(), it.y.toFloat()) }
-            Quadrilateral.fromPoints(pointFs, text = "", prob = score)
-        }
-
-        // Convert mask to 8-bit bitmap [0, 255]
         val mask8u = Mat()
-        maskResized.convertTo(mask8u, CvType.CV_8UC1, 255.0)
-        val maskBitmap = Bitmap.createBitmap(originalW, originalH, Bitmap.Config.ARGB_8888)
-        Utils.matToBitmap(mask8u, maskBitmap)
 
-        // Native memory cleanup
-        inputTensor.close()
-        result.close()
-        mat.release()
-        resizedMat.release()
-        paddedMat.release()
-        maskMat.release()
-        linesMat.release()
-        maskCropped.release()
-        linesCropped.release()
-        maskResized.release()
-        linesResized.release()
-        binaryLines.release()
-        hierarchy.release()
-        mask8u.release()
+        try {
+            inputTensor = OnnxTensor.createTensor(
+                env,
+                floatBuffer,
+                longArrayOf(1, 3, targetSize.toLong(), targetSize.toLong())
+            )
 
-        TextDetector.DetectionResult(
-            textlines = quadrilaterals,
-            mask = maskBitmap
-        )
+            val inputName = session.inputNames.iterator().next()
+            result = session.run(mapOf(inputName to inputTensor))
+
+            // Outputs: [0] blk [1, 64512, 7], [1] seg (mask [1, 1, 1024, 1024]), [2] det (lines [1, 2, 1024, 1024])
+            val maskOnnxTensor = result.get(1) as OnnxTensor
+            val linesOnnxTensor = result.get(2) as OnnxTensor
+
+            val maskFlat = FloatArray(targetSize * targetSize)
+            val linesFlat = FloatArray(targetSize * targetSize)
+
+            maskOnnxTensor.floatBuffer.get(maskFlat)
+            // det has 2 channels; channel 0 contains the textline probability heatmap
+            linesOnnxTensor.floatBuffer.get(linesFlat)
+
+            maskMat.put(0, 0, maskFlat)
+            linesMat.put(0, 0, linesFlat)
+
+            // Unpad from bottom/right: submat(0, newH, 0, newW)
+            maskCropped = maskMat.submat(0, newH, 0, newW)
+            linesCropped = linesMat.submat(0, newH, 0, newW)
+
+            Imgproc.resize(maskCropped, maskResized, Size(originalW.toDouble(), originalH.toDouble()))
+            Imgproc.resize(linesCropped, linesResized, Size(originalW.toDouble(), originalH.toDouble()))
+
+            // Binarize using textThreshold, then evaluate contours with boxThreshold
+            binaryLines = DetectionPostProcessor.binarize(linesResized, config.textThreshold)
+            val contours = ArrayList<org.opencv.core.MatOfPoint>()
+            Imgproc.findContours(binaryLines, contours, hierarchy, Imgproc.RETR_LIST, Imgproc.CHAIN_APPROX_SIMPLE)
+
+            val textlines = mutableListOf<Pair<List<Point>, Float>>()
+            for (contour in contours) {
+                if (contour.rows() < 4) {
+                    contour.release()
+                    continue
+                }
+                val (box, shortSide) = DetectionPostProcessor.getMiniBoxes(contour)
+                if (shortSide < 3) {
+                    contour.release()
+                    continue
+                }
+                
+                // Score against the actual text contour strokes (matching Python CTD SegDetectorRepresenter)
+                val contourPoints = contour.toList()
+                val score = DetectionPostProcessor.boxScoreFast(linesResized, contourPoints)
+                if (score < config.boxThreshold) {
+                    contour.release()
+                    continue
+                }
+                
+                val unclippedBox = DetectionPostProcessor.unclipContour(contour, config.unclipRatio)
+                textlines.add(Pair(unclippedBox, score))
+                contour.release()
+            }
+
+            val nmsBoxes = DetectionPostProcessor.nonMaxSuppression(textlines, 0.3f)
+            val quadrilaterals = nmsBoxes.map { (pts, score) ->
+                val pointFs = pts.map { android.graphics.PointF(it.x.toFloat(), it.y.toFloat()) }
+                Quadrilateral.fromPoints(pointFs, text = "", prob = score)
+            }
+
+            // Convert mask to 8-bit bitmap [0, 255]
+            maskResized.convertTo(mask8u, CvType.CV_8UC1, 255.0)
+            val maskBitmap = Bitmap.createBitmap(originalW, originalH, Bitmap.Config.ARGB_8888)
+            Utils.matToBitmap(mask8u, maskBitmap)
+
+            return@withContext TextDetector.DetectionResult(
+                textlines = quadrilaterals,
+                mask = maskBitmap
+            )
+        } finally {
+            inputTensor?.close()
+            result?.close()
+            mat.release()
+            resizedMat.release()
+            paddedMat.release()
+            maskMat.release()
+            linesMat.release()
+            maskCropped?.release()
+            linesCropped?.release()
+            maskResized.release()
+            linesResized.release()
+            binaryLines?.release()
+            hierarchy.release()
+            mask8u.release()
+        }
     }
 }

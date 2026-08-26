@@ -37,6 +37,7 @@ class TextlineMerger @Inject constructor() {
             }
         }
 
+        // Pass 1: Build connected components of candidate textlines
         for (i in 0 until n) {
             for (j in i + 1 until n) {
                 if (canMerge(lines[i], lines[j])) {
@@ -45,20 +46,156 @@ class TextlineMerger @Inject constructor() {
             }
         }
 
-        val clusters = mutableMapOf<Int, MutableList<Quadrilateral>>()
+        val rawClusters = mutableMapOf<Int, MutableList<Int>>()
         for (i in 0 until n) {
             val root = find(i)
-            clusters.getOrPut(root) { mutableListOf() }.add(lines[i])
+            rawClusters.getOrPut(root) { mutableListOf() }.add(i)
         }
 
-        return clusters.values.map { cluster ->
+        // Pass 2: Minimum Spanning Tree (MST) Outlier Splitting
+        // Accurately cuts bridge edges between touching/adjacent speech balloons
+        val finalClusters = mutableListOf<List<Quadrilateral>>()
+        for (clusterIndices in rawClusters.values) {
+            val splitGroups = splitTextRegionMst(clusterIndices, lines)
+            for (group in splitGroups) {
+                finalClusters.add(group.map { lines[it] })
+            }
+        }
+
+        return finalClusters.map { cluster ->
             mergeCluster(cluster)
         }
     }
 
+    private data class Edge(val dist: Float, val u: Int, val v: Int)
+
+    private fun kruskalMst(nodeIndices: List<Int>, lines: List<Quadrilateral>): List<Edge> {
+        val edges = mutableListOf<Edge>()
+        for (i in 0 until nodeIndices.size) {
+            for (j in i + 1 until nodeIndices.size) {
+                val u = nodeIndices[i]
+                val v = nodeIndices[j]
+                val d = calculateDistance(lines[u], lines[v])
+                edges.add(Edge(d, u, v))
+            }
+        }
+        edges.sortBy { it.dist }
+
+        val parent = mutableMapOf<Int, Int>()
+        for (n in nodeIndices) parent[n] = n
+
+        fun find(i: Int): Int {
+            var root = i
+            while (root != (parent[root] ?: root)) {
+                parent[root] = parent[parent[root] ?: root] ?: root
+                root = parent[root] ?: root
+            }
+            return root
+        }
+
+        val mstEdges = mutableListOf<Edge>()
+        for (edge in edges) {
+            val rootU = find(edge.u)
+            val rootV = find(edge.v)
+            if (rootU != rootV) {
+                parent[rootU] = rootV
+                mstEdges.add(edge)
+                if (mstEdges.size == nodeIndices.size - 1) break
+            }
+        }
+        return mstEdges
+    }
+
+    private fun splitTextRegionMst(
+        nodeIndices: List<Int>,
+        lines: List<Quadrilateral>,
+        gamma: Float = 0.35f,
+        sigma: Float = 1.5f
+    ): List<List<Int>> {
+        if (nodeIndices.size <= 1) return listOf(nodeIndices)
+
+        if (nodeIndices.size == 2) {
+            val u = nodeIndices[0]
+            val v = nodeIndices[1]
+            val fs = max(getFontSize(lines[u]), getFontSize(lines[v]))
+            val d = calculateDistance(lines[u], lines[v])
+            return if (d <= (1.0f + gamma) * fs && abs(lines[u].angle - lines[v].angle) <= 30.0f) {
+                listOf(nodeIndices)
+            } else {
+                listOf(listOf(u), listOf(v))
+            }
+        }
+
+        val mstEdges = kruskalMst(nodeIndices, lines).sortedByDescending { it.dist }
+        if (mstEdges.isEmpty()) return listOf(nodeIndices)
+
+        val distances = mstEdges.map { it.dist }
+        val meanD = distances.average().toFloat()
+        val variance = distances.map { (it - meanD) * (it - meanD) }.average().toFloat()
+        val stdD = kotlin.math.sqrt(variance)
+        val avgFontSize = nodeIndices.map { getFontSize(lines[it]) }.average().toFloat()
+        val stdThreshold = max(0.25f * avgFontSize + 3.0f, 4.0f)
+
+        val maxEdge = mstEdges[0]
+        val maxD = maxEdge.dist
+
+        // If the largest edge is significantly larger than internal line spacing or standard deviation is high,
+        // it indicates a bridge between two separate speech bubbles!
+        val shouldKeepTogether = (maxD <= meanD + stdD * sigma || maxD <= avgFontSize * (1.0f + gamma)) && (stdD < stdThreshold)
+
+        if (shouldKeepTogether) {
+            return listOf(nodeIndices)
+        }
+
+        // Cut the largest bridge edge and find the resulting sub-trees
+        val remainingEdges = mstEdges.drop(1)
+        val adj = mutableMapOf<Int, MutableList<Int>>()
+        for (n in nodeIndices) adj[n] = mutableListOf()
+        for (edge in remainingEdges) {
+            adj[edge.u]?.add(edge.v)
+            adj[edge.v]?.add(edge.u)
+        }
+
+        val visited = mutableSetOf<Int>()
+        val subComponents = mutableListOf<List<Int>>()
+        for (n in nodeIndices) {
+            if (n !in visited) {
+                val comp = mutableListOf<Int>()
+                val queue = ArrayDeque<Int>()
+                queue.add(n)
+                visited.add(n)
+                while (queue.isNotEmpty()) {
+                    val curr = queue.removeFirst()
+                    comp.add(curr)
+                    for (neighbor in adj[curr] ?: emptyList()) {
+                        if (neighbor !in visited) {
+                            visited.add(neighbor)
+                            queue.add(neighbor)
+                        }
+                    }
+                }
+                subComponents.add(comp)
+            }
+        }
+
+        val result = mutableListOf<List<Int>>()
+        for (comp in subComponents) {
+            result.addAll(splitTextRegionMst(comp, lines, gamma, sigma))
+        }
+        return result
+    }
+
+    private fun calculateDistance(q1: Quadrilateral, q2: Quadrilateral): Float {
+        val r1 = q1.boundingRect()
+        val r2 = q2.boundingRect()
+        val xDist = if (r1.right < r2.left) r2.left - r1.right else if (r2.right < r1.left) r1.left - r2.right else 0f
+        val yDist = if (r1.bottom < r2.top) r2.top - r1.bottom else if (r2.bottom < r1.top) r1.top - r2.bottom else 0f
+        return hypot(xDist, yDist)
+    }
+
     private fun getFontSize(q: Quadrilateral): Float {
         val rect = q.boundingRect()
-        return min(rect.width(), rect.height())
+        return if (q.isVertical) rect.width() else rect.height()
     }
 
     fun canMerge(q1: Quadrilateral, q2: Quadrilateral): Boolean {
@@ -70,26 +207,44 @@ class TextlineMerger @Inject constructor() {
         val charSize = min(fs1, fs2)
         if (charSize <= 0f) return false
 
-        // Font size ratio check (reject if fonts are too different)
-        if (max(fs1, fs2) / charSize > 1.8f) return false
+        // Font size ratio check (tolerant up to 2.0x for comic emphasis/furigana)
+        if (max(fs1, fs2) / charSize > 2.0f) return false
 
-        // Direction must match
+        // Orientation direction must match
         if (q1.isVertical != q2.isVertical) return false
+
+        // Angle orientation must be reasonably aligned (within 30 degrees)
+        if (abs(q1.angle - q2.angle) > 30.0f) return false
 
         val xDist = if (r1.right < r2.left) r2.left - r1.right else if (r2.right < r1.left) r1.left - r2.right else 0f
         val yDist = if (r1.bottom < r2.top) r2.top - r1.bottom else if (r2.bottom < r1.top) r1.top - r2.bottom else 0f
         val rectDist = hypot(xDist, yDist)
 
         return if (q1.isVertical) {
-            // Vertical textlines: gap horizontally between columns is typically <= 2.5 * charSize
-            if (xDist > charSize * 2.5f) return false
-            if (yDist > charSize * 3.0f) return false
-            rectDist < charSize * 3.5f
+            // Vertical Japanese columns in the same speech bubble
+            val verticalOverlap = max(0f, min(r1.bottom, r2.bottom) - max(r1.top, r2.top))
+            val minHeight = min(r1.height(), r2.height())
+            val hasOverlap = minHeight > 0f && (verticalOverlap / minHeight) >= 0.15f
+
+            // 1. Parallel adjacent columns with slight or strong vertical overlap
+            val isParallelColumn = hasOverlap && (xDist <= charSize * 1.35f) && (yDist <= charSize * 0.8f)
+            // 2. Collinear stacked segments in the same column
+            val isStackedSegment = (xDist <= charSize * 0.75f) && (yDist <= charSize * 2.0f)
+            // 3. Close neighbors in the same bubble
+            val isCloseNeighbor = (xDist <= charSize * 1.15f) && (rectDist <= charSize * 1.4f)
+
+            isParallelColumn || isStackedSegment || isCloseNeighbor
         } else {
-            // Horizontal textlines: gap vertically between rows is typically <= 2.5 * charSize
-            if (yDist > charSize * 2.5f) return false
-            if (xDist > charSize * 3.0f) return false
-            rectDist < charSize * 3.5f
+            // Horizontal text rows in the same speech bubble
+            val horizontalOverlap = max(0f, min(r1.right, r2.right) - max(r1.left, r2.left))
+            val minWidth = min(r1.width(), r2.width())
+            val hasOverlap = minWidth > 0f && (horizontalOverlap / minWidth) >= 0.15f
+
+            val isParallelRow = hasOverlap && (yDist <= charSize * 1.35f) && (xDist <= charSize * 0.8f)
+            val isSideBySide = (yDist <= charSize * 0.75f) && (xDist <= charSize * 2.0f)
+            val isCloseNeighbor = (yDist <= charSize * 1.15f) && (rectDist <= charSize * 1.4f)
+
+            isParallelRow || isSideBySide || isCloseNeighbor
         }
     }
 

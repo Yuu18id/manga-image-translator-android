@@ -11,12 +11,14 @@ import com.yuu18id.mangatranslator.ui.translate.TranslateScreen
 import com.yuu18id.mangatranslator.ui.reader.ReaderScreen
 import com.yuu18id.mangatranslator.ui.gallery.GalleryScreen
 import com.yuu18id.mangatranslator.ui.settings.SettingsScreen
+import com.yuu18id.mangatranslator.ui.batch.BatchScreen
 
 sealed class Screen(val route: String) {
     object Home : Screen("home")
     object Translate : Screen("translate?imageUri={imageUri}") {
         fun createRoute(imageUri: String?) = "translate?imageUri=${imageUri ?: ""}"
     }
+    object Batch : Screen("batch")
     object Reader : Screen("reader/{translationId}") {
         fun createRoute(translationId: String) = "reader/$translationId"
     }
@@ -37,6 +39,7 @@ fun AppNavigation(initialImageUri: android.net.Uri? = null) {
         composable(Screen.Home.route) {
             HomeScreen(
                 onNavigateToTranslate = { uri -> navController.navigate(Screen.Translate.createRoute(uri)) },
+                onNavigateToBatch = { navController.navigate(Screen.Batch.route) },
                 onNavigateToSettings = { navController.navigate(Screen.Settings.route) },
                 onNavigateToReader = { id -> navController.navigate(Screen.Reader.createRoute(id)) },
                 onNavigateToGallery = { navController.navigate(Screen.Gallery.route) }
@@ -52,6 +55,14 @@ fun AppNavigation(initialImageUri: android.net.Uri? = null) {
                 onNavigateBack = { navController.popBackStack() },
                 onNavigateToSettings = { navController.navigate(Screen.Settings.route) },
                 onOpenInReader = { id -> navController.navigate(Screen.Reader.createRoute(id.toString())) }
+            )
+        }
+        composable(Screen.Batch.route) {
+            BatchScreen(
+                onNavigateBack = { navController.popBackStack() },
+                onOpenChapterReader = { ids ->
+                    navController.navigate(Screen.Reader.createRoute(ids.joinToString(",")))
+                }
             )
         }
         composable(

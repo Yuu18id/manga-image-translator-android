@@ -6,7 +6,7 @@ data class TranslationConfig(
     val translator: TranslatorConfig = TranslatorConfig(
         translatorType = TranslatorType.NONE,
         targetLang = Language.ENG,
-        sourceLang = null
+        sourceLang = Language.JPN
     ),
     val inpainter: InpaintConfig = InpaintConfig(),
     val render: RenderConfig = RenderConfig()
@@ -28,7 +28,7 @@ data class OcrConfig(
 data class TranslatorConfig(
     val translatorType: TranslatorType = TranslatorType.NONE,
     val targetLang: Language = Language.ENG,
-    val sourceLang: Language? = null
+    val sourceLang: Language? = Language.JPN
 )
 
 data class InpaintConfig(

@@ -16,9 +16,14 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+import androidx.compose.runtime.Immutable
+
+@Immutable
 data class SettingsUiState(
     val config: TranslationConfig = TranslationConfig(),
     val openAiKey: String = "",
+    val openRouterKey: String = "",
+    val openRouterModel: String = "google/gemini-2.0-flash-001",
     val deepLKey: String = "",
     val geminiKey: String = "",
     val deepSeekKey: String = "",
@@ -43,6 +48,8 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             val config = settingsRepository.getTranslationConfig().first()
             val openAi = settingsRepository.getApiKey(TranslatorType.OPENAI).first()
+            val openRouter = settingsRepository.getApiKey(TranslatorType.OPENROUTER).first()
+            val openRouterModel = settingsRepository.getOpenRouterModel().first()
             val deepL = settingsRepository.getApiKey(TranslatorType.DEEPL).first()
             val gemini = settingsRepository.getApiKey(TranslatorType.GEMINI).first()
             val deepSeek = settingsRepository.getApiKey(TranslatorType.DEEPSEEK).first()
@@ -53,6 +60,8 @@ class SettingsViewModel @Inject constructor(
                 it.copy(
                     config = config,
                     openAiKey = openAi,
+                    openRouterKey = openRouter,
+                    openRouterModel = if (openRouterModel.isNotBlank()) openRouterModel else "google/gemini-2.0-flash-001",
                     deepLKey = deepL,
                     geminiKey = gemini,
                     deepSeekKey = deepSeek,
@@ -93,6 +102,13 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    fun updateOpenRouterModel(modelId: String) {
+        viewModelScope.launch {
+            settingsRepository.saveOpenRouterModel(modelId)
+            _uiState.update { it.copy(openRouterModel = modelId) }
+        }
+    }
+
     fun updateDetectionResolution(size: Int) {
         viewModelScope.launch {
             val updatedConfig = _uiState.value.config.copy(
@@ -129,6 +145,7 @@ class SettingsViewModel @Inject constructor(
             _uiState.update { state ->
                 when (translatorType) {
                     TranslatorType.OPENAI -> state.copy(openAiKey = key)
+                    TranslatorType.OPENROUTER -> state.copy(openRouterKey = key)
                     TranslatorType.DEEPL -> state.copy(deepLKey = key)
                     TranslatorType.GEMINI -> state.copy(geminiKey = key)
                     TranslatorType.DEEPSEEK -> state.copy(deepSeekKey = key)

@@ -29,20 +29,29 @@ import java.io.File
 import java.io.FileOutputStream
 import javax.inject.Inject
 
+import androidx.compose.runtime.Immutable
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
+
+@Immutable
 data class TranslateUiState(
     val selectedImageUri: Uri? = null,
-    val originalBitmap: Bitmap? = null,
-    val translatedBitmap: Bitmap? = null,
-    val currentStage: PipelineStage = PipelineStage.DETECTION,
-    val stageMessage: String = "",
-    val progress: Float = 0f,
-    val isTranslating: Boolean = false,
+    val originalImage: ImageBitmap? = null,
+    val translatedImage: ImageBitmap? = null,
     val showOriginal: Boolean = false,
-    val sourceLang: Language? = null, // null for Auto
+    val sourceLang: Language? = Language.JPN,
     val targetLang: Language = Language.ENG,
     val translatorType: TranslatorType = TranslatorType.DEEPL,
     val error: String? = null,
     val savedHistoryId: Long? = null
+)
+
+@Immutable
+data class TranslateProgressState(
+    val currentStage: PipelineStage = PipelineStage.DETECTION,
+    val stageMessage: String = "",
+    val progress: Float = 0f,
+    val isTranslating: Boolean = false
 )
 
 @HiltViewModel
@@ -56,7 +65,15 @@ class TranslateViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(TranslateUiState())
     val uiState: StateFlow<TranslateUiState> = _uiState.asStateFlow()
 
+    private val _progressState = MutableStateFlow(TranslateProgressState())
+    val progressState: StateFlow<TranslateProgressState> = _progressState.asStateFlow()
+
     private var translationJob: Job? = null
+    
+    private var _originalBitmap: Bitmap? = null
+    private var _translatedBitmap: Bitmap? = null
+
+    fun getTranslatedBitmap(): Bitmap? = _translatedBitmap
 
     init {
         viewModelScope.launch {
@@ -77,11 +94,13 @@ class TranslateViewModel @Inject constructor(
                 val bitmap = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                     decodeBitmapFromUri(uri)
                 }
+                _originalBitmap = bitmap
+                _translatedBitmap = null
                 _uiState.update {
                     it.copy(
                         selectedImageUri = uri,
-                        originalBitmap = bitmap,
-                        translatedBitmap = null, // Reset translation
+                        originalImage = bitmap.asImageBitmap(),
+                        translatedImage = null, // Reset translation
                         error = null,
                         savedHistoryId = null
                     )
@@ -109,21 +128,25 @@ class TranslateViewModel @Inject constructor(
     }
 
     fun startTranslation() {
+        val bitmap = _originalBitmap ?: return
         val state = _uiState.value
-        val bitmap = state.originalBitmap ?: return
         
-        if (state.isTranslating) return
+        if (_progressState.value.isTranslating) return
 
         translationJob?.cancel()
         translationJob = viewModelScope.launch {
-            _uiState.update { 
+            _progressState.update { 
                 it.copy(
                     isTranslating = true, 
-                    error = null, 
                     progress = 0f, 
-                    showOriginal = false,
                     stageMessage = "Initializing..."
                 ) 
+            }
+            _uiState.update {
+                it.copy(
+                    error = null, 
+                    showOriginal = false
+                )
             }
 
             val savedConfig = settingsRepository.getTranslationConfig().first()
@@ -139,7 +162,7 @@ class TranslateViewModel @Inject constructor(
                 translateImageUseCase(bitmap, config).collect { pipelineState ->
                     when (pipelineState) {
                         is PipelineState.Progress -> {
-                            _uiState.update {
+                            _progressState.update {
                                 it.copy(
                                     currentStage = pipelineState.stage,
                                     progress = pipelineState.progress,
@@ -150,35 +173,48 @@ class TranslateViewModel @Inject constructor(
                         is PipelineState.Completed -> {
                             val result = pipelineState.result
                             val resultBitmap = result.translatedImage
+                            _translatedBitmap = resultBitmap
                             val historyId = historyRepository.saveTranslation(result)
 
-                            _uiState.update {
+                            _progressState.update {
                                 it.copy(
                                     isTranslating = false,
-                                    translatedBitmap = resultBitmap,
                                     progress = 1.0f,
-                                    stageMessage = "Translation complete",
+                                    stageMessage = "Translation complete"
+                                )
+                            }
+                            _uiState.update {
+                                it.copy(
+                                    translatedImage = resultBitmap.asImageBitmap(),
                                     savedHistoryId = historyId
                                 )
                             }
                         }
                         is PipelineState.Error -> {
-                            _uiState.update {
+                            _progressState.update {
                                 it.copy(
                                     isTranslating = false,
-                                    error = pipelineState.message,
                                     stageMessage = "Error occurred"
+                                )
+                            }
+                            _uiState.update {
+                                it.copy(
+                                    error = pipelineState.message
                                 )
                             }
                         }
                     }
                 }
             } catch (e: Exception) {
-                _uiState.update {
+                _progressState.update {
                     it.copy(
                         isTranslating = false,
-                        error = e.message ?: "Translation failed",
                         stageMessage = "Error occurred"
+                    )
+                }
+                _uiState.update {
+                    it.copy(
+                        error = e.message ?: "Translation failed"
                     )
                 }
             }
@@ -187,7 +223,7 @@ class TranslateViewModel @Inject constructor(
 
     fun cancelTranslation() {
         translationJob?.cancel()
-        _uiState.update {
+        _progressState.update {
             it.copy(
                 isTranslating = false,
                 stageMessage = "Cancelled",
@@ -196,15 +232,19 @@ class TranslateViewModel @Inject constructor(
         }
     }
 
-    @Suppress("DEPRECATION")
     private fun decodeBitmapFromUri(uri: Uri): Bitmap {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            val source = ImageDecoder.createSource(context.contentResolver, uri)
-            ImageDecoder.decodeBitmap(source) { decoder, _, _ ->
-                decoder.isMutableRequired = true
+        val source = ImageDecoder.createSource(context.contentResolver, uri)
+        return ImageDecoder.decodeBitmap(source) { decoder, info, _ ->
+            decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
+            decoder.isMutableRequired = true
+            val maxDim = 2048
+            if (info.size.width > maxDim || info.size.height > maxDim) {
+                val scale = maxDim.toFloat() / maxOf(info.size.width, info.size.height)
+                decoder.setTargetSize(
+                    (info.size.width * scale).toInt(),
+                    (info.size.height * scale).toInt()
+                )
             }
-        } else {
-            MediaStore.Images.Media.getBitmap(context.contentResolver, uri)
         }
     }
 

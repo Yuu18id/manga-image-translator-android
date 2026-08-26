@@ -1,9 +1,6 @@
 package com.yuu18id.mangatranslator.ui.reader
 
 import android.content.Intent
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
@@ -14,6 +11,12 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -38,15 +41,10 @@ fun ReaderScreen(
     viewModel: ReaderViewModel = hiltViewModel(),
     onNavigateBack: () -> Unit
 ) {
-    val uiState by viewModel.uiState.collectAsState()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
-    LaunchedEffect(translationId) {
-        val id = translationId?.toLongOrNull()
-        if (id != null) {
-            viewModel.loadHistoryItem(id)
-        }
-    }
+
 
     var showUi by remember { mutableStateOf(true) }
     var showOriginal by remember { mutableStateOf(false) }
@@ -81,10 +79,14 @@ fun ReaderScreen(
     var offsetX by remember { mutableFloatStateOf(0f) }
     var offsetY by remember { mutableFloatStateOf(0f) }
 
-    val currentImagePath = if (showOriginal) uiState.originalImagePath else uiState.translatedImagePath
-    val currentImageFile = remember(currentImagePath) {
-        if (!currentImagePath.isNullOrBlank()) File(currentImagePath) else null
+    // Reset zoom when page changes
+    LaunchedEffect(uiState.currentPageIndex) {
+        scale = 1f
+        offsetX = 0f
+        offsetY = 0f
     }
+
+    val currentImagePath = if (showOriginal) uiState.originalImagePath else uiState.translatedImagePath
 
     Box(
         modifier = Modifier
@@ -114,22 +116,19 @@ fun ReaderScreen(
                 color = Color.Red,
                 modifier = Modifier.align(Alignment.Center)
             )
-        } else if (currentImageFile != null) {
+        } else if (!currentImagePath.isNullOrBlank()) {
             AsyncImage(
-                model = ImageRequest.Builder(LocalContext.current)
-                    .data(currentImageFile)
-                    .crossfade(true)
-                    .build(),
+                model = currentImagePath,
                 contentDescription = "Manga Page",
                 contentScale = ContentScale.Fit,
                 modifier = Modifier
                     .fillMaxSize()
-                    .graphicsLayer(
-                        scaleX = scale,
-                        scaleY = scale,
-                        translationX = offsetX,
+                    .graphicsLayer {
+                        scaleX = scale
+                        scaleY = scale
+                        translationX = offsetX
                         translationY = offsetY
-                    )
+                    }
                     .pointerInput(Unit) {
                         detectTransformGestures { _, pan, zoom, _ ->
                             scale = (scale * zoom).coerceIn(1f, 5f)
@@ -148,12 +147,22 @@ fun ReaderScreen(
         // Top UI
         AnimatedVisibility(
             visible = showUi,
-            enter = fadeIn(),
-            exit = fadeOut(),
+            enter = fadeIn() + slideInVertically(),
+            exit = fadeOut() + slideOutVertically(),
             modifier = Modifier.align(Alignment.TopCenter)
         ) {
             TopAppBar(
-                title = { Text("") },
+                title = {
+                    if (uiState.totalPages > 1) {
+                        Text(
+                            text = stringResource(R.string.reader_page_indicator, uiState.currentPageIndex + 1, uiState.totalPages),
+                            style = MaterialTheme.typography.titleMedium,
+                            color = Color.White
+                        )
+                    } else {
+                        Text("")
+                    }
+                },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back), tint = Color.White)
@@ -181,41 +190,88 @@ fun ReaderScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Black.copy(alpha = 0.5f)
+                    containerColor = Color.Black.copy(alpha = 0.65f)
                 )
             )
         }
 
-        // Bottom UI
+        // Bottom UI with Page Navigation & Original Switch
         AnimatedVisibility(
             visible = showUi,
-            enter = fadeIn(),
-            exit = fadeOut(),
+            enter = fadeIn() + slideInVertically { it },
+            exit = fadeOut() + slideOutVertically { it },
             modifier = Modifier.align(Alignment.BottomCenter)
         ) {
             BottomAppBar(
-                containerColor = Color.Black.copy(alpha = 0.5f),
+                containerColor = Color.Black.copy(alpha = 0.65f),
                 contentColor = Color.White
             ) {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.Center,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(stringResource(R.string.reader_show_translated), color = if (!showOriginal) MaterialTheme.colorScheme.primary else Color.White)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Switch(
-                        checked = showOriginal,
-                        onCheckedChange = { showOriginal = it },
-                        colors = SwitchDefaults.colors(
-                            checkedThumbColor = MaterialTheme.colorScheme.primary,
-                            uncheckedThumbColor = MaterialTheme.colorScheme.primary,
-                            checkedTrackColor = Color.Gray,
-                            uncheckedTrackColor = Color.Gray
+                    // Previous Page Button
+                    if (uiState.totalPages > 1) {
+                        IconButton(
+                            onClick = viewModel::previousPage,
+                            enabled = uiState.currentPageIndex > 0
+                        ) {
+                            Icon(
+                                Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = stringResource(R.string.reader_prev_page),
+                                tint = if (uiState.currentPageIndex > 0) Color.White else Color.Gray,
+                                modifier = Modifier.size(26.dp)
+                            )
+                        }
+                    } else {
+                        Spacer(modifier = Modifier.width(32.dp))
+                    }
+
+                    // Original Toggle Switch
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = stringResource(R.string.reader_show_translated),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = if (!showOriginal) MaterialTheme.colorScheme.primary else Color.White
                         )
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(stringResource(R.string.reader_show_original), color = if (showOriginal) MaterialTheme.colorScheme.primary else Color.White)
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Switch(
+                            checked = showOriginal,
+                            onCheckedChange = { showOriginal = it },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = MaterialTheme.colorScheme.primary,
+                                uncheckedThumbColor = MaterialTheme.colorScheme.primary,
+                                checkedTrackColor = Color.Gray,
+                                uncheckedTrackColor = Color.Gray
+                            )
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = stringResource(R.string.reader_show_original),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = if (showOriginal) MaterialTheme.colorScheme.primary else Color.White
+                        )
+                    }
+
+                    // Next Page Button
+                    if (uiState.totalPages > 1) {
+                        IconButton(
+                            onClick = viewModel::nextPage,
+                            enabled = uiState.currentPageIndex < uiState.totalPages - 1
+                        ) {
+                            Icon(
+                                Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = stringResource(R.string.reader_next_page),
+                                tint = if (uiState.currentPageIndex < uiState.totalPages - 1) Color.White else Color.Gray,
+                                modifier = Modifier.size(26.dp).graphicsLayer { rotationZ = 180f }
+                            )
+                        }
+                    } else {
+                        Spacer(modifier = Modifier.width(32.dp))
+                    }
                 }
             }
         }

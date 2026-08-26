@@ -11,6 +11,9 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import javax.inject.Inject
 
+import androidx.compose.runtime.Immutable
+
+@Immutable
 data class HomeUiState(
     val recentTranslations: List<TranslationHistoryItem> = emptyList(),
     val isLoading: Boolean = false,

@@ -78,9 +78,30 @@
     <string name="settings_storage">Storage</string>
     <string name="settings_clear_history_btn">Clear Translation History</string>
     <string name="settings_dialog_clear_title">Clear History</string>
-    <string name="settings_dialog_clear_msg">Are you sure you want to delete all translation history\? This action cannot be undone.</string>
+    <string name="settings_dialog_clear_msg">Are you sure you want to delete all translation history? This action cannot be undone.</string>
+    <!-- Settings About & Info -->
     <string name="settings_about">About</string>
     <string name="settings_version">Version 1.0.0</string>
     <string name="settings_developed_by">Developed by @%1$s</string>
     <string name="settings_github">GitHub Repository</string>
+
+    <!-- Batch Translation Screen -->
+    <string name="batch_title">Batch Translate</string>
+    <string name="batch_hero_title">Batch Chapter Translate</string>
+    <string name="batch_hero_subtitle">Select multiple manga pages and translate sequentially</string>
+    <string name="batch_page_count">%1$d pages selected</string>
+    <string name="batch_sort_filename">Auto-Sort by Name</string>
+    <string name="batch_add_pages">Add Pages</string>
+    <string name="batch_start_btn">Start Batch (%1$d Pages)</string>
+    <string name="batch_processing_progress">Processing %1$d of %2$d pages (%3$d%%)</string>
+    <string name="batch_empty_title">No Pages Selected</string>
+    <string name="batch_empty_subtitle">Tap below or pick multiple manga pages from your gallery to get started.</string>
+    <string name="batch_status_queued">Queued</string>
+    <string name="batch_status_done">Done</string>
+    <string name="batch_status_failed">Failed</string>
+    <string name="batch_read_chapter">Read Chapter (%1$d Pages)</string>
+    <string name="batch_retry_failed">Retry Failed (%1$d)</string>
+    <string name="reader_page_indicator">Page %1$d / %2$d</string>
+    <string name="reader_prev_page">Previous Page</string>
+    <string name="reader_next_page">Next Page</string>
 </resources>

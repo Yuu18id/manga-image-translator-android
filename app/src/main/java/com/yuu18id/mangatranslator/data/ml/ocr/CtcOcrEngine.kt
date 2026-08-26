@@ -86,124 +86,98 @@ class CtcOcrEngine @Inject constructor(
             val chunk = chunkIndices.map { textRegions[it] }
             val crops = chunkIndices.map { allCrops[it] }
             
-            // Debug: log crop image pixel statistics
-            for (ci in crops.indices) {
-                val crop = crops[ci]
-                val px = IntArray(crop.width * crop.height)
-                crop.getPixels(px, 0, crop.width, 0, 0, crop.width, crop.height)
-                var minR = 255; var maxR = 0; var sumR = 0L
-                var minG = 255; var maxG = 0; var sumG = 0L
-                var minB = 255; var maxB = 0; var sumB = 0L
-                for (color in px) {
-                    val r = (color shr 16) and 0xFF
-                    val g = (color shr 8) and 0xFF
-                    val b = color and 0xFF
-                    if (r < minR) minR = r; if (r > maxR) maxR = r; sumR += r
-                    if (g < minG) minG = g; if (g > maxG) maxG = g; sumG += g
-                    if (b < minB) minB = b; if (b > maxB) maxB = b; sumB += b
-                }
-                val n = px.size.toLong()
-                Log.d(TAG, "   [CROP $ci] size=${crop.width}x${crop.height} pixels=$n " +
-                    "R=[${minR}..${maxR} avg=${sumR/n}] " +
-                    "G=[${minG}..${maxG} avg=${sumG/n}] " +
-                    "B=[${minB}..${maxB} avg=${sumB/n}]")
-            }
-            
             val (tensorData, widths) = preProcessor.batchCrops(crops)
             val batchSize = chunk.size
             val paddedWidth = tensorData.size / (batchSize * 3 * 48)
-            
-            // Debug: check tensor data statistics
-            var tMin = Float.MAX_VALUE; var tMax = -Float.MAX_VALUE; var tSum = 0.0
-            var nonZeroCount = 0
-            for (v in tensorData) {
-                if (v < tMin) tMin = v
-                if (v > tMax) tMax = v
-                tSum += v
-                if (v != 0.0f) nonZeroCount++
-            }
-            Log.d(TAG, "   [TENSOR] shape=[${batchSize},3,48,${paddedWidth}] " +
-                "total=${tensorData.size} nonZero=$nonZeroCount " +
-                "min=${tMin} max=${tMax} avg=${tSum / tensorData.size}")
 
-            val floatBuffer = FloatBuffer.wrap(tensorData)
-            val inputTensor = OnnxTensor.createTensor(
-                env,
-                floatBuffer,
-                longArrayOf(batchSize.toLong(), 3L, 48L, paddedWidth.toLong())
-            )
+            val byteBuffer = java.nio.ByteBuffer.allocateDirect(tensorData.size * 4)
+                .order(java.nio.ByteOrder.nativeOrder())
+            val floatBuffer = byteBuffer.asFloatBuffer()
+            floatBuffer.put(tensorData)
+            floatBuffer.rewind()
 
-            val inputName = session.inputNames.iterator().next()
-            Log.d(TAG, "   [ONNX] inputName=$inputName, running inference...")
-            val result = session.run(mapOf(inputName to inputTensor))
-            
-            Log.d(TAG, "   [ONNX] result size=${result.size()}")
-            
-            // Use FloatBuffer approach instead of getValue() cast for reliability
-            val outputTensor = result.get(0) as OnnxTensor
-            val outputInfo = outputTensor.info
-            val outputShape = outputInfo.shape
-            Log.d(TAG, "   [ONNX] output[0] shape=${outputShape.toList()}, type=${outputInfo.type}")
-            
-            val outputBuffer = outputTensor.floatBuffer
-            val totalOutputFloats = outputShape.fold(1L) { acc, v -> acc * v }.toInt()
-            val outputFlat = FloatArray(totalOutputFloats)
-            outputBuffer.get(outputFlat)
-            
-            // Interpret as [batchSize, seqLen, vocabSize]
-            val seqLen = outputShape[1].toInt()
-            val vocabSize = outputShape[2].toInt()
-            Log.d(TAG, "   [ONNX] seqLen=$seqLen, vocabSize=$vocabSize")
-            
-            // Debug: log first few logits values for batch item 0
-            if (seqLen > 0 && vocabSize > 0) {
-                val t0offset = 0 // batch=0, seq=0
-                val topK = 5
-                val indices = (0 until vocabSize).sortedByDescending { outputFlat[t0offset + it] }.take(topK)
-                val vals = indices.map { outputFlat[t0offset + it] }
-                Log.d(TAG, "   [ONNX] t=0 top-$topK: indices=$indices vals=$vals")
-            }
+            var inputTensor: OnnxTensor? = null
+            var result: ai.onnxruntime.OrtSession.Result? = null
 
-            val colorOutputTensor = if (result.size() > 1) result.get(1) as? OnnxTensor else null
+            try {
+                inputTensor = OnnxTensor.createTensor(
+                    env,
+                    floatBuffer,
+                    longArrayOf(batchSize.toLong(), 3L, 48L, paddedWidth.toLong())
+                )
 
-            for (i in chunk.indices) {
-                val region = chunk[i]
+                val inputName = session.inputNames.iterator().next()
+                Log.d(TAG, "   [ONNX] inputName=$inputName, running inference...")
+                result = session.run(mapOf(inputName to inputTensor))
                 
-                // Extract logits for batch item i from flat array
-                val batchOffset = i * seqLen * vocabSize
-                val flatLogits = FloatArray(seqLen * vocabSize)
-                System.arraycopy(outputFlat, batchOffset, flatLogits, 0, seqLen * vocabSize)
-
-                val decodeResult = decoder.decodeGreedy(flatLogits, seqLen, vocabSize)
-
-                val colors = if (colorOutputTensor != null) {
-                    val colorShape = colorOutputTensor.info.shape
-                    val colorSeqLen = colorShape[1].toInt()
-                    val colorDim = colorShape[2].toInt()
-                    val colorBuffer = colorOutputTensor.floatBuffer
-                    val colorFlat = FloatArray(colorShape.fold(1L) { acc, v -> acc * v }.toInt())
-                    colorBuffer.rewind()
-                    colorBuffer.get(colorFlat)
-                    val colorBatchOffset = i * colorSeqLen * colorDim
-                    val batchColorFlat = FloatArray(colorSeqLen * colorDim)
-                    System.arraycopy(colorFlat, colorBatchOffset, batchColorFlat, 0, colorSeqLen * colorDim)
-                    colorExtractor.extractColors(batchColorFlat, decodeResult.validTimesteps, decodeResult.chars)
-                } else {
-                    TextColor(intArrayOf(0, 0, 0), intArrayOf(255, 255, 255))
+                Log.d(TAG, "   [ONNX] result size=${result.size()}")
+                
+                // Use FloatBuffer approach instead of getValue() cast for reliability
+                val outputTensor = result.get(0) as OnnxTensor
+                val outputInfo = outputTensor.info
+                val outputShape = outputInfo.shape
+                Log.d(TAG, "   [ONNX] output[0] shape=${outputShape.toList()}, type=${outputInfo.type}")
+                
+                val outputBuffer = outputTensor.floatBuffer
+                val totalOutputFloats = outputShape.fold(1L) { acc, v -> acc * v }.toInt()
+                val outputFlat = FloatArray(totalOutputFloats)
+                outputBuffer.get(outputFlat)
+                
+                // Interpret as [batchSize, seqLen, vocabSize]
+                val seqLen = outputShape[1].toInt()
+                val vocabSize = outputShape[2].toInt()
+                Log.d(TAG, "   [ONNX] seqLen=$seqLen, vocabSize=$vocabSize")
+                
+                // Debug: log first few logits values for batch item 0
+                if (seqLen > 0 && vocabSize > 0) {
+                    val t0offset = 0 // batch=0, seq=0
+                    val topK = 5
+                    val indices = (0 until vocabSize).sortedByDescending { outputFlat[t0offset + it] }.take(topK)
+                    val vals = indices.map { outputFlat[t0offset + it] }
+                    Log.d(TAG, "   [ONNX] t=0 top-$topK: indices=$indices vals=$vals")
                 }
 
-                val updatedRegion = region.copy(
-                    text = decodeResult.text,
-                    prob = decodeResult.prob,
-                    fgColor = colors.fg,
-                    bgColor = colors.bg
-                )
-                outRegions.add(updatedRegion)
-                Log.d(TAG, "   [OCR Crop $i] cropSize=${crops[i].width}x${crops[i].height} => text=\"${decodeResult.text}\" prob=${decodeResult.prob}")
-            }
+                val colorOutputTensor = if (result.size() > 1) result.get(1) as? OnnxTensor else null
 
-            inputTensor.close()
-            result.close()
+                for (i in chunk.indices) {
+                    val region = chunk[i]
+                    
+                    // Extract logits for batch item i from flat array
+                    val batchOffset = i * seqLen * vocabSize
+                    val flatLogits = FloatArray(seqLen * vocabSize)
+                    System.arraycopy(outputFlat, batchOffset, flatLogits, 0, seqLen * vocabSize)
+
+                    val decodeResult = decoder.decodeGreedy(flatLogits, seqLen, vocabSize)
+
+                    val colors = if (colorOutputTensor != null) {
+                        val colorShape = colorOutputTensor.info.shape
+                        val colorSeqLen = colorShape[1].toInt()
+                        val colorDim = colorShape[2].toInt()
+                        val colorBuffer = colorOutputTensor.floatBuffer
+                        val colorFlat = FloatArray(colorShape.fold(1L) { acc, v -> acc * v }.toInt())
+                        colorBuffer.rewind()
+                        colorBuffer.get(colorFlat)
+                        val colorBatchOffset = i * colorSeqLen * colorDim
+                        val batchColorFlat = FloatArray(colorSeqLen * colorDim)
+                        System.arraycopy(colorFlat, colorBatchOffset, batchColorFlat, 0, colorSeqLen * colorDim)
+                        colorExtractor.extractColors(batchColorFlat, decodeResult.validTimesteps, decodeResult.chars)
+                    } else {
+                        TextColor(intArrayOf(0, 0, 0), intArrayOf(255, 255, 255))
+                    }
+
+                    val updatedRegion = region.copy(
+                        text = decodeResult.text,
+                        prob = decodeResult.prob,
+                        fgColor = colors.fg,
+                        bgColor = colors.bg
+                    )
+                    outRegions.add(updatedRegion)
+                    Log.d(TAG, "   [OCR Crop $i] cropSize=${crops[i].width}x${crops[i].height} => text=\"${decodeResult.text}\" prob=${decodeResult.prob}")
+                }
+            } finally {
+                inputTensor?.close()
+                result?.close()
+            }
         }
 
         outRegions

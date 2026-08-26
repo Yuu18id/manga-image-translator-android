@@ -15,6 +15,9 @@ interface TranslationHistoryDao {
     @Query("SELECT * FROM translation_history WHERE id = :id")
     suspend fun getById(id: Long): TranslationHistoryEntity?
 
+    @Query("SELECT * FROM translation_history WHERE id IN (:ids)")
+    suspend fun getByIds(ids: List<Long>): List<TranslationHistoryEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertOne(entity: TranslationHistoryEntity): Long
 

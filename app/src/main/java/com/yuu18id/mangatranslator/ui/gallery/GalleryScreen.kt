@@ -1,9 +1,6 @@
 package com.yuu18id.mangatranslator.ui.gallery
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -24,6 +21,7 @@ import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -44,6 +42,8 @@ import java.util.Locale
 import androidx.compose.ui.res.stringResource
 import com.yuu18id.mangatranslator.R
 
+private val HistoryDateFormat = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GalleryScreen(
@@ -51,9 +51,9 @@ fun GalleryScreen(
     onNavigateBack: () -> Unit,
     onNavigateToReader: (String) -> Unit
 ) {
-    val items by viewModel.historyItems.collectAsState()
+    val items by viewModel.historyItems.collectAsStateWithLifecycle()
     var selectedIds by remember { mutableStateOf(setOf<Long>()) }
-    val isSelectionMode = selectedIds.isNotEmpty()
+    val isSelectionMode by remember { derivedStateOf { selectedIds.isNotEmpty() } }
 
     var showClearAllDialog by remember { mutableStateOf(false) }
     var showBatchDeleteDialog by remember { mutableStateOf(false) }
@@ -259,8 +259,12 @@ fun GalleryScreen(
                     .fillMaxSize()
                     .padding(padding)
             ) {
-                items(items, key = { it.id }) { item ->
-                    val isSelected = selectedIds.contains(item.id)
+                items(
+                    items = items,
+                    key = { it.id },
+                    contentType = { "gallery_item" }
+                ) { item ->
+                    val isSelected by remember { derivedStateOf { selectedIds.contains(item.id) } }
                     GalleryItemCard(
                         item = item,
                         isSelected = isSelected,
@@ -297,14 +301,12 @@ fun GalleryItemCard(
     onClick: () -> Unit,
     onLongClick: () -> Unit
 ) {
-    val imageModel = remember(item.resultPath, item.thumbnailPath) {
-        val path = if (item.resultPath.isNotBlank()) item.resultPath else item.thumbnailPath
-        if (path.isNotBlank()) File(path) else null
+    val imagePath = remember(item.resultPath, item.thumbnailPath) {
+        if (item.resultPath.isNotBlank()) item.resultPath else item.thumbnailPath
     }
 
     val dateString = remember(item.timestamp) {
-        val dateFormat = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
-        dateFormat.format(Date(item.timestamp))
+        HistoryDateFormat.format(Date(item.timestamp))
     }
 
     Card(
@@ -320,13 +322,9 @@ fun GalleryItemCard(
             )
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
-            if (imageModel != null) {
+            if (imagePath.isNotBlank()) {
                 AsyncImage(
-                    model = ImageRequest.Builder(LocalContext.current)
-                        .data(imageModel)
-                        .crossfade(true)
-                        .size(360, 500)
-                        .build(),
+                    model = imagePath,
                     contentDescription = "Translated Manga Page",
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize()

@@ -1,5 +1,8 @@
 package com.yuu18id.mangatranslator.domain.model
 
+import androidx.compose.runtime.Immutable
+
+@Immutable
 data class TranslationHistoryItem(
     val id: Long,
     val thumbnailPath: String,
