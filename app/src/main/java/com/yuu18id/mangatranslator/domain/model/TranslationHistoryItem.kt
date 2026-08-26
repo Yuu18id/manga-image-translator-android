@@ -12,5 +12,7 @@ data class TranslationHistoryItem(
     val translatorType: TranslatorType,
     val textBlockCount: Int,
     val timestamp: Long,
-    val processingTimeMs: Long
+    val processingTimeMs: Long,
+    val inpaintedPath: String? = null,
+    val blocksJsonPath: String? = null
 )

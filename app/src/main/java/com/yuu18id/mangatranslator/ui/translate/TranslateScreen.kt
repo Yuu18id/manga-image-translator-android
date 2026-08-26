@@ -7,10 +7,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Share
-import androidx.compose.material.icons.filled.Visibility
-import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material.icons.automirrored.filled.MenuBook
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -59,97 +57,128 @@ fun TranslateScreen(
         }
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.translate_title)) },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back))
-                    }
-                },
-                actions = {
-                    if (uiState.translatedImage != null) {
-                        IconButton(onClick = viewModel::toggleShowOriginal) {
-                            Icon(
-                                imageVector = if (uiState.showOriginal) Icons.Default.Visibility else Icons.Default.VisibilityOff,
-                                contentDescription = stringResource(R.string.translate_toggle_original)
-                            )
+    Box(modifier = Modifier.fillMaxSize()) {
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = { Text(stringResource(R.string.translate_title)) },
+                    navigationIcon = {
+                        IconButton(onClick = onNavigateBack) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back))
+                        }
+                    },
+                    actions = {
+                        if (uiState.translatedImage != null) {
+                            IconButton(onClick = viewModel::toggleShowOriginal) {
+                                Icon(
+                                    imageVector = if (uiState.showOriginal) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                    contentDescription = stringResource(R.string.translate_toggle_original)
+                                )
+                            }
+                        }
+                        IconButton(onClick = onNavigateToSettings) {
+                            Icon(Icons.Default.Settings, contentDescription = stringResource(R.string.nav_settings))
                         }
                     }
-                    IconButton(onClick = onNavigateToSettings) {
-                        Icon(Icons.Default.Settings, contentDescription = stringResource(R.string.nav_settings))
+                )
+            },
+            snackbarHost = { SnackbarHost(snackbarHostState) }
+        ) { paddingValues ->
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+                    .padding(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                // Main Image View (Isolated from progress updates)
+                TranslateImageViewer(
+                    originalImage = uiState.originalImage,
+                    translatedImage = uiState.translatedImage,
+                    showOriginal = uiState.showOriginal,
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Selectors (Remembered lists to prevent allocations)
+                LanguageEngineSelectors(
+                    sourceLang = uiState.sourceLang,
+                    targetLang = uiState.targetLang,
+                    translatorType = uiState.translatorType,
+                    onSourceLangChanged = viewModel::setSourceLang,
+                    onTargetLangChanged = viewModel::setTargetLang,
+                    onTranslatorTypeChanged = viewModel::setTranslatorType
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Progress Indicator
+                if (progressState.isTranslating) {
+                    TranslationProgressCard(
+                        stage = progressState.currentStage,
+                        progress = progressState.progress,
+                        message = progressState.stageMessage
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
+
+                // Action Buttons
+                TranslateActionButtons(
+                    isTranslating = progressState.isTranslating,
+                    isReviewModeEnabled = uiState.isReviewModeEnabled,
+                    hasOriginal = uiState.originalImage != null,
+                    hasTranslated = uiState.translatedImage != null,
+                    canFastRetranslate = uiState.canFastRetranslate,
+                    savedHistoryId = uiState.savedHistoryId,
+                    onCancel = viewModel::cancelTranslation,
+                    onTranslate = viewModel::startTranslation,
+                    onFastRetranslate = { viewModel.retranslateTextOnly() },
+                    onToggleReviewMode = viewModel::toggleReviewMode,
+                    onOpenRenderEditor = viewModel::openRenderEditor,
+                    onOpenReader = { uiState.savedHistoryId?.let { onOpenInReader?.invoke(it) } },
+                    onShare = {
+                        coroutineScope.launch(Dispatchers.IO) {
+                            val bitmap = viewModel.getTranslatedBitmap() ?: return@launch
+                            val file = File(context.cacheDir, "share_translated_${System.currentTimeMillis()}.png")
+                            FileOutputStream(file).use { out -> bitmap.compress(Bitmap.CompressFormat.PNG, 100, out) }
+                            val uri = FileProvider.getUriForFile(context, "${context.packageName}.provider", file)
+                            val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                type = "image/png"
+                                putExtra(Intent.EXTRA_STREAM, uri)
+                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            }
+                            kotlinx.coroutines.withContext(Dispatchers.Main) {
+                                context.startActivity(Intent.createChooser(shareIntent, context.getString(R.string.action_share)))
+                            }
+                        }
                     }
+                )
+            }
+        }
+
+        // Detection Review and Manipulation Editor (Fullscreen overlay in the Activity window)
+        if (uiState.isShowingDetectionEditor && uiState.originalImage != null) {
+            com.yuu18id.mangatranslator.ui.translate.editor.DetectionEditorDialog(
+                imageBitmap = uiState.originalImage!!,
+                initialDetections = uiState.pendingDetections,
+                onDismiss = viewModel::dismissDetectionEditor,
+                onConfirmDetections = { curatedBoxes ->
+                    viewModel.applyEditedDetectionsAndTranslate(curatedBoxes)
                 }
             )
-        },
-        snackbarHost = { SnackbarHost(snackbarHostState) }
-    ) { paddingValues ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            // Main Image View (Isolated from progress updates)
-            TranslateImageViewer(
-                originalImage = uiState.originalImage,
-                translatedImage = uiState.translatedImage,
-                showOriginal = uiState.showOriginal,
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-            )
+        }
 
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Selectors (Remembered lists to prevent allocations)
-            LanguageEngineSelectors(
-                sourceLang = uiState.sourceLang,
-                targetLang = uiState.targetLang,
-                translatorType = uiState.translatorType,
-                onSourceLangChanged = viewModel::setSourceLang,
-                onTargetLangChanged = viewModel::setTargetLang,
-                onTranslatorTypeChanged = viewModel::setTranslatorType
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Progress Card (Only this recomposes during active translation progress updates)
-            if (progressState.isTranslating) {
-                TranslationProgressCard(
-                    stage = progressState.currentStage,
-                    progress = progressState.progress,
-                    message = progressState.stageMessage
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-            }
-
-            // Action Buttons
-            TranslateActionButtons(
-                isTranslating = progressState.isTranslating,
-                hasOriginal = uiState.originalImage != null,
-                hasTranslated = uiState.translatedImage != null,
-                savedHistoryId = uiState.savedHistoryId,
-                onCancel = viewModel::cancelTranslation,
-                onTranslate = viewModel::startTranslation,
-                onOpenReader = { uiState.savedHistoryId?.let { onOpenInReader?.invoke(it) } },
-                onShare = {
-                    coroutineScope.launch(Dispatchers.IO) {
-                        val bitmap = viewModel.getTranslatedBitmap() ?: return@launch
-                        val file = File(context.cacheDir, "share_translated_${System.currentTimeMillis()}.png")
-                        FileOutputStream(file).use { out -> bitmap.compress(Bitmap.CompressFormat.PNG, 100, out) }
-                        val uri = FileProvider.getUriForFile(context, "${context.packageName}.provider", file)
-                        val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                            type = "image/png"
-                            putExtra(Intent.EXTRA_STREAM, uri)
-                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                        }
-                        kotlinx.coroutines.withContext(Dispatchers.Main) {
-                            context.startActivity(Intent.createChooser(shareIntent, context.getString(R.string.action_share)))
-                        }
-                    }
+        // Render / Typesetting Review and Manipulation Editor (Fullscreen overlay in the Activity window)
+        if (uiState.isShowingRenderEditor && uiState.inpaintedImage != null) {
+            com.yuu18id.mangatranslator.ui.translate.editor.RenderEditorDialog(
+                inpaintedBitmap = uiState.inpaintedImage!!,
+                initialBlocks = uiState.currentTextBlocks,
+                onDismiss = viewModel::dismissRenderEditor,
+                onConfirmBlocks = { updatedBlocks ->
+                    viewModel.applyEditedRender(updatedBlocks)
                 }
             )
         }
@@ -260,11 +289,16 @@ fun TranslationProgressCard(
 @Composable
 fun TranslateActionButtons(
     isTranslating: Boolean,
+    isReviewModeEnabled: Boolean,
     hasOriginal: Boolean,
     hasTranslated: Boolean,
+    canFastRetranslate: Boolean,
     savedHistoryId: Long?,
     onCancel: () -> Unit,
     onTranslate: () -> Unit,
+    onFastRetranslate: () -> Unit,
+    onToggleReviewMode: () -> Unit,
+    onOpenRenderEditor: () -> Unit,
     onOpenReader: () -> Unit,
     onShare: () -> Unit
 ) {
@@ -278,29 +312,95 @@ fun TranslateActionButtons(
         }
     } else {
         if (!hasTranslated) {
-            Button(
-                onClick = onTranslate,
-                modifier = Modifier.fillMaxWidth(),
-                enabled = hasOriginal
-            ) {
-                Text(stringResource(R.string.translate_action_btn))
-            }
-        } else {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                FilterChip(
+                    selected = isReviewModeEnabled,
+                    onClick = onToggleReviewMode,
+                    label = { Text("Review Deteksi", style = MaterialTheme.typography.labelMedium) },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = if (isReviewModeEnabled) Icons.Default.Check else Icons.Default.HighlightAlt,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                )
                 Button(
-                    onClick = onOpenReader,
-                    enabled = savedHistoryId != null
+                    onClick = onTranslate,
+                    modifier = Modifier.weight(1f),
+                    enabled = hasOriginal
                 ) {
-                    Text(stringResource(R.string.translate_open_in_reader))
+                    Icon(Icons.Default.Translate, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(if (isReviewModeEnabled) "Review & Translate" else stringResource(R.string.translate_action_btn))
                 }
-                IconButton(onClick = onShare) {
-                    Icon(Icons.Default.Share, contentDescription = stringResource(R.string.action_share))
+            }
+        } else {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // Primary Action Row: Open Reader & Edit Typeset
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Button(
+                        onClick = onOpenReader,
+                        enabled = savedHistoryId != null,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(Icons.AutoMirrored.Filled.MenuBook, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(stringResource(R.string.translate_open_in_reader), maxLines = 1)
+                    }
+                    OutlinedButton(
+                        onClick = onOpenRenderEditor,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(Icons.Default.Tune, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Edit Typeset", maxLines = 1)
+                    }
                 }
-                Button(onClick = onTranslate) {
-                    Text(stringResource(R.string.action_retry))
+
+                // Secondary Action Row: Fast Re-translate (Instant Text Only) & Options
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (canFastRetranslate) {
+                        FilledTonalButton(
+                            onClick = onFastRetranslate,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(Icons.Default.Bolt, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Re-Translate Teks", maxLines = 1)
+                        }
+                    } else {
+                        Button(
+                            onClick = onTranslate,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Scan Ulang", maxLines = 1)
+                        }
+                    }
+
+                    IconButton(onClick = onShare) {
+                        Icon(Icons.Default.Share, contentDescription = stringResource(R.string.action_share))
+                    }
+                    IconButton(onClick = onTranslate) {
+                        Icon(Icons.Default.Refresh, contentDescription = "Full Rescan")
+                    }
                 }
             }
         }

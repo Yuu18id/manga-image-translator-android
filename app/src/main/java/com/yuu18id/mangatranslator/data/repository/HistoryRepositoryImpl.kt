@@ -2,18 +2,24 @@ package com.yuu18id.mangatranslator.data.repository
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import com.yuu18id.mangatranslator.data.local.TranslationHistoryDao
 import com.yuu18id.mangatranslator.data.local.TranslationHistoryEntity
+import com.yuu18id.mangatranslator.data.local.model.TextBlockDto
 import com.yuu18id.mangatranslator.domain.model.Language
+import com.yuu18id.mangatranslator.domain.model.TextBlock
 import com.yuu18id.mangatranslator.domain.model.TranslationHistoryItem
 import com.yuu18id.mangatranslator.domain.model.TranslationResult
 import com.yuu18id.mangatranslator.domain.model.TranslatorType
+import com.yuu18id.mangatranslator.domain.repository.FullHistoryRecord
 import com.yuu18id.mangatranslator.domain.repository.HistoryRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 import java.io.File
 import java.io.FileOutputStream
 import javax.inject.Inject
@@ -24,6 +30,7 @@ class HistoryRepositoryImpl @Inject constructor(
 ) : HistoryRepository {
 
     private val historyDir = File(context.filesDir, "history").apply { if (!exists()) mkdirs() }
+    private val json = Json { ignoreUnknownKeys = true }
 
     override fun getRecentTranslations(limit: Int): Flow<List<TranslationHistoryItem>> {
         return historyDao.getAll(limit).map { entities ->
@@ -42,6 +49,39 @@ class HistoryRepositoryImpl @Inject constructor(
         ids.mapNotNull { id -> entityMap[id]?.toDomain() }
     }
 
+    override suspend fun getFullHistoryRecord(id: Long): FullHistoryRecord? = withContext(Dispatchers.IO) {
+        val entity = historyDao.getById(id) ?: return@withContext null
+        val item = entity.toDomain()
+
+        val origBitmap = if (entity.thumbnailPath.isNotBlank() && File(entity.thumbnailPath).exists()) {
+            BitmapFactory.decodeFile(entity.thumbnailPath)
+        } else null
+
+        val transBitmap = if (entity.resultPath.isNotBlank() && File(entity.resultPath).exists()) {
+            BitmapFactory.decodeFile(entity.resultPath)
+        } else null
+
+        val inpaintBitmap = if (!entity.inpaintedPath.isNullOrBlank() && File(entity.inpaintedPath).exists()) {
+            BitmapFactory.decodeFile(entity.inpaintedPath)
+        } else origBitmap
+
+        val textBlocks = if (!entity.blocksJsonPath.isNullOrBlank() && File(entity.blocksJsonPath).exists()) {
+            runCatching {
+                val jsonStr = File(entity.blocksJsonPath).readText()
+                val dtos = json.decodeFromString<List<TextBlockDto>>(jsonStr)
+                dtos.map { it.toDomain() }
+            }.getOrDefault(emptyList())
+        } else emptyList()
+
+        FullHistoryRecord(
+            item = item,
+            originalBitmap = origBitmap,
+            translatedBitmap = transBitmap,
+            inpaintedBitmap = inpaintBitmap,
+            textBlocks = textBlocks
+        )
+    }
+
     override suspend fun saveTranslation(result: TranslationResult): Long = withContext(Dispatchers.IO) {
         val timestamp = if (result.timestamp > 0) result.timestamp else System.currentTimeMillis()
         
@@ -53,6 +93,25 @@ class HistoryRepositoryImpl @Inject constructor(
         val transFile = File(historyDir, "trans_${timestamp}.png")
         saveBitmap(result.translatedImage, transFile)
 
+        // Save inpainted background image (clean background without text)
+        val inpaintFile = if (result.inpaintedImage != null) {
+            val f = File(historyDir, "inpaint_${timestamp}.png")
+            saveBitmap(result.inpaintedImage, f)
+            f.absolutePath
+        } else null
+
+        // Save TextBlocks metadata (Japanese source text, bounding boxes, font sizes)
+        val blocksFile = if (result.textBlocks.isNotEmpty()) {
+            val f = File(historyDir, "blocks_${timestamp}.json")
+            try {
+                val dtos = result.textBlocks.map { TextBlockDto.fromDomain(it) }
+                f.writeText(json.encodeToString(dtos))
+                f.absolutePath
+            } catch (e: Exception) {
+                null
+            }
+        } else null
+
         val entity = TranslationHistoryEntity(
             thumbnailPath = origFile.absolutePath,
             resultPath = transFile.absolutePath,
@@ -61,7 +120,9 @@ class HistoryRepositoryImpl @Inject constructor(
             translatorType = result.config.translator.translatorType.name,
             textBlockCount = result.textBlocks.size,
             timestamp = timestamp,
-            processingTimeMs = result.processingTimeMs
+            processingTimeMs = result.processingTimeMs,
+            inpaintedPath = inpaintFile,
+            blocksJsonPath = blocksFile
         )
         historyDao.insertOne(entity)
     }
@@ -71,6 +132,8 @@ class HistoryRepositoryImpl @Inject constructor(
         if (entity != null) {
             runCatching { File(entity.thumbnailPath).delete() }
             runCatching { File(entity.resultPath).delete() }
+            entity.inpaintedPath?.let { runCatching { File(it).delete() } }
+            entity.blocksJsonPath?.let { runCatching { File(it).delete() } }
             historyDao.deleteOne(id)
         }
     }
@@ -81,6 +144,8 @@ class HistoryRepositoryImpl @Inject constructor(
             if (entity != null) {
                 runCatching { File(entity.thumbnailPath).delete() }
                 runCatching { File(entity.resultPath).delete() }
+                entity.inpaintedPath?.let { runCatching { File(it).delete() } }
+                entity.blocksJsonPath?.let { runCatching { File(it).delete() } }
                 historyDao.deleteOne(id)
             }
         }
@@ -112,6 +177,8 @@ class HistoryRepositoryImpl @Inject constructor(
         translatorType = runCatching { TranslatorType.valueOf(translatorType) }.getOrDefault(TranslatorType.NONE),
         textBlockCount = textBlockCount,
         timestamp = timestamp,
-        processingTimeMs = processingTimeMs
+        processingTimeMs = processingTimeMs,
+        inpaintedPath = inpaintedPath,
+        blocksJsonPath = blocksJsonPath
     )
 }

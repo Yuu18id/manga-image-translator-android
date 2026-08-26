@@ -39,6 +39,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+import androidx.compose.material.icons.filled.Translate
 import androidx.compose.ui.res.stringResource
 import com.yuu18id.mangatranslator.R
 
@@ -49,7 +50,8 @@ private val HistoryDateFormat = SimpleDateFormat("MMM dd, yyyy", Locale.getDefau
 fun GalleryScreen(
     viewModel: GalleryViewModel = hiltViewModel(),
     onNavigateBack: () -> Unit,
-    onNavigateToReader: (String) -> Unit
+    onNavigateToReader: (String) -> Unit,
+    onNavigateToTranslate: (String) -> Unit = {}
 ) {
     val items by viewModel.historyItems.collectAsStateWithLifecycle()
     var selectedIds by remember { mutableStateOf(setOf<Long>()) }
@@ -284,6 +286,9 @@ fun GalleryScreen(
                             if (!isSelectionMode) {
                                 selectedIds = setOf(item.id)
                             }
+                        },
+                        onReTranslate = {
+                            onNavigateToTranslate("history:${item.id}")
                         }
                     )
                 }
@@ -299,7 +304,8 @@ fun GalleryItemCard(
     isSelected: Boolean,
     isSelectionMode: Boolean,
     onClick: () -> Unit,
-    onLongClick: () -> Unit
+    onLongClick: () -> Unit,
+    onReTranslate: () -> Unit = {}
 ) {
     val imagePath = remember(item.resultPath, item.thumbnailPath) {
         if (item.resultPath.isNotBlank()) item.resultPath else item.thumbnailPath
@@ -391,22 +397,48 @@ fun GalleryItemCard(
                 }
             }
 
-            // Bottom Date Overlay
-            Surface(
-                color = Color.Black.copy(alpha = 0.65f),
-                shape = RoundedCornerShape(6.dp),
+            // Bottom Bar: Re-translate Button & Date
+            Row(
                 modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(8.dp)
+                    .fillMaxWidth()
+                    .align(Alignment.BottomCenter)
+                    .padding(6.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = dateString,
-                    style = MaterialTheme.typography.labelSmall.copy(
-                        color = Color.White,
-                        fontWeight = FontWeight.Medium
-                    ),
-                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                )
+                if (!isSelectionMode) {
+                    Surface(
+                        color = Color.Black.copy(alpha = 0.65f),
+                        shape = CircleShape,
+                        modifier = Modifier.size(28.dp),
+                        onClick = onReTranslate
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Default.Translate,
+                                contentDescription = "Translate Ulang",
+                                tint = Color.White,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
+                } else {
+                    Spacer(modifier = Modifier.width(1.dp))
+                }
+
+                Surface(
+                    color = Color.Black.copy(alpha = 0.65f),
+                    shape = RoundedCornerShape(6.dp)
+                ) {
+                    Text(
+                        text = dateString,
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            color = Color.White,
+                            fontWeight = FontWeight.Medium
+                        ),
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                    )
+                }
             }
         }
     }

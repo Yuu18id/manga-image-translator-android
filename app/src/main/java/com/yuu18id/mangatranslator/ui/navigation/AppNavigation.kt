@@ -72,13 +72,15 @@ fun AppNavigation(initialImageUri: android.net.Uri? = null) {
             val translationId = backStackEntry.arguments?.getString("translationId") ?: ""
             ReaderScreen(
                 translationId = translationId,
-                onNavigateBack = { navController.popBackStack() }
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateToTranslate = { uri -> navController.navigate(Screen.Translate.createRoute(uri)) }
             )
         }
         composable(Screen.Gallery.route) {
             GalleryScreen(
                 onNavigateBack = { navController.popBackStack() },
-                onNavigateToReader = { id -> navController.navigate(Screen.Reader.createRoute(id)) }
+                onNavigateToReader = { id -> navController.navigate(Screen.Reader.createRoute(id)) },
+                onNavigateToTranslate = { uri -> navController.navigate(Screen.Translate.createRoute(uri)) }
             )
         }
         composable(Screen.Settings.route) {

@@ -34,7 +34,15 @@ class CanvasTextRenderer @Inject constructor(
         inpaintedImage: Bitmap,
         textBlocks: List<TextBlock>,
         config: RenderConfig
-    ): Bitmap = withContext(Dispatchers.Default) {
+    ): Bitmap {
+        return renderWithUpdatedBlocks(inpaintedImage, textBlocks, config).first
+    }
+
+    override suspend fun renderWithUpdatedBlocks(
+        inpaintedImage: Bitmap,
+        textBlocks: List<TextBlock>,
+        config: RenderConfig
+    ): Pair<Bitmap, List<TextBlock>> = withContext(Dispatchers.Default) {
         val resultBitmap = inpaintedImage.copy(Bitmap.Config.ARGB_8888, true)
         val canvas = Canvas(resultBitmap)
 
@@ -63,9 +71,13 @@ class CanvasTextRenderer @Inject constructor(
                 TextDirection.AUTO -> isCJK && block.isVertical
             }
 
-            // Calculate dynamic speech bubble bounds using computer vision boundary raycasting & geometric guards
+            // Calculate dynamic speech bubble bounds: if already manual bounds or edited, preserve rawBounds!
             val bounds = if (!isVertical) {
-                calculateDynamicBubbleBounds(i, textBlocks, resultBitmap)
+                if (block.isManualBounds || block.customFontSize != null) {
+                    rawBounds
+                } else {
+                    calculateDynamicBubbleBounds(i, textBlocks, resultBitmap)
+                }
             } else {
                 rawBounds
             }
@@ -77,15 +89,33 @@ class CanvasTextRenderer @Inject constructor(
                 bounds.height() / 3f
             }
 
-            val layoutResult = layoutEngine.calculateLayout(
-                text = textToRender,
-                targetWidth = bounds.width(),
-                targetHeight = bounds.height(),
-                estimatedOriginalFontSize = avgLineHeight,
-                language = block.language,
-                config = config,
-                isVertical = isVertical
-            )
+            val customConfig = if (block.customAlignment != null) {
+                config.copy(alignment = block.customAlignment)
+            } else {
+                config
+            }
+
+            val layoutResult = if (block.customFontSize != null) {
+                layoutEngine.layoutWithFontSize(
+                    text = textToRender,
+                    targetWidth = bounds.width(),
+                    targetHeight = bounds.height(),
+                    fontSize = block.customFontSize,
+                    language = block.language,
+                    config = customConfig,
+                    isVertical = isVertical
+                )
+            } else {
+                layoutEngine.calculateLayout(
+                    text = textToRender,
+                    targetWidth = bounds.width(),
+                    targetHeight = bounds.height(),
+                    estimatedOriginalFontSize = avgLineHeight,
+                    language = block.language,
+                    config = customConfig,
+                    isVertical = isVertical
+                )
+            }
 
             if (layoutResult.lines.isNotEmpty()) {
                 candidates.add(RenderCandidate(i, block, textToRender, bounds, rawBounds, isVertical, layoutResult))
@@ -95,6 +125,7 @@ class CanvasTextRenderer @Inject constructor(
         // Global Page Typography Harmonization:
         // Lift slightly smaller font sizes up towards median, but NEVER downscale spacious bubbles
         val standardDialogues = candidates.filter { c ->
+            c.block.customFontSize == null &&
             c.layoutResult.fontSize in 13f..38f &&
             c.textToRender.split(Regex("\\s+")).filter { it.isNotBlank() }.size >= 2
         }
@@ -120,10 +151,8 @@ class CanvasTextRenderer @Inject constructor(
                         config = config,
                         isVertical = c.isVertical
                     )
-                    if (harmonized != null) {
-                        Log.i(TAG, "   Harmonized Block ${c.index} font size from $currentSize -> $medianFontSize")
-                        c.layoutResult = harmonized
-                    }
+                    Log.i(TAG, "   Harmonized Block ${c.index} font size from $currentSize -> $medianFontSize")
+                    c.layoutResult = harmonized
                 }
             }
         }
@@ -177,7 +206,21 @@ class CanvasTextRenderer @Inject constructor(
             canvas.restore()
         }
 
-        resultBitmap
+        val updatedTextBlocks = textBlocks.mapIndexed { idx, originalBlock ->
+            val matchingCandidate = candidates.find { it.index == idx }
+            if (matchingCandidate != null) {
+                originalBlock.copy(
+                    boundingBox = matchingCandidate.bounds,
+                    customFontSize = matchingCandidate.layoutResult.fontSize,
+                    customAlignment = matchingCandidate.block.customAlignment ?: config.alignment,
+                    isManualBounds = true
+                )
+            } else {
+                originalBlock
+            }
+        }
+
+        Pair(resultBitmap, updatedTextBlocks)
     }
 
     private data class RenderCandidate(

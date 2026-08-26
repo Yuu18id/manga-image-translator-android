@@ -9,15 +9,18 @@ data class TextBlock(
     val text: String,
     val translatedText: String = "",
     val language: Language? = null,
-    val fgColor: IntArray,
-    val bgColor: IntArray,
+    val fgColor: IntArray = intArrayOf(0, 0, 0),
+    val bgColor: IntArray = intArrayOf(255, 255, 255),
     val boundingBox: RectF,
     val angle: Float = 0f,
     val isVertical: Boolean = false,
-    val isBulletedList: Boolean = false
+    val isBulletedList: Boolean = false,
+    val customFontSize: Float? = null,
+    val customAlignment: TextAlignment? = null,
+    val isManualBounds: Boolean = false
 ) {
     fun mergedBoundingBox(): RectF {
-        if (lines.isEmpty()) return boundingBox
+        if (isManualBounds || lines.isEmpty()) return boundingBox
         
         var minX = Float.MAX_VALUE
         var minY = Float.MAX_VALUE

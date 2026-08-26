@@ -42,14 +42,15 @@ class OcrPreProcessor @Inject constructor() {
 
         val ratio = vNorm / hNorm
 
+        val maxAllowedLength = 1024
         val targetW: Int
         val targetH: Int
         if (!isVertical) {
             targetH = max(textHeight, 2)
-            targetW = max((textHeight / ratio).roundToInt(), 2)
+            targetW = max((textHeight / ratio).roundToInt(), 2).coerceAtMost(maxAllowedLength)
         } else {
             targetW = max(textHeight, 2)
-            targetH = max((textHeight * ratio).roundToInt(), 2)
+            targetH = max((textHeight * ratio).roundToInt(), 2).coerceAtMost(maxAllowedLength)
         }
 
         val fullMat = Mat()
@@ -116,8 +117,8 @@ class OcrPreProcessor @Inject constructor() {
     
     fun batchCrops(crops: List<Bitmap>): Pair<FloatArray, IntArray> {
         if (crops.isEmpty()) return Pair(FloatArray(0), IntArray(0))
-        val maxWidth = crops.maxOf { it.width }
-        val paddedMaxWidth = ((maxWidth + 4) / 4) * 4 + 128
+        val maxWidth = crops.maxOf { it.width }.coerceAtMost(1024)
+        val paddedMaxWidth = (((maxWidth + 3) / 4) * 4).coerceAtLeast(32)
         val batchSize = crops.size
         val tensor = FloatArray(batchSize * 3 * 48 * paddedMaxWidth)
         tensor.fill(-1.0f) // Fill with -1.0f matching Python np.zeros(..., dtype=np.uint8) normalized via (0 - 127.5) / 127.5 = -1.0f

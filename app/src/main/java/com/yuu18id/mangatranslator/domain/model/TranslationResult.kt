@@ -8,5 +8,6 @@ data class TranslationResult(
     val textBlocks: List<TextBlock>,
     val config: TranslationConfig,
     val timestamp: Long,
-    val processingTimeMs: Long
+    val processingTimeMs: Long,
+    val inpaintedImage: Bitmap? = null
 )

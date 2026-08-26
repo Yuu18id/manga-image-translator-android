@@ -32,6 +32,7 @@ import coil.request.ImageRequest
 import java.io.File
 
 import androidx.compose.ui.res.stringResource
+import androidx.compose.material.icons.filled.Translate
 import com.yuu18id.mangatranslator.R
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -39,7 +40,8 @@ import com.yuu18id.mangatranslator.R
 fun ReaderScreen(
     translationId: String? = null,
     viewModel: ReaderViewModel = hiltViewModel(),
-    onNavigateBack: () -> Unit
+    onNavigateBack: () -> Unit,
+    onNavigateToTranslate: (String) -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
@@ -169,6 +171,28 @@ fun ReaderScreen(
                     }
                 },
                 actions = {
+                    // Translate Ulang (Re-translate)
+                    IconButton(onClick = {
+                        val currentItem = uiState.pages.getOrNull(uiState.currentPageIndex)
+                        if (currentItem != null) {
+                            onNavigateToTranslate("history:${currentItem.id}")
+                        } else {
+                            val path = uiState.originalImagePath
+                            if (path != null) {
+                                val file = File(path)
+                                if (file.exists()) {
+                                    val uri = android.net.Uri.fromFile(file).toString()
+                                    onNavigateToTranslate(uri)
+                                }
+                            }
+                        }
+                    }) {
+                        Icon(
+                            Icons.Default.Translate,
+                            contentDescription = "Translate Ulang",
+                            tint = Color.White
+                        )
+                    }
                     IconButton(onClick = {
                         uiState.translatedImagePath?.let { path ->
                             val file = File(path)

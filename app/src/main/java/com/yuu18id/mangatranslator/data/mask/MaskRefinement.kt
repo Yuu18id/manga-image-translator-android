@@ -18,26 +18,31 @@ import kotlin.math.min
 @Singleton
 class MaskRefinement @Inject constructor() {
 
-    suspend fun refine(rawMask: Bitmap, textlines: List<Quadrilateral>, config: InpaintConfig): Bitmap {
+    suspend fun refine(rawMask: Bitmap?, textlines: List<Quadrilateral>, config: InpaintConfig, fallbackWidth: Int = 1024, fallbackHeight: Int = 1024): Bitmap {
+        val imgW = rawMask?.width ?: fallbackWidth
+        val imgH = rawMask?.height ?: fallbackHeight
+
         if (textlines.isEmpty()) {
-            return Bitmap.createBitmap(rawMask.width, rawMask.height, Bitmap.Config.ARGB_8888)
+            return Bitmap.createBitmap(imgW, imgH, Bitmap.Config.ARGB_8888)
         }
 
-        val rawMat = Mat()
-        Utils.bitmapToMat(rawMask, rawMat)
-        
         val rawGray = Mat()
-        if (rawMat.channels() > 1) {
-            Imgproc.cvtColor(rawMat, rawGray, Imgproc.COLOR_RGBA2GRAY)
+        if (rawMask != null && !rawMask.isRecycled) {
+            val rawMat = Mat()
+            Utils.bitmapToMat(rawMask, rawMat)
+            if (rawMat.channels() > 1) {
+                Imgproc.cvtColor(rawMat, rawGray, Imgproc.COLOR_RGBA2GRAY)
+            } else {
+                rawMat.copyTo(rawGray)
+            }
+            rawMat.release()
         } else {
-            rawMat.copyTo(rawGray)
+            Mat.zeros(imgH, imgW, CvType.CV_8UC1).copyTo(rawGray)
         }
 
-        val refinedMat = Mat.zeros(rawMask.height, rawMask.width, CvType.CV_8UC1)
-        val imgW = rawMask.width
-        val imgH = rawMask.height
+        val refinedMat = Mat.zeros(imgH, imgW, CvType.CV_8UC1)
 
-        // Only refine and keep masks INSIDE the detected text lines
+        // Only refine and keep masks INSIDE the detected/curated text lines
         for (line in textlines) {
             val bounds = line.boundingRect()
             
@@ -58,30 +63,39 @@ class MaskRefinement @Inject constructor() {
             val rawRoi = rawGray.submat(roiRect)
             val refinedRoi = refinedMat.submat(roiRect)
 
-            // Binarize ROI mask
-            val threshRoi = Mat()
-            Imgproc.threshold(rawRoi, threshRoi, 40.0, 255.0, Imgproc.THRESH_BINARY)
+            val nonZero = Core.countNonZero(rawRoi)
+            if (nonZero > 15) {
+                // Binarize ROI mask from detector
+                val threshRoi = Mat()
+                Imgproc.threshold(rawRoi, threshRoi, 30.0, 255.0, Imgproc.THRESH_BINARY)
 
-            // Dilation to cover font edges
-            val kSize = (config.maskDilationOffset.coerceIn(3, 9)).toDouble()
-            val kernel = Imgproc.getStructuringElement(Imgproc.MORPH_ELLIPSE, Size(kSize, kSize))
-            val dilatedRoi = Mat()
-            Imgproc.dilate(threshRoi, dilatedRoi, kernel)
+                // Dilation to cover font edges
+                val kSize = (config.maskDilationOffset.coerceIn(3, 9)).toDouble()
+                val kernel = Imgproc.getStructuringElement(Imgproc.MORPH_ELLIPSE, Size(kSize, kSize))
+                val dilatedRoi = Mat()
+                Imgproc.dilate(threshRoi, dilatedRoi, kernel)
 
-            // Merge into refined output
-            Core.bitwise_or(refinedRoi, dilatedRoi, refinedRoi)
+                // Merge into refined output
+                Core.bitwise_or(refinedRoi, dilatedRoi, refinedRoi)
+
+                threshRoi.release()
+                kernel.release()
+                dilatedRoi.release()
+            } else {
+                // User-added box or unsegmented text: fill polygon with white
+                val roiPts = line.pts.map { org.opencv.core.Point((it.x - x1).toDouble(), (it.y - y1).toDouble()) }
+                val matOfPoint = org.opencv.core.MatOfPoint(*roiPts.toTypedArray())
+                Imgproc.fillConvexPoly(refinedRoi, matOfPoint, org.opencv.core.Scalar(255.0))
+                matOfPoint.release()
+            }
 
             rawRoi.release()
             refinedRoi.release()
-            threshRoi.release()
-            kernel.release()
-            dilatedRoi.release()
         }
 
         val refinedMaskBitmap = Bitmap.createBitmap(imgW, imgH, Bitmap.Config.ARGB_8888)
         Utils.matToBitmap(refinedMat, refinedMaskBitmap)
 
-        rawMat.release()
         rawGray.release()
         refinedMat.release()
 

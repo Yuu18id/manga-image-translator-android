@@ -33,18 +33,31 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 
+import com.yuu18id.mangatranslator.data.ml.TextRenderer
+import com.yuu18id.mangatranslator.data.translation.TranslatorFactory
+import com.yuu18id.mangatranslator.domain.model.TextBlock
+import com.yuu18id.mangatranslator.domain.model.TranslationResult
+
 @Immutable
 data class TranslateUiState(
     val selectedImageUri: Uri? = null,
     val originalImage: ImageBitmap? = null,
     val translatedImage: ImageBitmap? = null,
+    val inpaintedImage: ImageBitmap? = null,
+    val currentTextBlocks: List<TextBlock> = emptyList(),
     val showOriginal: Boolean = false,
+    val isReviewModeEnabled: Boolean = false,
+    val isShowingDetectionEditor: Boolean = false,
+    val isShowingRenderEditor: Boolean = false,
+    val pendingDetections: List<com.yuu18id.mangatranslator.domain.model.Quadrilateral> = emptyList(),
     val sourceLang: Language? = Language.JPN,
     val targetLang: Language = Language.ENG,
     val translatorType: TranslatorType = TranslatorType.DEEPL,
     val error: String? = null,
     val savedHistoryId: Long? = null
-)
+) {
+    val canFastRetranslate: Boolean get() = inpaintedImage != null && currentTextBlocks.isNotEmpty()
+}
 
 @Immutable
 data class TranslateProgressState(
@@ -57,6 +70,8 @@ data class TranslateProgressState(
 @HiltViewModel
 class TranslateViewModel @Inject constructor(
     private val translateImageUseCase: TranslateImageUseCase,
+    private val translatorFactory: TranslatorFactory,
+    private val textRenderer: TextRenderer,
     private val settingsRepository: SettingsRepository,
     private val historyRepository: HistoryRepository,
     @ApplicationContext private val context: Context
@@ -72,6 +87,9 @@ class TranslateViewModel @Inject constructor(
     
     private var _originalBitmap: Bitmap? = null
     private var _translatedBitmap: Bitmap? = null
+    private var _inpaintedBitmap: Bitmap? = null
+    private var _currentTextBlocks: List<TextBlock> = emptyList()
+    private var _pendingRawMask: Bitmap? = null
 
     fun getTranslatedBitmap(): Bitmap? = _translatedBitmap
 
@@ -89,6 +107,15 @@ class TranslateViewModel @Inject constructor(
     }
 
     fun setImageUri(uri: Uri) {
+        val uriStr = uri.toString()
+        if (uriStr.startsWith("history:")) {
+            val historyId = uriStr.removePrefix("history:").toLongOrNull()
+            if (historyId != null) {
+                loadFromHistory(historyId)
+                return
+            }
+        }
+
         viewModelScope.launch {
             try {
                 val bitmap = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
@@ -96,17 +123,70 @@ class TranslateViewModel @Inject constructor(
                 }
                 _originalBitmap = bitmap
                 _translatedBitmap = null
+                _inpaintedBitmap = null
+                _currentTextBlocks = emptyList()
+                _pendingRawMask?.recycle()
+                _pendingRawMask = null
                 _uiState.update {
                     it.copy(
                         selectedImageUri = uri,
                         originalImage = bitmap.asImageBitmap(),
                         translatedImage = null, // Reset translation
+                        inpaintedImage = null,
+                        currentTextBlocks = emptyList(),
                         error = null,
-                        savedHistoryId = null
+                        savedHistoryId = null,
+                        isShowingDetectionEditor = false,
+                        isShowingRenderEditor = false,
+                        pendingDetections = emptyList()
                     )
                 }
             } catch (e: Exception) {
                 _uiState.update { it.copy(error = "Failed to load image: ${e.message}") }
+            }
+        }
+    }
+
+    fun loadFromHistory(historyId: Long) {
+        viewModelScope.launch {
+            _progressState.update {
+                it.copy(
+                    isTranslating = true,
+                    progress = 0.5f,
+                    stageMessage = "Memuat data terjemahan..."
+                )
+            }
+            try {
+                val record = historyRepository.getFullHistoryRecord(historyId)
+                if (record != null) {
+                    _originalBitmap = record.originalBitmap
+                    _translatedBitmap = record.translatedBitmap
+                    _inpaintedBitmap = record.inpaintedBitmap
+                    _currentTextBlocks = record.textBlocks
+                    _pendingRawMask?.recycle()
+                    _pendingRawMask = null
+
+                    _uiState.update {
+                        it.copy(
+                            selectedImageUri = Uri.parse("history:$historyId"),
+                            originalImage = record.originalBitmap?.asImageBitmap(),
+                            translatedImage = record.translatedBitmap?.asImageBitmap(),
+                            inpaintedImage = record.inpaintedBitmap?.asImageBitmap(),
+                            currentTextBlocks = record.textBlocks,
+                            sourceLang = record.item.sourceLang,
+                            targetLang = record.item.targetLang,
+                            translatorType = record.item.translatorType,
+                            savedHistoryId = record.item.id,
+                            error = null,
+                            isShowingDetectionEditor = false,
+                            isShowingRenderEditor = false
+                        )
+                    }
+                }
+            } catch (e: Exception) {
+                _uiState.update { it.copy(error = "Gagal memuat history: ${e.message}") }
+            } finally {
+                _progressState.update { it.copy(isTranslating = false) }
             }
         }
     }
@@ -127,6 +207,17 @@ class TranslateViewModel @Inject constructor(
         _uiState.update { it.copy(showOriginal = !it.showOriginal) }
     }
 
+    fun toggleReviewMode() {
+        _uiState.update { it.copy(isReviewModeEnabled = !it.isReviewModeEnabled) }
+    }
+
+    fun dismissDetectionEditor() {
+        _pendingRawMask?.recycle()
+        _pendingRawMask = null
+        _uiState.update { it.copy(isShowingDetectionEditor = false, pendingDetections = emptyList()) }
+        _progressState.update { it.copy(isTranslating = false, progress = 0f, stageMessage = "") }
+    }
+
     fun startTranslation() {
         val bitmap = _originalBitmap ?: return
         val state = _uiState.value
@@ -138,8 +229,8 @@ class TranslateViewModel @Inject constructor(
             _progressState.update { 
                 it.copy(
                     isTranslating = true, 
-                    progress = 0f, 
-                    stageMessage = "Initializing..."
+                    progress = 0.1f, 
+                    stageMessage = "Mendeteksi teks pada gambar..."
                 ) 
             }
             _uiState.update {
@@ -158,52 +249,30 @@ class TranslateViewModel @Inject constructor(
                 )
             )
 
+            if (state.isReviewModeEnabled) {
+                // Run detection only, then pause and show interactive editor
+                try {
+                    val detectionResult = translateImageUseCase.detectOnly(bitmap, config.detector)
+                    _pendingRawMask?.recycle()
+                    _pendingRawMask = detectionResult.mask
+                    _progressState.update { it.copy(isTranslating = false, progress = 0f, stageMessage = "") }
+                    _uiState.update {
+                        it.copy(
+                            isShowingDetectionEditor = true,
+                            pendingDetections = detectionResult.textlines
+                        )
+                    }
+                } catch (e: Exception) {
+                    _progressState.update { it.copy(isTranslating = false, stageMessage = "Error detection") }
+                    _uiState.update { it.copy(error = e.message ?: "Detection failed") }
+                }
+                return@launch
+            }
+
+            // Direct auto translation
             try {
                 translateImageUseCase(bitmap, config).collect { pipelineState ->
-                    when (pipelineState) {
-                        is PipelineState.Progress -> {
-                            _progressState.update {
-                                it.copy(
-                                    currentStage = pipelineState.stage,
-                                    progress = pipelineState.progress,
-                                    stageMessage = pipelineState.message
-                                )
-                            }
-                        }
-                        is PipelineState.Completed -> {
-                            val result = pipelineState.result
-                            val resultBitmap = result.translatedImage
-                            _translatedBitmap = resultBitmap
-                            val historyId = historyRepository.saveTranslation(result)
-
-                            _progressState.update {
-                                it.copy(
-                                    isTranslating = false,
-                                    progress = 1.0f,
-                                    stageMessage = "Translation complete"
-                                )
-                            }
-                            _uiState.update {
-                                it.copy(
-                                    translatedImage = resultBitmap.asImageBitmap(),
-                                    savedHistoryId = historyId
-                                )
-                            }
-                        }
-                        is PipelineState.Error -> {
-                            _progressState.update {
-                                it.copy(
-                                    isTranslating = false,
-                                    stageMessage = "Error occurred"
-                                )
-                            }
-                            _uiState.update {
-                                it.copy(
-                                    error = pipelineState.message
-                                )
-                            }
-                        }
-                    }
+                    handlePipelineState(pipelineState)
                 }
             } catch (e: Exception) {
                 _progressState.update {
@@ -215,6 +284,285 @@ class TranslateViewModel @Inject constructor(
                 _uiState.update {
                     it.copy(
                         error = e.message ?: "Translation failed"
+                    )
+                }
+            }
+        }
+    }
+
+    fun applyEditedDetectionsAndTranslate(curatedTextlines: List<com.yuu18id.mangatranslator.domain.model.Quadrilateral>) {
+        val bitmap = _originalBitmap ?: return
+        val state = _uiState.value
+        val rawMask = _pendingRawMask
+        _pendingRawMask = null
+
+        _uiState.update {
+            it.copy(
+                isShowingDetectionEditor = false,
+                pendingDetections = emptyList(),
+                error = null
+            )
+        }
+
+        translationJob?.cancel()
+        translationJob = viewModelScope.launch {
+            _progressState.update {
+                it.copy(
+                    isTranslating = true,
+                    progress = 0.2f,
+                    stageMessage = "Memproses teks terpilih..."
+                )
+            }
+
+            val savedConfig = settingsRepository.getTranslationConfig().first()
+            val config = savedConfig.copy(
+                translator = savedConfig.translator.copy(
+                    translatorType = state.translatorType,
+                    targetLang = state.targetLang,
+                    sourceLang = state.sourceLang
+                )
+            )
+
+            try {
+                translateImageUseCase.executeFromDetections(bitmap, curatedTextlines, config, rawMask).collect { pipelineState ->
+                    handlePipelineState(pipelineState)
+                }
+            } catch (e: Exception) {
+                _progressState.update {
+                    it.copy(
+                        isTranslating = false,
+                        stageMessage = "Error occurred"
+                    )
+                }
+                _uiState.update {
+                    it.copy(
+                        error = e.message ?: "Translation failed"
+                    )
+                }
+            }
+        }
+    }
+
+    fun openRenderEditor() {
+        if (_inpaintedBitmap != null && _currentTextBlocks.isNotEmpty()) {
+            _uiState.update { it.copy(isShowingRenderEditor = true) }
+        }
+    }
+
+    fun dismissRenderEditor() {
+        _uiState.update { it.copy(isShowingRenderEditor = false) }
+    }
+
+    fun applyEditedRender(updatedBlocks: List<TextBlock>) {
+        val inpainted = _inpaintedBitmap ?: return
+        _uiState.update { it.copy(isShowingRenderEditor = false) }
+
+        viewModelScope.launch {
+            _progressState.update {
+                it.copy(
+                    isTranslating = true,
+                    progress = 0.9f,
+                    stageMessage = "Menerapkan render teks baru..."
+                )
+            }
+
+            try {
+                val savedConfig = settingsRepository.getTranslationConfig().first()
+                val (newFinalImage, finalizedBlocks) = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+                    textRenderer.renderWithUpdatedBlocks(inpainted, updatedBlocks, savedConfig.render)
+                }
+                _translatedBitmap = newFinalImage
+                _currentTextBlocks = finalizedBlocks
+
+                val original = _originalBitmap ?: inpainted
+                val updatedResult = TranslationResult(
+                    originalImage = original,
+                    translatedImage = newFinalImage,
+                    textBlocks = finalizedBlocks,
+                    config = savedConfig,
+                    timestamp = System.currentTimeMillis(),
+                    processingTimeMs = 0L,
+                    inpaintedImage = inpainted
+                )
+                val historyId = historyRepository.saveTranslation(updatedResult)
+
+                _progressState.update {
+                    it.copy(
+                        isTranslating = false,
+                        progress = 1.0f,
+                        stageMessage = "Render selesai"
+                    )
+                }
+                _uiState.update {
+                    it.copy(
+                        translatedImage = newFinalImage.asImageBitmap(),
+                        inpaintedImage = inpainted.asImageBitmap(),
+                        currentTextBlocks = finalizedBlocks,
+                        savedHistoryId = historyId
+                    )
+                }
+            } catch (e: Exception) {
+                _progressState.update {
+                    it.copy(
+                        isTranslating = false,
+                        stageMessage = "Gagal render"
+                    )
+                }
+                _uiState.update {
+                    it.copy(
+                        error = e.message ?: "Failed to render"
+                    )
+                }
+            }
+        }
+    }
+
+    fun retranslateTextOnly(
+        newTranslatorType: TranslatorType? = null,
+        newTargetLang: Language? = null
+    ) {
+        val inpainted = _inpaintedBitmap ?: return
+        val currentBlocks = _currentTextBlocks
+        if (currentBlocks.isEmpty()) return
+
+        val state = _uiState.value
+        val activeTranslatorType = newTranslatorType ?: state.translatorType
+        val activeTargetLang = newTargetLang ?: state.targetLang
+        val activeSourceLang = state.sourceLang
+
+        translationJob?.cancel()
+        translationJob = viewModelScope.launch {
+            _progressState.update {
+                it.copy(
+                    isTranslating = true,
+                    currentStage = PipelineStage.TRANSLATION,
+                    progress = 0.4f,
+                    stageMessage = "Menerjemahkan ulang teks saja ($activeTranslatorType)..."
+                )
+            }
+
+            try {
+                val savedConfig = settingsRepository.getTranslationConfig().first()
+                val translatorConfig = savedConfig.translator.copy(
+                    translatorType = activeTranslatorType,
+                    targetLang = activeTargetLang,
+                    sourceLang = activeSourceLang
+                )
+
+                // 1. Create specific cloud/offline translator
+                val translator = translatorFactory.getTranslator(activeTranslatorType)
+                
+                // Clear old translated text so engine translates fresh from original Japanese source text
+                val blocksToTranslate = currentBlocks.map { it.copy(translatedText = "") }
+                val translatedBlocks: List<TextBlock> = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    translator.translate(blocksToTranslate, translatorConfig)
+                }
+
+                _progressState.update {
+                    it.copy(
+                        currentStage = PipelineStage.RENDERING,
+                        progress = 0.85f,
+                        stageMessage = "Me-render tipografi baru..."
+                    )
+                }
+
+                // 2. Render directly onto cached inpainted bitmap
+                val (newFinalImage, finalizedBlocks) = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+                    textRenderer.renderWithUpdatedBlocks(inpainted, translatedBlocks, savedConfig.render)
+                }
+
+                _translatedBitmap = newFinalImage
+                _currentTextBlocks = finalizedBlocks
+
+                val original = _originalBitmap ?: inpainted
+                val updatedResult = TranslationResult(
+                    originalImage = original,
+                    translatedImage = newFinalImage,
+                    textBlocks = finalizedBlocks,
+                    config = savedConfig.copy(translator = translatorConfig),
+                    timestamp = System.currentTimeMillis(),
+                    processingTimeMs = 0L,
+                    inpaintedImage = inpainted
+                )
+                val historyId = historyRepository.saveTranslation(updatedResult)
+
+                _progressState.update {
+                    it.copy(
+                        isTranslating = false,
+                        progress = 1.0f,
+                        stageMessage = "Terjemah ulang teks selesai!"
+                    )
+                }
+
+                _uiState.update {
+                    it.copy(
+                        translatedImage = newFinalImage.asImageBitmap(),
+                        inpaintedImage = inpainted.asImageBitmap(),
+                        currentTextBlocks = finalizedBlocks,
+                        savedHistoryId = historyId,
+                        translatorType = activeTranslatorType,
+                        targetLang = activeTargetLang
+                    )
+                }
+            } catch (e: Exception) {
+                _progressState.update {
+                    it.copy(
+                        isTranslating = false,
+                        stageMessage = "Gagal menerjemahkan ulang"
+                    )
+                }
+                _uiState.update {
+                    it.copy(error = e.message ?: "Gagal menerjemahkan ulang teks")
+                }
+            }
+        }
+    }
+
+    private suspend fun handlePipelineState(pipelineState: PipelineState) {
+        when (pipelineState) {
+            is PipelineState.Progress -> {
+                _progressState.update {
+                    it.copy(
+                        currentStage = pipelineState.stage,
+                        progress = pipelineState.progress,
+                        stageMessage = pipelineState.message
+                    )
+                }
+            }
+            is PipelineState.Completed -> {
+                val result = pipelineState.result
+                val resultBitmap = result.translatedImage
+                _translatedBitmap = resultBitmap
+                _inpaintedBitmap = result.inpaintedImage ?: resultBitmap
+                _currentTextBlocks = result.textBlocks
+                val historyId = historyRepository.saveTranslation(result)
+
+                _progressState.update {
+                    it.copy(
+                        isTranslating = false,
+                        progress = 1.0f,
+                        stageMessage = "Translation complete"
+                    )
+                }
+                _uiState.update {
+                    it.copy(
+                        translatedImage = resultBitmap.asImageBitmap(),
+                        inpaintedImage = _inpaintedBitmap?.asImageBitmap(),
+                        currentTextBlocks = result.textBlocks,
+                        savedHistoryId = historyId
+                    )
+                }
+            }
+            is PipelineState.Error -> {
+                _progressState.update {
+                    it.copy(
+                        isTranslating = false,
+                        stageMessage = "Error occurred"
+                    )
+                }
+                _uiState.update {
+                    it.copy(
+                        error = pipelineState.message
                     )
                 }
             }

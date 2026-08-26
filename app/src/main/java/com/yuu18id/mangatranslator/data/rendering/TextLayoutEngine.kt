@@ -85,9 +85,11 @@ class TextLayoutEngine @Inject constructor(
         language: Language?,
         config: RenderConfig,
         isVertical: Boolean
-    ): LayoutResult? {
+    ): LayoutResult {
         val cleanText = text.trim()
-        if (cleanText.isEmpty()) return null
+        if (cleanText.isEmpty()) {
+            return LayoutResult(emptyList(), fontSize, 0f, 0f, emptyList())
+        }
 
         val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.SUBPIXEL_TEXT_FLAG).apply {
             typeface = fontManager.getTypefaceForLanguage(language ?: Language.ENG)
@@ -119,23 +121,15 @@ class TextLayoutEngine @Inject constructor(
                 totalW += lineWidth * 1.25f
                 totalH = max(totalH, lineHeight)
             }
-            if (totalW <= maxAvailableWidth && totalH <= maxAvailableHeight) {
-                val lineHeights = List(lines.size) { fontSize * 1.15f }
-                LayoutResult(lines, fontSize, totalW, totalH, lineHeights)
-            } else {
-                null
-            }
+            val lineHeights = List(lines.size) { fontSize * 1.15f }
+            LayoutResult(lines, fontSize, totalW, totalH, lineHeights)
         } else {
             val lines = wrapHorizontalBalanced(cleanText, paint, maxAvailableWidth)
             val lineSpacing = fontSize * 1.18f
             val totalH = lines.size * lineSpacing
             val totalW = lines.maxOfOrNull { paint.measureText(it) } ?: 0f
-            if (totalW <= maxAvailableWidth * 1.05f && totalH <= maxAvailableHeight) {
-                val lineHeights = List(lines.size) { fontSize * 1.18f }
-                LayoutResult(lines, fontSize, totalW, totalH, lineHeights)
-            } else {
-                null
-            }
+            val lineHeights = List(lines.size) { lineSpacing }
+            LayoutResult(lines, fontSize, totalW, totalH, lineHeights)
         }
     }
 
