@@ -62,6 +62,7 @@ Optimized specifically for translating raw **Japanese Manga (`JA / JPN`)** into 
   * English (Default)
   * Indonesian (Bahasa Indonesia)
   * Japanese (日本語)
+  * Simplified Chinese (简体中文)
 
 ---
 

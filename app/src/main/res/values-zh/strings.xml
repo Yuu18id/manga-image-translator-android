@@ -1,0 +1,184 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Manga Translator</string>
+
+    <!-- 导航与通用操作 -->
+    <string name="nav_home">首页</string>
+    <string name="nav_gallery">图库</string>
+    <string name="nav_translate">翻译</string>
+    <string name="nav_reader">阅读</string>
+    <string name="nav_settings">设置</string>
+    <string name="action_back">返回</string>
+    <string name="action_close">关闭</string>
+    <string name="action_cancel">取消</string>
+    <string name="action_delete">删除</string>
+    <string name="action_clear">清除</string>
+    <string name="action_clear_all">清除全部</string>
+    <string name="action_retry">重试</string>
+    <string name="action_share">分享</string>
+    <string name="action_select_all">全选</string>
+    <string name="action_deselect_all">取消全选</string>
+    <string name="action_apply">应用</string>
+    <string name="action_save">保存</string>
+    <string name="action_edit">编辑</string>
+    <string name="action_typeset">排版</string>
+    <string name="action_remove">移除</string>
+    <string name="action_move_up">上移</string>
+    <string name="action_move_down">下移</string>
+    <string name="action_reset">重置</string>
+    <string name="action_collapse">折叠</string>
+    <string name="action_expand">展开</string>
+
+    <!-- 首页屏幕 -->
+    <string name="home_hero_title">选择漫画图片</string>
+    <string name="home_hero_subtitle">从设备图库打开漫画图片</string>
+    <string name="home_single_title">单页翻译</string>
+    <string name="home_single_subtitle">翻译单页漫画</string>
+    <string name="home_batch_title">批量章节</string>
+    <string name="home_batch_subtitle">批量翻译文件夹 / 章节</string>
+    <string name="home_recent_title">最近翻译</string>
+    <string name="home_open_gallery">打开图库</string>
+    <string name="home_empty_title">暂无翻译记录</string>
+    <string name="home_empty_subtitle">选择漫画图片即可开始 AI 自动翻译。</string>
+    <string name="home_select_image">选择漫画图片</string>
+
+    <!-- 翻译屏幕 -->
+    <string name="translate_title">翻译</string>
+    <string name="translate_no_image">未选择图片</string>
+    <string name="translate_source_lang">源语言</string>
+    <string name="translate_target_lang">目标语言</string>
+    <string name="translate_japanese_fixed">日语</string>
+    <string name="translate_engine">翻译引擎</string>
+    <string name="translate_engine_label">引擎：%1$s</string>
+    <string name="translate_review_mode">气泡检测审查</string>
+    <string name="translate_select_target">选择目标语言</string>
+    <string name="translate_search_language">搜索语言...</string>
+    <string name="translate_select_engine">选择翻译引擎</string>
+    <string name="translate_engine_requires_key">需要在设置中配置 API Key</string>
+    <string name="translate_engine_free">免费 / 内置</string>
+    <string name="translate_toggle_original">原图</string>
+    <string name="translate_toggle_translated">译图</string>
+    <string name="translate_action_btn">开始翻译</string>
+    <string name="translate_action_review_btn">审查并翻译</string>
+    <string name="translate_open_in_reader">在阅读器中打开</string>
+    <string name="translate_edit_typeset">编辑排版</string>
+    <string name="translate_retranslate_text">重新翻译文本</string>
+    <string name="translate_rescan">重新扫描</string>
+    <string name="translate_full_rescan">完全重新扫描</string>
+    <string name="translate_initializing">正在初始化 AI 模型...</string>
+    <string name="translate_complete">翻译完成</string>
+    <string name="translate_cancelled">已取消</string>
+    <string name="translate_stage_detection">正在检测文本气泡...</string>
+    <string name="translate_stage_ocr">正在识别文本 (OCR)...</string>
+    <string name="translate_stage_translation">正在翻译文本...</string>
+    <string name="translate_stage_inpainting">正在消除原文字 (Inpainting)...</string>
+    <string name="translate_stage_rendering">正在渲染排版译文...</string>
+
+    <!-- 气泡检测审查对话框 -->
+    <string name="editor_review_title">审查文本气泡</string>
+    <string name="editor_bubbles_detected">已检测到 %1$d 个气泡</string>
+    <string name="editor_selected_bubble">已选气泡</string>
+    <string name="editor_delete_sfx">删除 / 忽略音效</string>
+    <string name="editor_continue_translate">继续翻译 (%1$d 个气泡)</string>
+    <string name="editor_hint_add">添加模式：在漫画气泡上拖动框选</string>
+    <string name="editor_hint_selected">气泡 #%1$d：拖动移动位置，拖动边角调整大小</string>
+    <string name="editor_hint_idle">点击气泡进行编辑/删除 • 双指缩放画面</string>
+    <string name="editor_action_add_box">添加框选</string>
+    <string name="editor_action_delete_box">删除框选</string>
+    <string name="editor_action_reset">恢复初始</string>
+
+    <!-- 排版渲染编辑器对话框 -->
+    <string name="typeset_title">编辑排版与渲染</string>
+    <string name="typeset_bubbles_count">%1$d 个文本气泡</string>
+    <string name="typeset_empty_bubble">(空白气泡)</string>
+    <string name="typeset_edit_text_btn">编辑文本</string>
+    <string name="typeset_decrease_font">缩小字号</string>
+    <string name="typeset_increase_font">放大字号</string>
+    <string name="typeset_align_left">左对齐</string>
+    <string name="typeset_align_center">居中对齐</string>
+    <string name="typeset_align_right">右对齐</string>
+    <string name="typeset_hint_idle">点击文本气泡以调整字号、位置和译文内容。</string>
+    <string name="typeset_save_apply">保存并应用排版 (%1$d 个气泡)</string>
+    <string name="typeset_dialog_edit_title">编辑气泡文本 #%1$d</string>
+    <string name="typeset_ocr_label">原文识别 (OCR)：</string>
+    <string name="typeset_translated_label">翻译文本</string>
+
+    <!-- 图库屏幕 -->
+    <string name="gallery_title">图库</string>
+    <string name="gallery_item_count">%1$d 项</string>
+    <string name="gallery_selected_count">已选择 %1$d 项</string>
+    <string name="gallery_menu_clear_all">清除所有历史</string>
+    <string name="gallery_empty_title">暂无翻译</string>
+    <string name="gallery_empty_subtitle">翻译后的漫画页面将自动显示在此处。</string>
+    <string name="gallery_dialog_clear_title">清除所有历史记录？</string>
+    <string name="gallery_dialog_clear_msg">所有翻译后的图片将从设备存储中永久删除。</string>
+    <string name="gallery_dialog_delete_title">删除 %1$d 项？</string>
+    <string name="gallery_dialog_delete_msg">选中的项目将从历史记录和存储中永久删除。</string>
+    <string name="gallery_retranslate_btn">重新翻译</string>
+    <string name="gallery_album_badge">%1$d 页</string>
+    <string name="gallery_album_type">章节相册</string>
+    <string name="gallery_no_image">无图片</string>
+    <string name="gallery_selected_badge">已选择</string>
+
+    <!-- 阅读器屏幕 -->
+    <string name="reader_dialog_delete_title">删除图片？</string>
+    <string name="reader_dialog_delete_msg">确定要从历史记录和存储中删除此翻译吗？</string>
+    <string name="reader_show_original">原图</string>
+    <string name="reader_show_translated">译图</string>
+    <string name="reader_not_found">未找到翻译记录</string>
+    <string name="reader_page_indicator">第 %1$d / %2$d 页</string>
+    <string name="reader_prev_page">上一页</string>
+    <string name="reader_next_page">下一页</string>
+
+    <!-- 设置屏幕 -->
+    <string name="settings_title">设置</string>
+    <string name="settings_language_engine">语言与引擎</string>
+    <string name="settings_default_target_lang">默认目标语言</string>
+    <string name="settings_default_translator">默认翻译引擎</string>
+    <string name="settings_api_keys">API 密钥</string>
+    <string name="settings_api_keys_subtitle">配置翻译服务商的 API 密钥。密钥将安全保存在本地存储中。</string>
+    <string name="settings_key_active">当前激活</string>
+    <string name="settings_key_configured">已配置密钥 (••••••••)</string>
+    <string name="settings_key_none">未设置密钥</string>
+    <string name="settings_get_key">获取密钥</string>
+    <string name="settings_paste_key_hint">在此粘贴您的 API 密钥...</string>
+    <string name="settings_clear_key">清除密钥</string>
+    <string name="settings_preset_models">热门预设模型：</string>
+    <string name="settings_hide_key">隐藏密钥</string>
+    <string name="settings_show_key">显示密钥</string>
+    <string name="settings_storage">存储空间</string>
+    <string name="settings_storage_subtitle">删除已保存的翻译图片和缓存</string>
+    <string name="settings_clear_history_btn">清除翻译历史</string>
+    <string name="settings_dialog_clear_title">清除历史记录</string>
+    <string name="settings_dialog_clear_msg">确定要删除所有翻译历史记录吗？此操作无法撤销。</string>
+    <string name="settings_about">关于</string>
+    <string name="settings_version">版本 1.0.0</string>
+    <string name="settings_developed_by">开发者 @%1$s</string>
+    <string name="settings_github">GitHub 仓库</string>
+
+    <!-- 批量翻译屏幕 -->
+    <string name="batch_title">批量翻译</string>
+    <string name="batch_hero_title">批量章节翻译</string>
+    <string name="batch_hero_subtitle">选择多页漫画并按顺序自动翻译</string>
+    <string name="batch_page_count">已选择 %1$d 页</string>
+    <string name="batch_sort_filename">按文件名自动排序</string>
+    <string name="batch_add_pages">添加页面</string>
+    <string name="batch_start_btn">开始批量翻译 (%1$d 页)</string>
+    <string name="batch_processing_progress">正在处理第 %1$d / %2$d 页 (%3$d%%)</string>
+    <string name="batch_empty_title">未选择页面</string>
+    <string name="batch_empty_subtitle">点击下方或从图库中多选漫画页面即可开始。</string>
+    <string name="batch_select_pages">选择漫画页面</string>
+    <string name="batch_status_queued">等待中</string>
+    <string name="batch_status_done">已完成</string>
+    <string name="batch_status_failed">失败</string>
+    <string name="batch_read_chapter">阅读章节 (%1$d 页)</string>
+    <string name="batch_retry_failed">重试失败项 (%1$d)</string>
+    <string name="batch_clear_dialog_title">清空批次</string>
+    <string name="batch_clear_dialog_msg">确定要清空当前批次中的所有页面吗？</string>
+    <string name="batch_status_in_progress">正在翻译章节...</string>
+    <string name="batch_status_error">批量翻译完成（存在错误）</string>
+    <string name="batch_status_all_done">章节翻译完成！</string>
+    <string name="batch_stage_detecting">正在检测文本气泡...</string>
+    <string name="batch_stage_completed">已完成</string>
+    <string name="batch_stage_typeset_updated">排版已更新</string>
+</resources>
