@@ -32,6 +32,7 @@ import coil.request.ImageRequest
 import com.yuu18id.mangatranslator.R
 import com.yuu18id.mangatranslator.domain.model.BatchPageItem
 import com.yuu18id.mangatranslator.domain.model.BatchPageStatus
+import com.yuu18id.mangatranslator.domain.model.PipelineStage
 import com.yuu18id.mangatranslator.ui.translate.LanguageEngineSelectorBar
 import com.yuu18id.mangatranslator.ui.translate.editor.DetectionEditorDialog
 import com.yuu18id.mangatranslator.ui.translate.editor.RenderEditorDialog
@@ -474,7 +475,13 @@ fun BatchPageCard(
 
                 val statusText = when (item.status) {
                     BatchPageStatus.IDLE, BatchPageStatus.QUEUED -> stringResource(R.string.batch_status_queued)
-                    BatchPageStatus.PROCESSING -> item.stageMessage.ifBlank { stringResource(R.string.translate_initializing) }
+                    BatchPageStatus.PROCESSING -> when (item.currentStage) {
+                        PipelineStage.DETECTION -> stringResource(R.string.translate_stage_detection)
+                        PipelineStage.OCR, PipelineStage.TEXTLINE_MERGE -> stringResource(R.string.translate_stage_ocr)
+                        PipelineStage.TRANSLATION -> stringResource(R.string.translate_stage_translation)
+                        PipelineStage.MASK_REFINEMENT, PipelineStage.INPAINTING -> stringResource(R.string.translate_stage_inpainting)
+                        PipelineStage.RENDERING -> stringResource(R.string.translate_stage_rendering)
+                    }
                     BatchPageStatus.COMPLETED -> stringResource(R.string.batch_status_done)
                     BatchPageStatus.FAILED -> item.errorMessage ?: stringResource(R.string.batch_status_failed)
                     BatchPageStatus.CANCELLED -> stringResource(R.string.translate_cancelled)

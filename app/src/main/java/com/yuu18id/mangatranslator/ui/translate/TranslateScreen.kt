@@ -671,7 +671,7 @@ fun EngineSelectionSheet(
 fun TranslationProgressCard(
     stage: PipelineStage,
     progress: Float,
-    message: String
+    message: String = ""
 ) {
     val stageTitle = when (stage) {
         PipelineStage.DETECTION -> stringResource(R.string.translate_stage_detection)
@@ -719,16 +719,6 @@ fun TranslationProgressCard(
                     .height(6.dp)
                     .clip(RoundedCornerShape(3.dp))
             )
-
-            if (message.isNotBlank()) {
-                Text(
-                    text = message,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
         }
     }
 }

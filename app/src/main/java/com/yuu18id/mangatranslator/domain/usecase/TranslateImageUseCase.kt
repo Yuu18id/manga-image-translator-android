@@ -59,7 +59,7 @@ class TranslateImageUseCase @Inject constructor(
 
         try {
             currentStage = PipelineStage.DETECTION
-            emit(PipelineState.Progress(currentStage, 0.1f, "Mendeteksi teks pada gambar..."))
+            emit(PipelineState.Progress(currentStage, 0.1f, "Detecting text bubbles..."))
             val detStart = System.currentTimeMillis()
             val detections = textDetector.detect(image, config.detector)
             Log.i(TAG, "✓ [1/7 DETECTION] Found ${detections.textlines.size} textlines in ${System.currentTimeMillis() - detStart}ms")
@@ -140,7 +140,7 @@ class TranslateImageUseCase @Inject constructor(
 
         // 2. OCR
         currentStage = PipelineStage.OCR
-        emit(PipelineState.Progress(currentStage, 0.3f, "Mengenali karakter teks (OCR)..."))
+        emit(PipelineState.Progress(currentStage, 0.3f, "Reading text (OCR)..."))
         val ocrStart = System.currentTimeMillis()
         val ocrResults = ocrEngine.recognize(image, textlines, config.ocr)
         Log.i(TAG, "✓ [2/7 OCR] Recognized ${ocrResults.size} textlines in ${System.currentTimeMillis() - ocrStart}ms")
@@ -150,7 +150,7 @@ class TranslateImageUseCase @Inject constructor(
 
         // 3. Textline Merge & Order
         currentStage = PipelineStage.TEXTLINE_MERGE
-        emit(PipelineState.Progress(currentStage, 0.45f, "Menggabungkan & menyusun urutan teks..."))
+        emit(PipelineState.Progress(currentStage, 0.45f, "Merging and ordering text..."))
         var mergedBlocks = textlineMerger.merge(ocrResults)
         mergedBlocks = readingOrderSorter.sort(mergedBlocks, isRtl = true)
         val balancedBlocks = mergedBlocks.map { block ->
@@ -164,7 +164,7 @@ class TranslateImageUseCase @Inject constructor(
 
         // 4. Translation
         currentStage = PipelineStage.TRANSLATION
-        emit(PipelineState.Progress(currentStage, 0.6f, "Menerjemahkan teks via ${config.translator.translatorType.displayName}..."))
+        emit(PipelineState.Progress(currentStage, 0.6f, "Translating text via ${config.translator.translatorType.displayName}..."))
         val preFilteredBlocks = balancedBlocks.map { block ->
             block.copy(text = dictionaryFilter.applyRules(block.text, emptyMap()))
         }
@@ -195,7 +195,7 @@ class TranslateImageUseCase @Inject constructor(
 
         // 5. Mask Refinement
         currentStage = PipelineStage.MASK_REFINEMENT
-        emit(PipelineState.Progress(currentStage, 0.75f, "Menyempurnakan mask teks..."))
+        emit(PipelineState.Progress(currentStage, 0.75f, "Refining text mask..."))
         val maskStart = System.currentTimeMillis()
         val refinedMask = maskRefinement.refine(rawMask, textlines, config.inpainter, image.width, image.height)
         if (rawMask != null && !rawMask.isRecycled) {
@@ -205,7 +205,7 @@ class TranslateImageUseCase @Inject constructor(
 
         // 6. Inpainting
         currentStage = PipelineStage.INPAINTING
-        emit(PipelineState.Progress(currentStage, 0.85f, "Menghapus teks asli (Inpainting)..."))
+        emit(PipelineState.Progress(currentStage, 0.85f, "Cleaning original text (Inpainting)..."))
         val inpaintStart = System.currentTimeMillis()
         val inpaintedImage = inpainter.inpaint(image, refinedMask, config.inpainter)
         refinedMask.recycle()
@@ -213,7 +213,7 @@ class TranslateImageUseCase @Inject constructor(
 
         // 7. Rendering
         currentStage = PipelineStage.RENDERING
-        emit(PipelineState.Progress(currentStage, 0.95f, "Me-render teks hasil terjemahan..."))
+        emit(PipelineState.Progress(currentStage, 0.95f, "Rendering translated text..."))
         val renderStart = System.currentTimeMillis()
         val (finalImage, updatedBlocks) = textRenderer.renderWithUpdatedBlocks(inpaintedImage, translatedBlocks, config.render)
         Log.i(TAG, "✓ [7/7 RENDERING] Completed in ${System.currentTimeMillis() - renderStart}ms")

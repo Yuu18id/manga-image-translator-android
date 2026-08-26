@@ -153,7 +153,7 @@ class TranslateViewModel @Inject constructor(
                 it.copy(
                     isTranslating = true,
                     progress = 0.5f,
-                    stageMessage = "Memuat data terjemahan..."
+                    stageMessage = "Loading..."
                 )
             }
             try {
@@ -184,7 +184,7 @@ class TranslateViewModel @Inject constructor(
                     }
                 }
             } catch (e: Exception) {
-                _uiState.update { it.copy(error = "Gagal memuat history: ${e.message}") }
+                _uiState.update { it.copy(error = "Failed to load history: ${e.message}") }
             } finally {
                 _progressState.update { it.copy(isTranslating = false) }
             }
@@ -230,7 +230,7 @@ class TranslateViewModel @Inject constructor(
                 it.copy(
                     isTranslating = true, 
                     progress = 0.1f, 
-                    stageMessage = "Mendeteksi teks pada gambar..."
+                    stageMessage = ""
                 ) 
             }
             _uiState.update {
@@ -310,7 +310,7 @@ class TranslateViewModel @Inject constructor(
                 it.copy(
                     isTranslating = true,
                     progress = 0.2f,
-                    stageMessage = "Memproses teks terpilih..."
+                    stageMessage = ""
                 )
             }
 
@@ -362,7 +362,7 @@ class TranslateViewModel @Inject constructor(
                 it.copy(
                     isTranslating = true,
                     progress = 0.9f,
-                    stageMessage = "Menerapkan render teks baru..."
+                    stageMessage = ""
                 )
             }
 
@@ -395,7 +395,7 @@ class TranslateViewModel @Inject constructor(
                     it.copy(
                         isTranslating = false,
                         progress = 1.0f,
-                        stageMessage = "Render selesai"
+                        stageMessage = ""
                     )
                 }
                 _uiState.update {
@@ -410,7 +410,7 @@ class TranslateViewModel @Inject constructor(
                 _progressState.update {
                     it.copy(
                         isTranslating = false,
-                        stageMessage = "Gagal render"
+                        stageMessage = "Render error"
                     )
                 }
                 _uiState.update {
@@ -442,7 +442,7 @@ class TranslateViewModel @Inject constructor(
                     isTranslating = true,
                     currentStage = PipelineStage.TRANSLATION,
                     progress = 0.4f,
-                    stageMessage = "Menerjemahkan ulang teks saja ($activeTranslatorType)..."
+                    stageMessage = ""
                 )
             }
 
@@ -467,7 +467,7 @@ class TranslateViewModel @Inject constructor(
                     it.copy(
                         currentStage = PipelineStage.RENDERING,
                         progress = 0.85f,
-                        stageMessage = "Me-render tipografi baru..."
+                        stageMessage = ""
                     )
                 }
 
@@ -518,11 +518,11 @@ class TranslateViewModel @Inject constructor(
                 _progressState.update {
                     it.copy(
                         isTranslating = false,
-                        stageMessage = "Gagal menerjemahkan ulang"
+                        stageMessage = "Retranslate error"
                     )
                 }
                 _uiState.update {
-                    it.copy(error = e.message ?: "Gagal menerjemahkan ulang teks")
+                    it.copy(error = e.message ?: "Failed to retranslate")
                 }
             }
         }
