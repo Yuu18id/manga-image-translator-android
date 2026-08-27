@@ -1,4 +1,4 @@
-package com.yuu18id.mangatranslator.ui.settings
+﻿package com.yuu18id.mangatranslator.ui.settings
 
 import android.content.Intent
 import android.net.Uri
@@ -8,8 +8,6 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -137,7 +135,7 @@ fun SettingsScreen(
                 )
             }
 
-            // 2. AI Translation Engines & API Keys
+            // 2. AI Translation Engines & Dynamic API Models
             ApiKeysSettingsSection(viewModel = viewModel, uiState = uiState)
 
             // 3. Storage Management
@@ -194,7 +192,7 @@ fun SettingsScreen(
                 }
             }
 
-            // 5. About & App Info
+            // 4. About & App Info
             AboutAppSection()
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -269,24 +267,18 @@ fun ApiKeysSettingsSection(
                     Triple(TranslatorType.GROQ, "Groq (Ultra Fast - Free Tier)", "https://console.groq.com/keys"),
                     Triple(TranslatorType.GEMINI, "Google Gemini", "https://aistudio.google.com/app/apikey"),
                     Triple(TranslatorType.OPENROUTER, "OpenRouter (All LLMs)", "https://openrouter.ai/keys"),
+                    Triple(TranslatorType.CLAUDE, "Anthropic Claude", "https://console.anthropic.com/settings/keys"),
                     Triple(TranslatorType.DEEPSEEK, "DeepSeek", "https://platform.deepseek.com/api_keys"),
+                    Triple(TranslatorType.GLM, "Zhipu AI (GLM)", "https://open.bigmodel.cn/usercenter/apikeys"),
                     Triple(TranslatorType.OPENAI, "OpenAI (GPT-4o)", "https://platform.openai.com/api-keys"),
+                    Triple(TranslatorType.CUSTOM, "Custom OpenAI-Compatible (Ollama, LM Studio)", ""),
                     Triple(TranslatorType.DEEPL, "DeepL", "https://www.deepl.com/pro-api"),
                     Triple(TranslatorType.PAPAGO, "Naver Papago", "https://developers.naver.com/main/")
                 )
             }
 
             providers.forEach { (type, name, portalUrl) ->
-                val currentKey = when (type) {
-                    TranslatorType.GROQ -> uiState.groqKey
-                    TranslatorType.GEMINI -> uiState.geminiKey
-                    TranslatorType.OPENROUTER -> uiState.openRouterKey
-                    TranslatorType.DEEPSEEK -> uiState.deepSeekKey
-                    TranslatorType.OPENAI -> uiState.openAiKey
-                    TranslatorType.DEEPL -> uiState.deepLKey
-                    TranslatorType.PAPAGO -> uiState.papagoKey
-                    else -> ""
-                }
+                val currentKey = uiState.apiKeys[type] ?: ""
                 val isCurrentDefault = uiState.config.translator.translatorType == type
                 val isExpanded = expandedProvider == type
 
@@ -301,11 +293,40 @@ fun ApiKeysSettingsSection(
                         expandedProvider = if (isExpanded) null else type
                     },
                     onKeySaved = { viewModel.saveApiKey(type, it) },
-                    extraContent = if (type == TranslatorType.OPENROUTER) {
+                    extraContent = if (type.isLlm) {
                         {
-                            OpenRouterModelSelector(
-                                currentModel = uiState.openRouterModel,
-                                onModelSelected = viewModel::updateOpenRouterModel
+                            if (type == TranslatorType.CUSTOM) {
+                                var localUrl by remember(uiState.customBaseUrl) { mutableStateOf(uiState.customBaseUrl) }
+                                OutlinedTextField(
+                                    value = localUrl,
+                                    onValueChange = { localUrl = it },
+                                    label = { Text(stringResource(R.string.settings_custom_base_url)) },
+                                    placeholder = { Text(stringResource(R.string.settings_custom_base_url_hint)) },
+                                    singleLine = true,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(bottom = 6.dp)
+                                        .onFocusChanged { focus ->
+                                            if (!focus.isFocused && localUrl != uiState.customBaseUrl) {
+                                                viewModel.saveCustomBaseUrl(localUrl)
+                                            }
+                                        }
+                                )
+                            }
+
+                            val activeModel = uiState.selectedModels[type] ?: type.defaultModel
+                            val cachedList = uiState.cachedModels[type] ?: emptyList()
+                            val isFetching = uiState.isFetchingModels[type] == true
+                            val fetchErr = uiState.fetchError[type]
+
+                            DynamicModelSelector(
+                                providerType = type,
+                                currentModel = activeModel,
+                                availableModels = cachedList,
+                                isFetching = isFetching,
+                                fetchError = fetchErr,
+                                onModelSelected = { modelId -> viewModel.selectModel(type, modelId) },
+                                onFetchModels = { viewModel.fetchModels(type) }
                             )
                         }
                     } else null
@@ -328,7 +349,7 @@ fun ProviderApiKeyCard(
     extraContent: (@Composable () -> Unit)? = null
 ) {
     val context = LocalContext.current
-    val hasKey = currentKey.isNotBlank()
+    val hasKey = currentKey.isNotBlank() || providerType == TranslatorType.CUSTOM
 
     Surface(
         shape = RoundedCornerShape(12.dp),
@@ -388,21 +409,23 @@ fun ProviderApiKeyCard(
                 }
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(
-                        onClick = {
-                            runCatching {
-                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(portalUrl))
-                                context.startActivity(intent)
-                            }
-                        },
-                        modifier = Modifier.size(32.dp)
-                    ) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.OpenInNew,
-                            contentDescription = stringResource(R.string.settings_get_key),
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(18.dp)
-                        )
+                    if (portalUrl.isNotBlank()) {
+                        IconButton(
+                            onClick = {
+                                runCatching {
+                                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(portalUrl))
+                                    context.startActivity(intent)
+                                }
+                            },
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(
+                                Icons.AutoMirrored.Filled.OpenInNew,
+                                contentDescription = stringResource(R.string.settings_get_key),
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
                     }
                     IconButton(
                         onClick = onToggleExpand,
@@ -429,83 +452,13 @@ fun ProviderApiKeyCard(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     ApiKeyInputField(
-                        label = "$title API Key",
+                        label = if (providerType == TranslatorType.CUSTOM) "API Key (Optional for local Ollama)" else "$title API Key",
                         value = currentKey,
                         onValueChange = onKeySaved
                     )
 
                     extraContent?.invoke()
                 }
-            }
-        }
-    }
-}
-
-@Composable
-fun OpenRouterModelSelector(
-    currentModel: String,
-    onModelSelected: (String) -> Unit
-) {
-    var localModel by remember(currentModel) { mutableStateOf(currentModel) }
-    val presets = remember {
-        listOf(
-            "google/gemini-2.0-flash-001",
-            "deepseek/deepseek-chat",
-            "openai/gpt-4o-mini",
-            "anthropic/claude-3.5-sonnet",
-            "meta-llama/llama-3.3-70b-instruct"
-        )
-    }
-
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 4.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp)
-    ) {
-        OutlinedTextField(
-            value = localModel,
-            onValueChange = { localModel = it },
-            label = { Text("OpenRouter Model ID") },
-            placeholder = { Text("e.g. google/gemini-2.0-flash-001") },
-            singleLine = true,
-            modifier = Modifier
-                .fillMaxWidth()
-                .onFocusChanged { focusState ->
-                    if (!focusState.isFocused && localModel != currentModel) {
-                        onModelSelected(localModel)
-                    }
-                }
-        )
-
-        Text(
-            text = stringResource(R.string.settings_preset_models),
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-
-        LazyRow(
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            items(presets) { preset ->
-                val isSelected = currentModel == preset
-                FilterChip(
-                    selected = isSelected,
-                    onClick = {
-                        localModel = preset
-                        onModelSelected(preset)
-                    },
-                    label = {
-                        Text(
-                            text = preset.substringAfter("/"),
-                            style = MaterialTheme.typography.labelSmall
-                        )
-                    },
-                    leadingIcon = if (isSelected) {
-                        { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(14.dp)) }
-                    } else null
-                )
             }
         }
     }
@@ -548,7 +501,11 @@ fun ApiKeyInputField(
                 }
                 val icon = if (passwordVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff
                 IconButton(onClick = { passwordVisible = !passwordVisible }) {
-                    Icon(imageVector = icon, contentDescription = if (passwordVisible) stringResource(R.string.settings_hide_key) else stringResource(R.string.settings_show_key))
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = stringResource(if (passwordVisible) R.string.settings_hide_key else R.string.settings_show_key),
+                        modifier = Modifier.size(18.dp)
+                    )
                 }
             }
         }
@@ -575,38 +532,46 @@ fun <T> SettingsDropdownItem(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .menuAnchor(MenuAnchorType.PrimaryNotEditable, true)
+                .menuAnchor()
                 .clickable { expanded = true }
-                .padding(horizontal = 16.dp, vertical = 14.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Row(
-                modifier = Modifier.weight(1f),
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.weight(1f)
             ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(20.dp)
-                )
+                Surface(
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    modifier = Modifier.size(38.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = icon,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
                 Spacer(modifier = Modifier.width(14.dp))
                 Column {
                     Text(
                         text = label,
                         style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.SemiBold
+                        fontWeight = FontWeight.Medium
                     )
                     Text(
                         text = optionLabel(selectedOption),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.primary,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        fontWeight = FontWeight.SemiBold
                     )
                 }
             }
+
             ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
         }
 
@@ -624,13 +589,13 @@ fun <T> SettingsDropdownItem(
                             color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
                         )
                     },
-                    leadingIcon = if (isSelected) {
-                        { Icon(Icons.Default.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary) }
-                    } else null,
                     onClick = {
                         onOptionSelected(option)
                         expanded = false
-                    }
+                    },
+                    leadingIcon = if (isSelected) {
+                        { Icon(Icons.Default.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary) }
+                    } else null
                 )
             }
         }
@@ -639,72 +604,29 @@ fun <T> SettingsDropdownItem(
 
 @Composable
 fun AboutAppSection() {
-    val context = LocalContext.current
-    Card(
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-        ),
-        modifier = Modifier.fillMaxWidth()
+    SettingsSection(
+        title = stringResource(R.string.settings_about),
+        icon = Icons.Default.Info
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(20.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            Surface(
-                shape = CircleShape,
-                color = MaterialTheme.colorScheme.primaryContainer,
-                modifier = Modifier.size(56.dp)
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        imageVector = Icons.Default.Translate,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(28.dp)
-                    )
-                }
-            }
-
             Text(
                 text = stringResource(R.string.app_name),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold
             )
-
-            Surface(
-                shape = RoundedCornerShape(6.dp),
-                color = MaterialTheme.colorScheme.secondaryContainer
-            ) {
-                Text(
-                    text = stringResource(R.string.settings_version),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSecondaryContainer,
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
-                )
-            }
-
             Text(
-                text = stringResource(R.string.settings_developed_by, "yuu18id"),
+                text = stringResource(R.string.settings_version),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-
-            FilledTonalButton(
-                onClick = {
-                    runCatching {
-                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/yuu18id/manga-image-translator")))
-                    }
-                },
-                modifier = Modifier.padding(top = 4.dp)
-            ) {
-                Icon(Icons.Default.Code, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(stringResource(R.string.settings_github))
-            }
+            Text(
+                text = stringResource(R.string.settings_developed_by, "Yuu18id"),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }

@@ -49,12 +49,12 @@
     <string name="translate_source_lang">Source Language</string>
     <string name="translate_target_lang">Target Language</string>
     <string name="translate_japanese_fixed">Japanese</string>
-    <string name="translate_engine">Translation Engine</string>
-    <string name="translate_engine_label">Engine: %1$s</string>
-    <string name="translate_review_mode">Review Detection</string>
+    <string name="translate_engine">Translator</string>
+    <string name="translate_engine_label">Translator: %1$s</string>
+    <string name="translate_review_mode">Review Text Areas</string>
     <string name="translate_select_target">Select Target Language</string>
     <string name="translate_search_language">Search language...</string>
-    <string name="translate_select_engine">Select Translation Engine</string>
+    <string name="translate_select_engine">Select Translator</string>
     <string name="translate_engine_requires_key">Requires API Key in Settings</string>
     <string name="translate_engine_free">Free / Built-in</string>
     <string name="translate_toggle_original">Original</string>
@@ -62,8 +62,8 @@
     <string name="translate_action_btn">Translate</string>
     <string name="translate_action_review_btn">Review &amp; Translate</string>
     <string name="translate_open_in_reader">Open in Reader</string>
-    <string name="translate_edit_typeset">Edit Typeset</string>
-    <string name="translate_retranslate_text">Re-Translate Text</string>
+    <string name="translate_edit_typeset">Edit Text &amp; Bubbles</string>
+    <string name="translate_retranslate_text">Re-Translate</string>
     <string name="translate_rescan">Rescan</string>
     <string name="translate_full_rescan">Full Rescan</string>
     <string name="translate_initializing">Initializing AI models...</string>
@@ -89,7 +89,7 @@
     <string name="editor_action_reset">Reset Initial</string>
 
     <!-- Render Typeset Editor Dialog -->
-    <string name="typeset_title">Edit Typeset &amp; Render</string>
+    <string name="typeset_title">Customize Comic Text</string>
     <string name="typeset_bubbles_count">%1$d text bubbles</string>
     <string name="typeset_empty_bubble">(Empty Bubble)</string>
     <string name="typeset_edit_text_btn">Edit Text</string>
@@ -102,7 +102,7 @@
     <string name="typeset_style_italic">Italic</string>
     <string name="typeset_style_normal">Normal</string>
     <string name="typeset_hint_idle">Tap a text bubble to adjust font, position, and text.</string>
-    <string name="typeset_save_apply">Save &amp; Apply Render (%1$d Bubbles)</string>
+    <string name="typeset_save_apply">Save Changes (%1$d Bubbles)</string>
     <string name="typeset_dialog_edit_title">Edit Bubble Text #%1$d</string>
     <string name="typeset_ocr_label">Original Text (OCR):</string>
     <string name="typeset_translated_label">Translated Text</string>
@@ -147,10 +147,10 @@
     <string name="settings_title">Settings</string>
     <string name="settings_language_engine">Language &amp; Engine</string>
     <string name="settings_default_target_lang">Default Target Language</string>
-    <string name="settings_default_translator">Default Translator Engine</string>
-    <string name="settings_default_ocr_engine">Default OCR Engine</string>
+    <string name="settings_default_translator">Default Translator Provider</string>
+    <string name="settings_default_ocr_engine">Text Recognition (OCR) Engine</string>
     <string name="ocr_engine_ctc">48px CTC OCR (Fast &amp; Lightweight)</string>
-    <string name="ocr_engine_manga_ocr">Manga-OCR (ViT + RoBERTa - Maximum Accuracy)</string>
+    <string name="ocr_engine_manga_ocr">Manga-OCR (High Accuracy for Vertical Text &amp; SFX)</string>
     <string name="settings_api_keys">API Keys</string>
     <string name="settings_api_keys_subtitle">Configure API keys for translation providers. Keys are stored securely in local app storage.</string>
     <string name="settings_key_active">ACTIVE</string>
@@ -160,6 +160,14 @@
     <string name="settings_paste_key_hint">Paste your API key here...</string>
     <string name="settings_clear_key">Clear key</string>
     <string name="settings_preset_models">Popular Preset Models:</string>
+    <string name="settings_active_model_label">Active Model</string>
+    <string name="settings_fetching_models">Fetching...</string>
+    <string name="settings_fetch_models_btn">Fetch Models</string>
+    <string name="settings_choose_from_models">Choose from %1$d Models</string>
+    <string name="settings_custom_model_id">Enter Custom Model ID</string>
+    <string name="settings_select_model_title">Select %1$s Model</string>
+    <string name="settings_custom_base_url">Endpoint Base URL</string>
+    <string name="settings_custom_base_url_hint">e.g. http://localhost:11434/v1</string>
     <string name="settings_hide_key">Hide key</string>
     <string name="settings_show_key">Show key</string>
     <string name="settings_storage">Storage</string>
@@ -174,7 +182,7 @@
 
     <!-- Batch Translation Screen -->
     <string name="batch_title">Batch Translate</string>
-    <string name="batch_hero_title">Batch Chapter Translate</string>
+    <string name="batch_hero_title">Translate Chapter</string>
     <string name="batch_hero_subtitle">Select multiple manga pages and translate sequentially</string>
     <string name="batch_page_count">%1$d pages selected</string>
     <string name="batch_sort_filename">Auto-Sort by Name</string>
@@ -196,12 +204,12 @@
     <string name="batch_status_all_done">Chapter Translation Completed!</string>
     <string name="batch_stage_detecting">Detecting text bubbles...</string>
     <string name="batch_stage_completed">Completed</string>
-    <string name="batch_stage_typeset_updated">Typeset updated</string>
-    <string name="album_name_label">Album Name</string>
-    <string name="album_rename_title">Set Album Name</string>
-    <string name="album_rename_edit">Edit Album Name</string>
-    <string name="album_rename_hint">Enter chapter or album name (e.g. Chapter 1)</string>
-    <string name="gallery_menu_rename_album">Rename Album</string>
+    <string name="batch_stage_typeset_updated">Layout updated</string>
+    <string name="album_name_label">Chapter Name</string>
+    <string name="album_rename_title">Set Chapter Name</string>
+    <string name="album_rename_edit">Edit Chapter Name</string>
+    <string name="album_rename_hint">Enter chapter name (e.g. Chapter 1)</string>
+    <string name="gallery_menu_rename_album">Rename Chapter</string>
 
     <!-- Notifications -->
     <string name="notification_channel_batch_title">Batch Chapter Translation</string>

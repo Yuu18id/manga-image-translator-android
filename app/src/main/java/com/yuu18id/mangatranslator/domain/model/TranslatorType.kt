@@ -1,15 +1,23 @@
-package com.yuu18id.mangatranslator.domain.model
+﻿package com.yuu18id.mangatranslator.domain.model
 
-enum class TranslatorType(val displayName: String, val requiresApiKey: Boolean) {
-    OPENAI("OpenAI", true),
-    OPENROUTER("OpenRouter", true),
-    DEEPL("DeepL", true),
-    GEMINI("Gemini", true),
-    GOOGLE("Google Translate", false),
-    PAPAGO("Papago", true),
-    YOUDAO("Youdao", true),
-    BAIDU("Baidu", true),
-    DEEPSEEK("DeepSeek", true),
-    GROQ("Groq", true),
-    NONE("None", false)
+enum class TranslatorType(
+    val displayName: String,
+    val requiresApiKey: Boolean,
+    val isLlm: Boolean = false,
+    val defaultModel: String = ""
+) {
+    GROQ("Groq", true, true, "llama-3.3-70b-versatile"),
+    GEMINI("Google Gemini", true, true, "gemini-2.0-flash"),
+    OPENROUTER("OpenRouter", true, true, "google/gemini-2.0-flash-001"),
+    CLAUDE("Anthropic Claude", true, true, "claude-3-5-sonnet-20241022"),
+    DEEPSEEK("DeepSeek", true, true, "deepseek-chat"),
+    GLM("Zhipu AI (GLM)", true, true, "glm-4-flash"),
+    OPENAI("OpenAI", true, true, "gpt-4o-mini"),
+    CUSTOM("Custom (OpenAI-Compatible)", true, true, "default"),
+    DEEPL("DeepL", true, false, ""),
+    PAPAGO("Papago", true, false, ""),
+    GOOGLE("Google Translate", false, false, ""),
+    YOUDAO("Youdao", true, false, ""),
+    BAIDU("Baidu", true, false, ""),
+    NONE("None", false, false, "")
 }

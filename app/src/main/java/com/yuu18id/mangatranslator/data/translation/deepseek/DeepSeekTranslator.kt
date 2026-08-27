@@ -44,7 +44,7 @@ class DeepSeekTranslator @Inject constructor(
 
         val apiKey = settingsRepository.getApiKey(TranslatorType.DEEPSEEK).firstOrNull()
         if (apiKey.isNullOrBlank()) {
-            throw Exception("DeepSeek API Key is missing")
+            throw Exception("DeepSeek API Key is missing. Please configure it in Settings.")
         }
 
         val sourceLang = config.sourceLang?.displayName ?: "Auto"
@@ -55,12 +55,15 @@ class DeepSeekTranslator @Inject constructor(
             textBlocks
         )
 
+        val selectedModel = settingsRepository.getModel(TranslatorType.DEEPSEEK).firstOrNull()?.takeIf { it.isNotBlank() }
+            ?: TranslatorType.DEEPSEEK.defaultModel
+
         val requestBody = ChatRequest(
-            model = "deepseek-chat",
+            model = selectedModel,
             messages = listOf(
                 Message(
                     role = "system",
-                    content = com.yuu18id.mangatranslator.data.translation.prompt.LlmPromptConfig.SYSTEM_PROMPT
+                    content = com.yuu18id.mangatranslator.data.translation.prompt.LlmPromptConfig.getSystemPrompt(targetLang)
                 ),
                 Message(role = "user", content = prompt)
             )
@@ -75,10 +78,11 @@ class DeepSeekTranslator @Inject constructor(
 
         val response = client.newCall(request).execute()
         if (!response.isSuccessful) {
-            throw Exception("Translation failed: ${response.code} ${response.message}")
+            val errBody = response.body?.string() ?: ""
+            throw Exception("DeepSeek translation failed (${response.code}): $errBody")
         }
 
-        val responseBody = response.body?.string() ?: throw Exception("Empty response body")
+        val responseBody = response.body?.string() ?: throw Exception("Empty response body from DeepSeek")
         val chatResponse = json.decodeFromString<ChatResponse>(responseBody)
         val content = chatResponse.choices.firstOrNull()?.message?.content ?: ""
 

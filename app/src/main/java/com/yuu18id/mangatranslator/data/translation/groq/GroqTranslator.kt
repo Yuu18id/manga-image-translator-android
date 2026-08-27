@@ -44,7 +44,7 @@ class GroqTranslator @Inject constructor(
 
         val apiKey = settingsRepository.getApiKey(TranslatorType.GROQ).firstOrNull()
         if (apiKey.isNullOrBlank()) {
-            throw Exception("Groq API Key is missing")
+            throw Exception("Groq API Key is missing. Please configure it in Settings.")
         }
 
         val sourceLang = config.sourceLang?.displayName ?: "Auto"
@@ -55,12 +55,15 @@ class GroqTranslator @Inject constructor(
             textBlocks
         )
 
+        val selectedModel = settingsRepository.getModel(TranslatorType.GROQ).firstOrNull()?.takeIf { it.isNotBlank() }
+            ?: TranslatorType.GROQ.defaultModel
+
         val requestBody = ChatRequest(
-            model = "llama-3.3-70b-versatile",
+            model = selectedModel,
             messages = listOf(
                 Message(
                     role = "system",
-                    content = com.yuu18id.mangatranslator.data.translation.prompt.LlmPromptConfig.SYSTEM_PROMPT
+                    content = com.yuu18id.mangatranslator.data.translation.prompt.LlmPromptConfig.getSystemPrompt(targetLang)
                 ),
                 Message(role = "user", content = prompt)
             )
@@ -75,10 +78,11 @@ class GroqTranslator @Inject constructor(
 
         val response = client.newCall(request).execute()
         if (!response.isSuccessful) {
-            throw Exception("Translation failed: ${response.code} ${response.message}")
+            val errBody = response.body?.string() ?: ""
+            throw Exception("Groq translation failed (${response.code}): $errBody")
         }
 
-        val responseBody = response.body?.string() ?: throw Exception("Empty response body")
+        val responseBody = response.body?.string() ?: throw Exception("Empty response body from Groq")
         val chatResponse = json.decodeFromString<ChatResponse>(responseBody)
         val content = chatResponse.choices.firstOrNull()?.message?.content ?: ""
 

@@ -1,4 +1,4 @@
-package com.yuu18id.mangatranslator.data.translation.openrouter
+package com.yuu18id.mangatranslator.data.translation.claude
 
 import com.yuu18id.mangatranslator.data.ml.CloudTranslator
 import com.yuu18id.mangatranslator.domain.model.TextBlock
@@ -17,7 +17,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
-class OpenRouterTranslator @Inject constructor(
+class ClaudeTranslator @Inject constructor(
     private val client: OkHttpClient,
     private val settingsRepository: SettingsRepository
 ) : CloudTranslator {
@@ -28,13 +28,18 @@ class OpenRouterTranslator @Inject constructor(
     private data class Message(val role: String, val content: String)
 
     @Serializable
-    private data class ChatRequest(val model: String, val messages: List<Message>)
+    private data class ClaudeRequest(
+        val model: String,
+        val max_tokens: Int = 2048,
+        val system: String,
+        val messages: List<Message>
+    )
 
     @Serializable
-    private data class ChatResponse(val choices: List<Choice>) {
-        @Serializable
-        data class Choice(val message: Message)
-    }
+    private data class ContentBlock(val type: String = "text", val text: String = "")
+
+    @Serializable
+    private data class ClaudeResponse(val content: List<ContentBlock> = emptyList())
 
     override suspend fun translate(
         textBlocks: List<TextBlock>,
@@ -42,9 +47,9 @@ class OpenRouterTranslator @Inject constructor(
     ): List<TextBlock> {
         if (textBlocks.isEmpty()) return emptyList()
 
-        val apiKey = settingsRepository.getApiKey(TranslatorType.OPENROUTER).firstOrNull()
+        val apiKey = settingsRepository.getApiKey(TranslatorType.CLAUDE).firstOrNull()
         if (apiKey.isNullOrBlank()) {
-            throw Exception("OpenRouter API Key is missing. Please set it in Settings.")
+            throw Exception("Anthropic Claude API Key is missing. Please configure it in Settings.")
         }
 
         val sourceLang = config.sourceLang?.displayName ?: "Auto"
@@ -55,38 +60,32 @@ class OpenRouterTranslator @Inject constructor(
             textBlocks
         )
 
-        val selectedModel = settingsRepository.getOpenRouterModel().firstOrNull()?.takeIf { it.isNotBlank() }
-            ?: "google/gemini-2.0-flash-001"
+        val selectedModel = settingsRepository.getModel(TranslatorType.CLAUDE).firstOrNull()?.takeIf { it.isNotBlank() }
+            ?: TranslatorType.CLAUDE.defaultModel
 
-        val requestBody = ChatRequest(
+        val requestBody = ClaudeRequest(
             model = selectedModel,
-            messages = listOf(
-                Message(
-                    role = "system",
-                    content = com.yuu18id.mangatranslator.data.translation.prompt.LlmPromptConfig.getSystemPrompt(targetLang)
-                ),
-                Message(role = "user", content = prompt)
-            )
+            system = com.yuu18id.mangatranslator.data.translation.prompt.LlmPromptConfig.getSystemPrompt(targetLang),
+            messages = listOf(Message(role = "user", content = prompt))
         )
 
         val body = json.encodeToString(requestBody).toRequestBody("application/json".toMediaType())
         val request = Request.Builder()
-            .url("https://openrouter.ai/api/v1/chat/completions")
-            .addHeader("Authorization", "Bearer $apiKey")
-            .addHeader("HTTP-Referer", "https://github.com/Yuu18id/manga-image-translator")
-            .addHeader("X-Title", "Manga Image Translator Android")
+            .url("https://api.anthropic.com/v1/messages")
+            .addHeader("x-api-key", apiKey)
+            .addHeader("anthropic-version", "2023-06-01")
             .post(body)
             .build()
 
         val response = client.newCall(request).execute()
         if (!response.isSuccessful) {
             val errBody = response.body?.string() ?: ""
-            throw Exception("OpenRouter translation failed (${response.code}): $errBody")
+            throw Exception("Claude translation failed (${response.code}): $errBody")
         }
 
-        val responseBody = response.body?.string() ?: throw Exception("Empty response body from OpenRouter")
-        val chatResponse = json.decodeFromString<ChatResponse>(responseBody)
-        val content = chatResponse.choices.firstOrNull()?.message?.content ?: ""
+        val responseBody = response.body?.string() ?: throw Exception("Empty response from Claude")
+        val claudeResponse = json.decodeFromString<ClaudeResponse>(responseBody)
+        val content = claudeResponse.content.firstOrNull()?.text ?: ""
 
         val translatedLines = content.lines()
         val resultBlocks = textBlocks.map { it.copy() }.toMutableList()

@@ -49,7 +49,7 @@ class GeminiTranslator @Inject constructor(
 
         val apiKey = settingsRepository.getApiKey(TranslatorType.GEMINI).firstOrNull()
         if (apiKey.isNullOrBlank()) {
-            throw Exception("Gemini API Key is missing")
+            throw Exception("Gemini API Key is missing. Please configure it in Settings.")
         }
 
         val sourceLang = config.sourceLang?.displayName ?: "Auto"
@@ -60,9 +60,12 @@ class GeminiTranslator @Inject constructor(
             textBlocks
         )
 
+        val selectedModel = settingsRepository.getModel(TranslatorType.GEMINI).firstOrNull()?.takeIf { it.isNotBlank() }
+            ?: TranslatorType.GEMINI.defaultModel
+
         val requestBody = GeminiRequest(
             systemInstruction = GeminiRequest.Content(
-                parts = listOf(GeminiRequest.Part(text = com.yuu18id.mangatranslator.data.translation.prompt.LlmPromptConfig.SYSTEM_PROMPT))
+                parts = listOf(GeminiRequest.Part(text = com.yuu18id.mangatranslator.data.translation.prompt.LlmPromptConfig.getSystemPrompt(targetLang)))
             ),
             contents = listOf(
                 GeminiRequest.Content(
@@ -71,7 +74,8 @@ class GeminiTranslator @Inject constructor(
             )
         )
 
-        val url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$apiKey"
+        val cleanModel = selectedModel.removePrefix("models/")
+        val url = "https://generativelanguage.googleapis.com/v1beta/models/$cleanModel:generateContent?key=$apiKey"
         val body = json.encodeToString(requestBody).toRequestBody("application/json".toMediaType())
         val request = Request.Builder()
             .url(url)
@@ -80,10 +84,11 @@ class GeminiTranslator @Inject constructor(
 
         val response = client.newCall(request).execute()
         if (!response.isSuccessful) {
-            throw Exception("Translation failed: ${response.code} ${response.message}")
+            val errBody = response.body?.string() ?: ""
+            throw Exception("Gemini translation failed (${response.code}): $errBody")
         }
 
-        val responseBody = response.body?.string() ?: throw Exception("Empty response body")
+        val responseBody = response.body?.string() ?: throw Exception("Empty response body from Gemini")
         val geminiResponse = json.decodeFromString<GeminiResponse>(responseBody)
         val content = geminiResponse.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text ?: ""
 

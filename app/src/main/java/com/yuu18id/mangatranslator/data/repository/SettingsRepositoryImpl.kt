@@ -1,6 +1,8 @@
-package com.yuu18id.mangatranslator.data.repository
+﻿package com.yuu18id.mangatranslator.data.repository
 
 import com.yuu18id.mangatranslator.data.local.SettingsDataStore
+import com.yuu18id.mangatranslator.data.translation.model.AiModelInfo
+import com.yuu18id.mangatranslator.data.translation.model.ModelFetcherService
 import com.yuu18id.mangatranslator.domain.model.DetectorConfig
 import com.yuu18id.mangatranslator.domain.model.InpaintConfig
 import com.yuu18id.mangatranslator.domain.model.Language
@@ -11,11 +13,15 @@ import com.yuu18id.mangatranslator.domain.model.TranslatorType
 import com.yuu18id.mangatranslator.domain.repository.SettingsRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 import javax.inject.Inject
 
 class SettingsRepositoryImpl @Inject constructor(
     private val settingsDataStore: SettingsDataStore
 ) : SettingsRepository {
+
+    private val json = Json { ignoreUnknownKeys = true }
 
     companion object {
         private const val KEY_TRANSLATOR_TYPE = "translator_type"
@@ -25,6 +31,7 @@ class SettingsRepositoryImpl @Inject constructor(
         private const val KEY_DETECTION_SIZE = "detection_size"
         private const val KEY_INPAINTING_SIZE = "inpainting_size"
         private const val KEY_FONT_SIZE_OFFSET = "font_size_offset"
+        private const val KEY_CUSTOM_BASE_URL = "custom_base_url"
     }
 
     override fun getTranslationConfig(): Flow<TranslationConfig> {
@@ -84,11 +91,46 @@ class SettingsRepositoryImpl @Inject constructor(
         settingsDataStore.saveApiKey(translatorType.name, key)
     }
 
+    override fun getModel(translatorType: TranslatorType): Flow<String> {
+        val defaultModel = translatorType.defaultModel
+        return settingsDataStore.getConfigString("model_${translatorType.name}", defaultModel)
+    }
+
+    override suspend fun saveModel(translatorType: TranslatorType, modelId: String) {
+        settingsDataStore.saveConfigString("model_${translatorType.name}", modelId.trim())
+    }
+
+    override fun getCachedModels(translatorType: TranslatorType): Flow<List<AiModelInfo>> {
+        val defaultList = ModelFetcherService.FALLBACK_PRESETS[translatorType] ?: emptyList()
+        return settingsDataStore.getConfigString("cached_models_${translatorType.name}", "").map { jsonStr ->
+            if (jsonStr.isBlank()) {
+                defaultList
+            } else {
+                runCatching {
+                    json.decodeFromString<List<AiModelInfo>>(jsonStr)
+                }.getOrDefault(defaultList)
+            }
+        }
+    }
+
+    override suspend fun saveCachedModels(translatorType: TranslatorType, models: List<AiModelInfo>) {
+        val jsonStr = json.encodeToString(models)
+        settingsDataStore.saveConfigString("cached_models_${translatorType.name}", jsonStr)
+    }
+
+    override fun getCustomBaseUrl(): Flow<String> {
+        return settingsDataStore.getConfigString(KEY_CUSTOM_BASE_URL, "http://localhost:11434/v1")
+    }
+
+    override suspend fun saveCustomBaseUrl(url: String) {
+        settingsDataStore.saveConfigString(KEY_CUSTOM_BASE_URL, url.trim())
+    }
+
     override fun getOpenRouterModel(): Flow<String> {
-        return settingsDataStore.getConfigString("openrouter_model", "google/gemini-2.0-flash-001")
+        return getModel(TranslatorType.OPENROUTER)
     }
 
     override suspend fun saveOpenRouterModel(modelId: String) {
-        settingsDataStore.saveConfigString("openrouter_model", modelId.trim())
+        saveModel(TranslatorType.OPENROUTER, modelId)
     }
 }

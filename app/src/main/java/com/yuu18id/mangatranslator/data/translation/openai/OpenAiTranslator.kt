@@ -44,7 +44,7 @@ class OpenAiTranslator @Inject constructor(
 
         val apiKey = settingsRepository.getApiKey(TranslatorType.OPENAI).firstOrNull()
         if (apiKey.isNullOrBlank()) {
-            throw Exception("OpenAI API Key is missing")
+            throw Exception("OpenAI API Key is missing. Please configure it in Settings.")
         }
 
         val sourceLang = config.sourceLang?.displayName ?: "Auto"
@@ -55,12 +55,15 @@ class OpenAiTranslator @Inject constructor(
             textBlocks
         )
 
+        val selectedModel = settingsRepository.getModel(TranslatorType.OPENAI).firstOrNull()?.takeIf { it.isNotBlank() }
+            ?: TranslatorType.OPENAI.defaultModel
+
         val requestBody = ChatRequest(
-            model = "gpt-4o-mini",
+            model = selectedModel,
             messages = listOf(
                 Message(
                     role = "system",
-                    content = com.yuu18id.mangatranslator.data.translation.prompt.LlmPromptConfig.SYSTEM_PROMPT
+                    content = com.yuu18id.mangatranslator.data.translation.prompt.LlmPromptConfig.getSystemPrompt(targetLang)
                 ),
                 Message(role = "user", content = prompt)
             )
@@ -75,10 +78,11 @@ class OpenAiTranslator @Inject constructor(
 
         val response = client.newCall(request).execute()
         if (!response.isSuccessful) {
-            throw Exception("Translation failed: ${response.code} ${response.message}")
+            val errBody = response.body?.string() ?: ""
+            throw Exception("OpenAI translation failed (${response.code}): $errBody")
         }
 
-        val responseBody = response.body?.string() ?: throw Exception("Empty response body")
+        val responseBody = response.body?.string() ?: throw Exception("Empty response body from OpenAI")
         val chatResponse = json.decodeFromString<ChatResponse>(responseBody)
         val content = chatResponse.choices.firstOrNull()?.message?.content ?: ""
 

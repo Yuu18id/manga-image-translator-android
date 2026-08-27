@@ -1,4 +1,4 @@
-package com.yuu18id.mangatranslator.data.translation.openrouter
+package com.yuu18id.mangatranslator.data.translation.custom
 
 import com.yuu18id.mangatranslator.data.ml.CloudTranslator
 import com.yuu18id.mangatranslator.domain.model.TextBlock
@@ -17,7 +17,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
-class OpenRouterTranslator @Inject constructor(
+class CustomOpenAiTranslator @Inject constructor(
     private val client: OkHttpClient,
     private val settingsRepository: SettingsRepository
 ) : CloudTranslator {
@@ -42,10 +42,12 @@ class OpenRouterTranslator @Inject constructor(
     ): List<TextBlock> {
         if (textBlocks.isEmpty()) return emptyList()
 
-        val apiKey = settingsRepository.getApiKey(TranslatorType.OPENROUTER).firstOrNull()
-        if (apiKey.isNullOrBlank()) {
-            throw Exception("OpenRouter API Key is missing. Please set it in Settings.")
-        }
+        val apiKey = settingsRepository.getApiKey(TranslatorType.CUSTOM).firstOrNull() ?: ""
+        val baseUrl = settingsRepository.getCustomBaseUrl().firstOrNull()?.takeIf { it.isNotBlank() }
+            ?: "http://localhost:11434/v1"
+
+        val cleanUrl = baseUrl.trimEnd('/')
+        val chatUrl = if (cleanUrl.endsWith("/chat/completions")) cleanUrl else "$cleanUrl/chat/completions"
 
         val sourceLang = config.sourceLang?.displayName ?: "Auto"
         val targetLang = config.targetLang.displayName
@@ -55,8 +57,8 @@ class OpenRouterTranslator @Inject constructor(
             textBlocks
         )
 
-        val selectedModel = settingsRepository.getOpenRouterModel().firstOrNull()?.takeIf { it.isNotBlank() }
-            ?: "google/gemini-2.0-flash-001"
+        val selectedModel = settingsRepository.getModel(TranslatorType.CUSTOM).firstOrNull()?.takeIf { it.isNotBlank() }
+            ?: "default"
 
         val requestBody = ChatRequest(
             model = selectedModel,
@@ -70,21 +72,21 @@ class OpenRouterTranslator @Inject constructor(
         )
 
         val body = json.encodeToString(requestBody).toRequestBody("application/json".toMediaType())
-        val request = Request.Builder()
-            .url("https://openrouter.ai/api/v1/chat/completions")
-            .addHeader("Authorization", "Bearer $apiKey")
-            .addHeader("HTTP-Referer", "https://github.com/Yuu18id/manga-image-translator")
-            .addHeader("X-Title", "Manga Image Translator Android")
+        val requestBuilder = Request.Builder()
+            .url(chatUrl)
             .post(body)
-            .build()
 
-        val response = client.newCall(request).execute()
-        if (!response.isSuccessful) {
-            val errBody = response.body?.string() ?: ""
-            throw Exception("OpenRouter translation failed (${response.code}): $errBody")
+        if (apiKey.isNotBlank()) {
+            requestBuilder.addHeader("Authorization", "Bearer $apiKey")
         }
 
-        val responseBody = response.body?.string() ?: throw Exception("Empty response body from OpenRouter")
+        val response = client.newCall(requestBuilder.build()).execute()
+        if (!response.isSuccessful) {
+            val errBody = response.body?.string() ?: ""
+            throw Exception("Custom OpenAI translation failed (${response.code}): $errBody")
+        }
+
+        val responseBody = response.body?.string() ?: throw Exception("Empty response body")
         val chatResponse = json.decodeFromString<ChatResponse>(responseBody)
         val content = chatResponse.choices.firstOrNull()?.message?.content ?: ""
 

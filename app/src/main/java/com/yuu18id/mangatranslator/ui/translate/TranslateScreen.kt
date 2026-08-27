@@ -642,8 +642,9 @@ fun EngineSelectionSheet(
                 fontWeight = FontWeight.Bold
             )
 
+            val displayEngines = remember(engines) { engines.filter { it != TranslatorType.NONE && it != TranslatorType.YOUDAO && it != TranslatorType.BAIDU } }
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                engines.forEach { engine ->
+                displayEngines.forEach { engine ->
                     val isSelected = engine == selectedEngine
                     Surface(
                         onClick = { onSelect(engine) },
@@ -777,7 +778,7 @@ fun TranslateActionButtons(
                 enabled = hasOriginal
             ) {
                 Icon(
-                    imageVector = if (isReviewModeEnabled) Icons.Default.HighlightAlt else Icons.Default.Translate,
+                    imageVector = if (isReviewModeEnabled) Icons.Default.SelectAll else Icons.Default.Translate,
                     contentDescription = null,
                     modifier = Modifier.size(20.dp)
                 )
@@ -789,7 +790,7 @@ fun TranslateActionButtons(
                 )
             }
         } else {
-            // Post-translation Action Bar: Re-translate Text (Primary) & Edit Typeset (Secondary)
+            // Post-translation Action Bar: Re-translate Text (Primary) & Edit Text & Bubbles (Secondary)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -810,7 +811,7 @@ fun TranslateActionButtons(
                     shape = RoundedCornerShape(14.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Translate,
+                        imageVector = Icons.Default.Autorenew,
                         contentDescription = null,
                         modifier = Modifier.size(18.dp)
                     )
@@ -824,7 +825,7 @@ fun TranslateActionButtons(
                     )
                 }
 
-                // Secondary: Edit Typeset (Balloons, font size, styling, alignment)
+                // Secondary: Edit Text & Bubbles (Balloons, font size, styling, alignment)
                 FilledTonalButton(
                     onClick = onOpenRenderEditor,
                     modifier = Modifier
@@ -833,9 +834,9 @@ fun TranslateActionButtons(
                     shape = RoundedCornerShape(14.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Tune,
+                        imageVector = Icons.Default.EditNote,
                         contentDescription = null,
-                        modifier = Modifier.size(18.dp)
+                        modifier = Modifier.size(20.dp)
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(

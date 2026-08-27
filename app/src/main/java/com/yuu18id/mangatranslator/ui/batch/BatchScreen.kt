@@ -618,7 +618,7 @@ fun BatchPageCard(
                         shape = RoundedCornerShape(8.dp),
                         modifier = Modifier.height(34.dp)
                     ) {
-                        Icon(Icons.Default.Tune, contentDescription = null, modifier = Modifier.size(14.dp))
+                        Icon(Icons.Default.EditNote, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(stringResource(R.string.action_typeset), style = MaterialTheme.typography.labelSmall)
                     }

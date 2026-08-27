@@ -1,4 +1,4 @@
-package com.yuu18id.mangatranslator.ui.translate.editor
+﻿package com.yuu18id.mangatranslator.ui.translate.editor
 
 import android.graphics.PointF
 import android.graphics.RectF
@@ -55,7 +55,8 @@ data class EditableRenderBlock(
                 b = newPt.y.coerceIn(t + minSize, boundH)
             }
         }
-        return copy(bounds = RectF(l, t, r, b))
+        // When box is resized, reset customFontSize so it auto-fits dynamically to the new box dimensions
+        return copy(bounds = RectF(l, t, r, b), customFontSize = null)
     }
 
     fun toTextBlock(): TextBlock {

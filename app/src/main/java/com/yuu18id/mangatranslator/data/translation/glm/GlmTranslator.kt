@@ -1,4 +1,4 @@
-package com.yuu18id.mangatranslator.data.translation.openrouter
+package com.yuu18id.mangatranslator.data.translation.glm
 
 import com.yuu18id.mangatranslator.data.ml.CloudTranslator
 import com.yuu18id.mangatranslator.domain.model.TextBlock
@@ -17,7 +17,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
-class OpenRouterTranslator @Inject constructor(
+class GlmTranslator @Inject constructor(
     private val client: OkHttpClient,
     private val settingsRepository: SettingsRepository
 ) : CloudTranslator {
@@ -42,9 +42,9 @@ class OpenRouterTranslator @Inject constructor(
     ): List<TextBlock> {
         if (textBlocks.isEmpty()) return emptyList()
 
-        val apiKey = settingsRepository.getApiKey(TranslatorType.OPENROUTER).firstOrNull()
+        val apiKey = settingsRepository.getApiKey(TranslatorType.GLM).firstOrNull()
         if (apiKey.isNullOrBlank()) {
-            throw Exception("OpenRouter API Key is missing. Please set it in Settings.")
+            throw Exception("Zhipu AI (GLM) API Key is missing. Please configure it in Settings.")
         }
 
         val sourceLang = config.sourceLang?.displayName ?: "Auto"
@@ -55,8 +55,8 @@ class OpenRouterTranslator @Inject constructor(
             textBlocks
         )
 
-        val selectedModel = settingsRepository.getOpenRouterModel().firstOrNull()?.takeIf { it.isNotBlank() }
-            ?: "google/gemini-2.0-flash-001"
+        val selectedModel = settingsRepository.getModel(TranslatorType.GLM).firstOrNull()?.takeIf { it.isNotBlank() }
+            ?: TranslatorType.GLM.defaultModel
 
         val requestBody = ChatRequest(
             model = selectedModel,
@@ -71,20 +71,18 @@ class OpenRouterTranslator @Inject constructor(
 
         val body = json.encodeToString(requestBody).toRequestBody("application/json".toMediaType())
         val request = Request.Builder()
-            .url("https://openrouter.ai/api/v1/chat/completions")
+            .url("https://open.bigmodel.cn/api/paas/v4/chat/completions")
             .addHeader("Authorization", "Bearer $apiKey")
-            .addHeader("HTTP-Referer", "https://github.com/Yuu18id/manga-image-translator")
-            .addHeader("X-Title", "Manga Image Translator Android")
             .post(body)
             .build()
 
         val response = client.newCall(request).execute()
         if (!response.isSuccessful) {
             val errBody = response.body?.string() ?: ""
-            throw Exception("OpenRouter translation failed (${response.code}): $errBody")
+            throw Exception("GLM translation failed (${response.code}): $errBody")
         }
 
-        val responseBody = response.body?.string() ?: throw Exception("Empty response body from OpenRouter")
+        val responseBody = response.body?.string() ?: throw Exception("Empty response body from GLM")
         val chatResponse = json.decodeFromString<ChatResponse>(responseBody)
         val content = chatResponse.choices.firstOrNull()?.message?.content ?: ""
 

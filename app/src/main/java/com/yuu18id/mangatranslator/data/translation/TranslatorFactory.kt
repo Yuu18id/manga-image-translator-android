@@ -1,9 +1,12 @@
-package com.yuu18id.mangatranslator.data.translation
+﻿package com.yuu18id.mangatranslator.data.translation
 
 import com.yuu18id.mangatranslator.data.ml.CloudTranslator
+import com.yuu18id.mangatranslator.data.translation.claude.ClaudeTranslator
+import com.yuu18id.mangatranslator.data.translation.custom.CustomOpenAiTranslator
 import com.yuu18id.mangatranslator.data.translation.deepl.DeepLTranslator
 import com.yuu18id.mangatranslator.data.translation.deepseek.DeepSeekTranslator
 import com.yuu18id.mangatranslator.data.translation.gemini.GeminiTranslator
+import com.yuu18id.mangatranslator.data.translation.glm.GlmTranslator
 import com.yuu18id.mangatranslator.data.translation.google.GoogleTranslator
 import com.yuu18id.mangatranslator.data.translation.groq.GroqTranslator
 import com.yuu18id.mangatranslator.data.translation.openai.OpenAiTranslator
@@ -22,6 +25,9 @@ class TranslatorFactory @Inject constructor(
     private val geminiTranslatorProvider: Provider<GeminiTranslator>,
     private val deepSeekTranslatorProvider: Provider<DeepSeekTranslator>,
     private val groqTranslatorProvider: Provider<GroqTranslator>,
+    private val claudeTranslatorProvider: Provider<ClaudeTranslator>,
+    private val glmTranslatorProvider: Provider<GlmTranslator>,
+    private val customOpenAiTranslatorProvider: Provider<CustomOpenAiTranslator>,
     private val googleTranslatorProvider: Provider<GoogleTranslator>,
     private val papagoTranslatorProvider: Provider<PapagoTranslator>
 ) {
@@ -34,6 +40,9 @@ class TranslatorFactory @Inject constructor(
             TranslatorType.GEMINI -> geminiTranslatorProvider.get()
             TranslatorType.DEEPSEEK -> deepSeekTranslatorProvider.get()
             TranslatorType.GROQ -> groqTranslatorProvider.get()
+            TranslatorType.CLAUDE -> claudeTranslatorProvider.get()
+            TranslatorType.GLM -> glmTranslatorProvider.get()
+            TranslatorType.CUSTOM -> customOpenAiTranslatorProvider.get()
             TranslatorType.GOOGLE -> googleTranslatorProvider.get()
             TranslatorType.PAPAGO -> papagoTranslatorProvider.get()
             else -> throw IllegalArgumentException("Unsupported translator type: $type")
