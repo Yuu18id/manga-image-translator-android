@@ -61,31 +61,30 @@ class CtdDetector @Inject constructor(
         val paddedMat = Mat()
         Core.copyMakeBorder(resizedMat, paddedMat, 0, dh, 0, dw, Core.BORDER_CONSTANT, org.opencv.core.Scalar(127.5, 127.5, 127.5))
 
-        // Convert to FloatArray CHW format, normalized to [0, 1]
-        val floatArray = FloatArray(3 * targetSize * targetSize)
+        val byteBuffer = java.nio.ByteBuffer.allocateDirect(3 * targetSize * targetSize * 4)
+            .order(java.nio.ByteOrder.nativeOrder())
+        val floatBuffer = byteBuffer.asFloatBuffer()
+
         val bytes = ByteArray(targetSize * targetSize * 3)
         paddedMat.get(0, 0, bytes)
 
         val planeSize = targetSize * targetSize
+        val inv255 = 1.0f / 255.0f
         for (h in 0 until targetSize) {
+            val rowOffset = h * targetSize
             for (w in 0 until targetSize) {
-                val baseIdx = (h * targetSize + w) * 3
-                val r = (bytes[baseIdx].toInt() and 0xFF) / 255.0f
-                val g = (bytes[baseIdx + 1].toInt() and 0xFF) / 255.0f
-                val b = (bytes[baseIdx + 2].toInt() and 0xFF) / 255.0f
+                val baseIdx = (rowOffset + w) * 3
+                val r = (bytes[baseIdx].toInt() and 0xFF) * inv255
+                val g = (bytes[baseIdx + 1].toInt() and 0xFF) * inv255
+                val b = (bytes[baseIdx + 2].toInt() and 0xFF) * inv255
                 
-                val pixelOffset = h * targetSize + w
-                floatArray[pixelOffset] = r
-                floatArray[planeSize + pixelOffset] = g
-                floatArray[2 * planeSize + pixelOffset] = b
+                val pixelOffset = rowOffset + w
+                floatBuffer.put(pixelOffset, r)
+                floatBuffer.put(planeSize + pixelOffset, g)
+                floatBuffer.put(2 * planeSize + pixelOffset, b)
             }
         }
-
-        val byteBuffer = java.nio.ByteBuffer.allocateDirect(3 * targetSize * targetSize * 4)
-            .order(java.nio.ByteOrder.nativeOrder())
-        val floatBuffer = byteBuffer.asFloatBuffer()
-        floatBuffer.put(floatArray)
-        floatBuffer.rewind()
+        floatBuffer.position(0)
 
         var inputTensor: OnnxTensor? = null
         var result: ai.onnxruntime.OrtSession.Result? = null

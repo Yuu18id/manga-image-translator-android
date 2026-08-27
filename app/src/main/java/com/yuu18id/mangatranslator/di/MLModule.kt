@@ -29,7 +29,7 @@ abstract class MLModule {
 
     @Binds
     @Singleton
-    abstract fun bindOcrEngine(impl: CtcOcrEngine): OcrEngine
+    abstract fun bindOcrEngine(impl: com.yuu18id.mangatranslator.data.ml.ocr.CompositeOcrEngine): OcrEngine
 
     @Binds
     @Singleton

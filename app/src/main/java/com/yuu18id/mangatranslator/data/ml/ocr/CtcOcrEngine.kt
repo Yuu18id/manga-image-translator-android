@@ -77,15 +77,17 @@ class CtcOcrEngine @Inject constructor(
             preProcessor.cropTextRegion(image, region, forceVertical = effectiveVertical[idx])
         }
 
-        val outRegions = mutableListOf<Quadrilateral>()
+        // Bucket sorting by crop width to group similar aspect-ratio crops together, minimizing zero-padding FLOPs
+        val sortedIndices = (0 until n).sortedBy { allCrops[it].width }
+        val outRegionsMap = arrayOfNulls<Quadrilateral>(n)
         val maxChunkSize = 4 // Mobile-safe chunk size to prevent large tensor bloat
 
         try {
             for (chunkStart in 0 until n step maxChunkSize) {
                 val chunkEnd = kotlin.math.min(chunkStart + maxChunkSize, n)
-                val chunkIndices = chunkStart until chunkEnd
-                val chunk = chunkIndices.map { textRegions[it] }
-                val crops = chunkIndices.map { allCrops[it] }
+                val chunkOriginalIndices = (chunkStart until chunkEnd).map { sortedIndices[it] }
+                val chunk = chunkOriginalIndices.map { textRegions[it] }
+                val crops = chunkOriginalIndices.map { allCrops[it] }
                 
                 val (tensorData, widths) = preProcessor.batchCrops(crops)
                 val batchSize = chunk.size
@@ -129,6 +131,7 @@ class CtcOcrEngine @Inject constructor(
                     val colorDim = colorShape?.getOrNull(2)?.toInt() ?: 0
 
                     for (i in chunk.indices) {
+                        val origIdx = chunkOriginalIndices[i]
                         val region = chunk[i]
                         
                         // Extract logits ONLY for batch item i directly from native FloatBuffer slice (~2 MB instead of 260 MB)
@@ -155,8 +158,8 @@ class CtcOcrEngine @Inject constructor(
                             fgColor = colors.fg,
                             bgColor = colors.bg
                         )
-                        outRegions.add(updatedRegion)
-                        Log.d(TAG, "   [OCR Crop $i] cropSize=${crops[i].width}x${crops[i].height} => text=\"${decodeResult.text}\" prob=${decodeResult.prob}")
+                        outRegionsMap[origIdx] = updatedRegion
+                        Log.d(TAG, "   [OCR Crop $origIdx] cropSize=${crops[i].width}x${crops[i].height} => text=\"${decodeResult.text}\" prob=${decodeResult.prob}")
                     }
                 } finally {
                     inputTensor?.close()
@@ -171,6 +174,6 @@ class CtcOcrEngine @Inject constructor(
             }
         }
 
-        outRegions
+        outRegionsMap.filterNotNull()
     }
 }

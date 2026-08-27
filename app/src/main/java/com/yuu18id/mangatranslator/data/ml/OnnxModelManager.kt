@@ -31,7 +31,9 @@ class OnnxModelManager @Inject constructor(
         OCR_CTC_48PX("ocr_ctc_48px.onnx", "https://example.com/models/ocr_ctc_48px.onnx", 163_336_212),
         OCR_CTC_48PX_INT8("ocr_ctc_48px_int8.onnx", "https://example.com/models/ocr_ctc_48px_int8.onnx", 31_208_947),
         AOT_INPAINTER("aot_inpainter.onnx", "https://example.com/models/aot_inpainter.onnx", 23_087_389),
-        AOT_INPAINTER_INT8("aot_inpainter_int8.onnx", "https://example.com/models/aot_inpainter_int8.onnx", 12_000_000)
+        AOT_INPAINTER_INT8("aot_inpainter_int8.onnx", "https://example.com/models/aot_inpainter_int8.onnx", 12_000_000),
+        MANGA_OCR_ENCODER("manga_ocr_encoder.onnx", "https://huggingface.co/NorwayFish/manga-ocr/resolve/main/encoder_model.onnx", 343_268_884),
+        MANGA_OCR_DECODER("manga_ocr_decoder.onnx", "https://huggingface.co/NorwayFish/manga-ocr/resolve/main/decoder_model.onnx", 117_547_678)
     }
 
     private val modelDir = File(context.filesDir, "models").apply { if (!exists()) mkdirs() }
@@ -61,6 +63,12 @@ class OnnxModelManager @Inject constructor(
 
     fun getModelFile(type: ModelType): File? {
         val file = File(modelDir, type.filename)
+        val extDir = context.getExternalFilesDir("models")
+        val extFile = if (extDir != null) File(extDir, type.filename) else null
+
+        if (extFile != null && extFile.exists() && extFile.length() > 0) {
+            return extFile
+        }
 
         // Check if bundled in app assets and extract if missing or size mismatch
         try {
@@ -71,24 +79,27 @@ class OnnxModelManager @Inject constructor(
             if (file.exists() && file.length() > 0) {
                 if (assetSize > 0 && file.length() == assetSize) {
                     return file
-                } else if (assetSize <= 0 && file.length() == type.sizeBytes) {
+                } else if (assetSize <= 0) {
                     return file
                 }
             }
 
             // Extract from assets
-            android.util.Log.i(TAG, "Extracting asset model 'models/${type.filename}' to ${file.absolutePath}...")
-            val tempFile = File(modelDir, "${type.filename}.tmp")
-            context.assets.open("models/${type.filename}").use { inputStream ->
-                tempFile.outputStream().use { outputStream ->
-                    inputStream.copyTo(outputStream)
+            val assetStream = try { context.assets.open("models/${type.filename}") } catch (e: Exception) { null }
+            if (assetStream != null) {
+                android.util.Log.i(TAG, "Extracting asset model 'models/${type.filename}' to ${file.absolutePath}...")
+                val tempFile = File(modelDir, "${type.filename}.tmp")
+                assetStream.use { inputStream ->
+                    tempFile.outputStream().use { outputStream ->
+                        inputStream.copyTo(outputStream)
+                    }
                 }
-            }
-            if (tempFile.exists() && tempFile.length() > 0) {
-                if (file.exists()) file.delete()
-                tempFile.renameTo(file)
-                android.util.Log.i(TAG, "Successfully extracted ${type.filename} (${file.length()} bytes)")
-                return file
+                if (tempFile.exists() && tempFile.length() > 0) {
+                    if (file.exists()) file.delete()
+                    tempFile.renameTo(file)
+                    android.util.Log.i(TAG, "Successfully extracted ${type.filename} (${file.length()} bytes)")
+                    return file
+                }
             }
         } catch (e: Exception) {
             android.util.Log.w(TAG, "Could not extract asset model ${type.filename}: ${e.message}")
@@ -111,7 +122,7 @@ class OnnxModelManager @Inject constructor(
         sessionCache[type]?.let { return it }
 
         val file = getModelFile(type) ?: throw IllegalStateException("Model ${type.filename} not available in assets or storage")
-        val options = configureSessionOptions(useNnapi)
+        val options = configureSessionOptions(type, useNnapi)
         
         android.util.Log.i(TAG, "Creating ONNX Session for ${type.name} (file=${file.name}, size=${file.length() / (1024 * 1024)}MB, useNnapi=$useNnapi)")
         val session = ortEnvironment.createSession(file.absolutePath, options)
@@ -128,13 +139,18 @@ class OnnxModelManager @Inject constructor(
         sessionCache.clear()
     }
 
-    private fun configureSessionOptions(useNnapi: Boolean): OrtSession.SessionOptions {
+    private fun configureSessionOptions(type: ModelType, useNnapi: Boolean): OrtSession.SessionOptions {
         val options = OrtSession.SessionOptions()
         val availableCores = Runtime.getRuntime().availableProcessors()
         val numThreads = availableCores.coerceIn(2, 4)
         options.setIntraOpNumThreads(numThreads)
         options.setInterOpNumThreads(1)
-        options.setOptimizationLevel(OrtSession.SessionOptions.OptLevel.BASIC_OPT)
+        if (type == ModelType.MANGA_OCR_DECODER) {
+            options.setOptimizationLevel(OrtSession.SessionOptions.OptLevel.BASIC_OPT)
+            options.setMemoryPatternOptimization(false)
+        } else {
+            options.setOptimizationLevel(OrtSession.SessionOptions.OptLevel.ALL_OPT)
+        }
         if (useNnapi) {
             try {
                 options.addNnapi()

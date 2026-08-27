@@ -21,6 +21,27 @@ import kotlin.math.roundToInt
 @Singleton
 class OcrPreProcessor @Inject constructor() {
 
+    fun cropForMangaOcr(image: Bitmap, quad: Quadrilateral): Bitmap {
+        val pts = quad.pts
+        val minX = max(0, pts.minOf { it.x }.toInt() - 4)
+        val minY = max(0, pts.minOf { it.y }.toInt() - 4)
+        val maxX = min(image.width, pts.maxOf { it.x }.toInt() + 5)
+        val maxY = min(image.height, pts.maxOf { it.y }.toInt() + 5)
+
+        val cropW = maxX - minX
+        val cropH = maxY - minY
+        if (cropW <= 2 || cropH <= 2) {
+            return Bitmap.createBitmap(224, 224, Bitmap.Config.ARGB_8888)
+        }
+
+        val rawCrop = Bitmap.createBitmap(image, minX, minY, cropW, cropH)
+        val resized = Bitmap.createScaledBitmap(rawCrop, 224, 224, true)
+        if (resized != rawCrop) {
+            rawCrop.recycle()
+        }
+        return resized
+    }
+
     fun cropTextRegion(image: Bitmap, quad: Quadrilateral, textHeight: Int = 48, forceVertical: Boolean? = null): Bitmap {
         val (pts, naturalIsVertical) = Quadrilateral.sortPnts(quad.pts)
         val isVertical = forceVertical ?: quad.isVertical.takeIf { it } ?: naturalIsVertical

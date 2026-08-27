@@ -1,8 +1,17 @@
 # ONNX Runtime
 -keep class ai.onnxruntime.** { *; }
+-keepclassmembers class ai.onnxruntime.** { *; }
+-keepclassmembernames class ai.onnxruntime.** { *; }
+-dontwarn ai.onnxruntime.**
+
+# ML Modules, Domain Models, and Engines
+-keep class com.yuu18id.mangatranslator.data.ml.** { *; }
+-keepclassmembers class com.yuu18id.mangatranslator.data.ml.** { *; }
+-keep class com.yuu18id.mangatranslator.domain.model.** { *; }
+-keepclassmembers class com.yuu18id.mangatranslator.domain.model.** { *; }
 
 # Kotlinx Serialization
--keepattributes *Annotation*, InnerClasses
+-keepattributes *Annotation*, InnerClasses, Signature, Exceptions, EnclosingMethod
 -dontnote kotlinx.serialization.AnnotationsKt
 -keepclassmembers class kotlinx.serialization.internal.** {
     *** get$serializer(...);
@@ -15,8 +24,6 @@
 # Retrofit
 -dontnote retrofit2.Retrofit
 -keep class retrofit2.** { *; }
--keepattributes Signature
--keepattributes Exceptions
 
 # Room
 -keep class * extends androidx.room.RoomDatabase

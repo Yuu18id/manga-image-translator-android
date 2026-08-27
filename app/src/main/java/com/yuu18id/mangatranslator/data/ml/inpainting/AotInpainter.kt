@@ -63,62 +63,64 @@ class AotInpainter @Inject constructor(
     private fun prepareInputTensor(image: Bitmap, mask: Bitmap, env: OrtEnvironment): OnnxTensor {
         val w = image.width
         val h = image.height
+        val totalPixels = w * h
         val byteBuffer = java.nio.ByteBuffer.allocateDirect(1 * 4 * h * w * 4)
             .order(java.nio.ByteOrder.nativeOrder())
         val floatBuffer = byteBuffer.asFloatBuffer()
 
-        val imagePixels = IntArray(w * h)
+        val imagePixels = IntArray(totalPixels)
         image.getPixels(imagePixels, 0, w, 0, 0, w, h)
         
-        val maskPixels = IntArray(w * h)
+        val maskPixels = IntArray(totalPixels)
         mask.getPixels(maskPixels, 0, w, 0, 0, w, h)
 
-        val isMaskedArray = BooleanArray(w * h)
+        val inv127 = 1.0f / 127.5f
 
         // Channel 0: Text Mask (1.0 for text to erase, 0.0 for background)
-        for (i in 0 until h * w) {
-            val maskPixel = maskPixels[i]
-            val r = Color.red(maskPixel)
-            val isMasked = r >= 128
-            isMaskedArray[i] = isMasked
-            floatBuffer.put(if (isMasked) 1.0f else 0.0f)
+        for (i in 0 until totalPixels) {
+            val isMasked = (maskPixels[i] and 0xFF) >= 128
+            floatBuffer.put(i, if (isMasked) 1.0f else 0.0f)
         }
 
         // Channels 1..3: Normalized RGB [-1.0, 1.0], multiplied by (1 - mask)
-        for (c in 0..2) {
-            for (i in 0 until h * w) {
-                if (isMaskedArray[i]) {
-                    // Black out masked area: img_torch *= (1 - mask_torch)
-                    floatBuffer.put(0.0f)
-                } else {
-                    val pixel = imagePixels[i]
-                    val value = when (c) {
-                        0 -> Color.red(pixel)
-                        1 -> Color.green(pixel)
-                        2 -> Color.blue(pixel)
-                        else -> 0
-                    }
-                    val normValue = (value / 127.5f) - 1.0f
-                    floatBuffer.put(normValue)
-                }
+        val planeR = totalPixels
+        val planeG = 2 * totalPixels
+        val planeB = 3 * totalPixels
+
+        for (i in 0 until totalPixels) {
+            val isMasked = (maskPixels[i] and 0xFF) >= 128
+            if (isMasked) {
+                floatBuffer.put(planeR + i, 0.0f)
+                floatBuffer.put(planeG + i, 0.0f)
+                floatBuffer.put(planeB + i, 0.0f)
+            } else {
+                val pixel = imagePixels[i]
+                val rNorm = (((pixel shr 16) and 0xFF) * inv127) - 1.0f
+                val gNorm = (((pixel shr 8) and 0xFF) * inv127) - 1.0f
+                val bNorm = ((pixel and 0xFF) * inv127) - 1.0f
+                floatBuffer.put(planeR + i, rNorm)
+                floatBuffer.put(planeG + i, gNorm)
+                floatBuffer.put(planeB + i, bNorm)
             }
         }
         
-        floatBuffer.rewind()
+        floatBuffer.position(0)
         return OnnxTensor.createTensor(env, floatBuffer, longArrayOf(1, 4, h.toLong(), w.toLong()))
     }
 
     private fun denormalizeOutput(floatArray: FloatArray, w: Int, h: Int): Bitmap {
         val bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
-        val pixels = IntArray(w * h)
+        val totalPixels = w * h
+        val pixels = IntArray(totalPixels)
         
-        val channelSize = w * h
-        for (i in 0 until channelSize) {
+        val planeG = totalPixels
+        val planeB = 2 * totalPixels
+        for (i in 0 until totalPixels) {
             val r = ((floatArray[i] + 1.0f) * 127.5f).toInt().coerceIn(0, 255)
-            val g = ((floatArray[channelSize + i] + 1.0f) * 127.5f).toInt().coerceIn(0, 255)
-            val b = ((floatArray[2 * channelSize + i] + 1.0f) * 127.5f).toInt().coerceIn(0, 255)
+            val g = ((floatArray[planeG + i] + 1.0f) * 127.5f).toInt().coerceIn(0, 255)
+            val b = ((floatArray[planeB + i] + 1.0f) * 127.5f).toInt().coerceIn(0, 255)
             
-            pixels[i] = Color.rgb(r, g, b)
+            pixels[i] = (0xFF shl 24) or (r shl 16) or (g shl 8) or b
         }
         
         bitmap.setPixels(pixels, 0, w, 0, 0, w, h)
@@ -126,46 +128,35 @@ class AotInpainter @Inject constructor(
     }
 
     private fun blendBitmaps(original: Bitmap, inpainted: Bitmap, mask: Bitmap): Bitmap {
-        val w = original.width
-        val h = original.height
-        val result = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
-        
-        val origPixels = IntArray(w * h)
-        val inpaintPixels = IntArray(w * h)
-        val maskPixels = IntArray(w * h)
-        val resultPixels = IntArray(w * h)
-        
-        original.getPixels(origPixels, 0, w, 0, 0, w, h)
-        inpainted.getPixels(inpaintPixels, 0, w, 0, 0, w, h)
-        mask.getPixels(maskPixels, 0, w, 0, 0, w, h)
-        
-        for (i in 0 until w * h) {
-            val maskVal = Color.red(maskPixels[i])
-            if (maskVal > 128) {
-                // Inpainted pixel in text bubble
-                resultPixels[i] = inpaintPixels[i]
-            } else if (maskVal > 0) {
-                // Smooth anti-aliased edge blending
-                val m = maskVal / 255.0f
-                val oR = Color.red(origPixels[i])
-                val oG = Color.green(origPixels[i])
-                val oB = Color.blue(origPixels[i])
-                
-                val iR = Color.red(inpaintPixels[i])
-                val iG = Color.green(inpaintPixels[i])
-                val iB = Color.blue(inpaintPixels[i])
-                
-                val rR = (oR * (1f - m) + iR * m).toInt().coerceIn(0, 255)
-                val rG = (oG * (1f - m) + iG * m).toInt().coerceIn(0, 255)
-                val rB = (oB * (1f - m) + iB * m).toInt().coerceIn(0, 255)
-                resultPixels[i] = Color.rgb(rR, rG, rB)
+        val origMat = org.opencv.core.Mat()
+        val inpaintMat = org.opencv.core.Mat()
+        val maskMat = org.opencv.core.Mat()
+        val maskGray = org.opencv.core.Mat()
+        val resultMat = org.opencv.core.Mat()
+
+        try {
+            org.opencv.android.Utils.bitmapToMat(original, origMat)
+            org.opencv.android.Utils.bitmapToMat(inpainted, inpaintMat)
+            org.opencv.android.Utils.bitmapToMat(mask, maskMat)
+
+            if (maskMat.channels() > 1) {
+                org.opencv.imgproc.Imgproc.cvtColor(maskMat, maskGray, org.opencv.imgproc.Imgproc.COLOR_RGBA2GRAY)
             } else {
-                // Untouched original pixel
-                resultPixels[i] = origPixels[i]
+                maskMat.copyTo(maskGray)
             }
+
+            origMat.copyTo(resultMat)
+            inpaintMat.copyTo(resultMat, maskGray)
+
+            val result = Bitmap.createBitmap(original.width, original.height, Bitmap.Config.ARGB_8888)
+            org.opencv.android.Utils.matToBitmap(resultMat, result)
+            return result
+        } finally {
+            origMat.release()
+            inpaintMat.release()
+            maskMat.release()
+            maskGray.release()
+            resultMat.release()
         }
-        
-        result.setPixels(resultPixels, 0, w, 0, 0, w, h)
-        return result
     }
 }

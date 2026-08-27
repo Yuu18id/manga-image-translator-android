@@ -19,6 +19,7 @@ class SettingsRepositoryImpl @Inject constructor(
 
     companion object {
         private const val KEY_TRANSLATOR_TYPE = "translator_type"
+        private const val KEY_OCR_TYPE = "ocr_type"
         private const val KEY_SOURCE_LANG = "source_lang"
         private const val KEY_TARGET_LANG = "target_lang"
         private const val KEY_DETECTION_SIZE = "detection_size"
@@ -29,6 +30,7 @@ class SettingsRepositoryImpl @Inject constructor(
     override fun getTranslationConfig(): Flow<TranslationConfig> {
         return settingsDataStore.preferencesFlow.map { prefs ->
             val translatorTypeName = prefs[androidx.datastore.preferences.core.stringPreferencesKey(KEY_TRANSLATOR_TYPE)] ?: TranslatorType.NONE.name
+            val ocrTypeName = prefs[androidx.datastore.preferences.core.stringPreferencesKey(KEY_OCR_TYPE)] ?: com.yuu18id.mangatranslator.domain.model.OcrType.OCR_48PX_CTC.name
             val sourceLangName = prefs[androidx.datastore.preferences.core.stringPreferencesKey(KEY_SOURCE_LANG)] ?: Language.JPN.name
             val targetLangName = prefs[androidx.datastore.preferences.core.stringPreferencesKey(KEY_TARGET_LANG)] ?: Language.ENG.name
             val detectionSize = prefs[androidx.datastore.preferences.core.intPreferencesKey(KEY_DETECTION_SIZE)] ?: 1024
@@ -36,6 +38,7 @@ class SettingsRepositoryImpl @Inject constructor(
             val fontSizeOffset = prefs[androidx.datastore.preferences.core.intPreferencesKey(KEY_FONT_SIZE_OFFSET)] ?: 0
 
             val translatorType = runCatching { TranslatorType.valueOf(translatorTypeName) }.getOrDefault(TranslatorType.NONE)
+            val ocrType = runCatching { com.yuu18id.mangatranslator.domain.model.OcrType.valueOf(ocrTypeName) }.getOrDefault(com.yuu18id.mangatranslator.domain.model.OcrType.OCR_48PX_CTC)
             val sourceLang = if (sourceLangName.isNotBlank()) {
                 runCatching { Language.valueOf(sourceLangName) }.getOrDefault(Language.JPN)
             } else Language.JPN
@@ -44,6 +47,9 @@ class SettingsRepositoryImpl @Inject constructor(
             TranslationConfig(
                 detector = DetectorConfig(
                     detectionSize = detectionSize
+                ),
+                ocr = com.yuu18id.mangatranslator.domain.model.OcrConfig(
+                    ocrType = ocrType
                 ),
                 translator = TranslatorConfig(
                     translatorType = translatorType,
@@ -62,6 +68,7 @@ class SettingsRepositoryImpl @Inject constructor(
 
     override suspend fun saveTranslationConfig(config: TranslationConfig) {
         settingsDataStore.saveConfigString(KEY_TRANSLATOR_TYPE, config.translator.translatorType.name)
+        settingsDataStore.saveConfigString(KEY_OCR_TYPE, config.ocr.ocrType.name)
         settingsDataStore.saveConfigString(KEY_SOURCE_LANG, config.translator.sourceLang?.name ?: "")
         settingsDataStore.saveConfigString(KEY_TARGET_LANG, config.translator.targetLang.name)
         settingsDataStore.saveConfigInt(KEY_DETECTION_SIZE, config.detector.detectionSize)

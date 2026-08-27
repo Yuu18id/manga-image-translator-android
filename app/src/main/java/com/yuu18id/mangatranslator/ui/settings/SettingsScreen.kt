@@ -123,6 +123,17 @@ fun SettingsScreen(
                     onOptionSelected = viewModel::updateTranslator,
                     optionLabel = { it.displayName }
                 )
+
+                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+
+                SettingsDropdownItem(
+                    label = "Engine OCR",
+                    icon = Icons.Default.TextFields,
+                    options = remember { com.yuu18id.mangatranslator.domain.model.OcrType.values().toList() },
+                    selectedOption = uiState.config.ocr.ocrType,
+                    onOptionSelected = viewModel::updateOcrType,
+                    optionLabel = { it.displayName }
+                )
             }
 
             // 2. AI Translation Engines & API Keys

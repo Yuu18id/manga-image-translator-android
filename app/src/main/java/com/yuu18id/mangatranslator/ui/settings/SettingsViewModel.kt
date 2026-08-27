@@ -102,6 +102,16 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    fun updateOcrType(ocrType: com.yuu18id.mangatranslator.domain.model.OcrType) {
+        viewModelScope.launch {
+            val updatedConfig = _uiState.value.config.copy(
+                ocr = _uiState.value.config.ocr.copy(ocrType = ocrType)
+            )
+            settingsRepository.saveTranslationConfig(updatedConfig)
+            _uiState.update { it.copy(config = updatedConfig) }
+        }
+    }
+
     fun updateOpenRouterModel(modelId: String) {
         viewModelScope.launch {
             settingsRepository.saveOpenRouterModel(modelId)
