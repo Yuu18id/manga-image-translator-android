@@ -43,7 +43,8 @@
     <string name="home_select_image">Select Manga Image</string>
 
     <!-- Translate Screen -->
-    <string name="translate_title">Translate</string>
+    <string name="translate_title">Translate Manga</string>
+    <string name="translate_edit_title">Edit &amp; Re-Translate</string>
     <string name="translate_no_image">No Image Selected</string>
     <string name="translate_source_lang">Source Language</string>
     <string name="translate_target_lang">Target Language</string>

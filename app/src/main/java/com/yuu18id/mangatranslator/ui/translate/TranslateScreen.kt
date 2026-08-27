@@ -52,8 +52,7 @@ fun TranslateScreen(
     imageUri: String? = null,
     viewModel: TranslateViewModel = hiltViewModel(),
     onNavigateBack: () -> Unit = {},
-    onNavigateToSettings: () -> Unit = {},
-    onOpenInReader: ((Long) -> Unit)? = null
+    onNavigateToSettings: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val progressState by viewModel.progressState.collectAsStateWithLifecycle()
@@ -73,13 +72,34 @@ fun TranslateScreen(
         }
     }
 
+    fun shareTranslatedImage() {
+        coroutineScope.launch(Dispatchers.IO) {
+            val bitmap = viewModel.getTranslatedBitmap() ?: return@launch
+            val file = File(context.cacheDir, "share_translated_${System.currentTimeMillis()}.png")
+            FileOutputStream(file).use { out -> bitmap.compress(Bitmap.CompressFormat.PNG, 100, out) }
+            val uri = FileProvider.getUriForFile(context, "${context.packageName}.provider", file)
+            val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                type = "image/png"
+                putExtra(Intent.EXTRA_STREAM, uri)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            kotlinx.coroutines.withContext(Dispatchers.Main) {
+                context.startActivity(Intent.createChooser(shareIntent, context.getString(R.string.action_share)))
+            }
+        }
+    }
+
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
             topBar = {
                 TopAppBar(
                     title = {
                         Text(
-                            text = stringResource(R.string.translate_title),
+                            text = if (uiState.translatedImage != null) {
+                                stringResource(R.string.translate_edit_title)
+                            } else {
+                                stringResource(R.string.translate_title)
+                            },
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold
                         )
@@ -93,6 +113,20 @@ fun TranslateScreen(
                         }
                     },
                     actions = {
+                        if (uiState.translatedImage != null && !progressState.isTranslating) {
+                            IconButton(onClick = { shareTranslatedImage() }) {
+                                Icon(
+                                    imageVector = Icons.Default.Share,
+                                    contentDescription = stringResource(R.string.action_share)
+                                )
+                            }
+                            IconButton(onClick = viewModel::startTranslation) {
+                                Icon(
+                                    imageVector = Icons.Default.Refresh,
+                                    contentDescription = stringResource(R.string.translate_full_rescan)
+                                )
+                            }
+                        }
                         IconButton(onClick = onNavigateToSettings) {
                             Icon(
                                 imageVector = Icons.Default.Settings,
@@ -126,17 +160,14 @@ fun TranslateScreen(
                         .fillMaxWidth()
                 )
 
-                // 2. Language & Engine Selection Bar (Material 3 Card & Modal Sheet)
+                // 2. Language & Engine Selection Bar (Clean Symmetrical Card)
                 LanguageEngineSelectorBar(
                     sourceLang = uiState.sourceLang,
                     targetLang = uiState.targetLang,
                     translatorType = uiState.translatorType,
-                    isReviewModeEnabled = uiState.isReviewModeEnabled,
                     isTranslating = progressState.isTranslating,
-                    onSourceLangChanged = viewModel::setSourceLang,
                     onTargetLangChanged = viewModel::setTargetLang,
-                    onTranslatorTypeChanged = viewModel::setTranslatorType,
-                    onToggleReviewMode = viewModel::toggleReviewMode
+                    onTranslatorTypeChanged = viewModel::setTranslatorType
                 )
 
                 // 3. Progress Card
@@ -151,32 +182,13 @@ fun TranslateScreen(
                 // 4. Primary Action Controls
                 TranslateActionButtons(
                     isTranslating = progressState.isTranslating,
-                    isReviewModeEnabled = uiState.isReviewModeEnabled,
                     hasOriginal = uiState.originalImage != null,
                     hasTranslated = uiState.translatedImage != null,
                     canFastRetranslate = uiState.canFastRetranslate,
-                    savedHistoryId = uiState.savedHistoryId,
                     onCancel = viewModel::cancelTranslation,
                     onTranslate = viewModel::startTranslation,
                     onFastRetranslate = { viewModel.retranslateTextOnly() },
-                    onOpenRenderEditor = viewModel::openRenderEditor,
-                    onOpenReader = { uiState.savedHistoryId?.let { onOpenInReader?.invoke(it) } },
-                    onShare = {
-                        coroutineScope.launch(Dispatchers.IO) {
-                            val bitmap = viewModel.getTranslatedBitmap() ?: return@launch
-                            val file = File(context.cacheDir, "share_translated_${System.currentTimeMillis()}.png")
-                            FileOutputStream(file).use { out -> bitmap.compress(Bitmap.CompressFormat.PNG, 100, out) }
-                            val uri = FileProvider.getUriForFile(context, "${context.packageName}.provider", file)
-                            val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                                type = "image/png"
-                                putExtra(Intent.EXTRA_STREAM, uri)
-                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                            }
-                            kotlinx.coroutines.withContext(Dispatchers.Main) {
-                                context.startActivity(Intent.createChooser(shareIntent, context.getString(R.string.action_share)))
-                            }
-                        }
-                    }
+                    onOpenRenderEditor = viewModel::openRenderEditor
                 )
             }
         }
@@ -325,72 +337,41 @@ fun LanguageEngineSelectorBar(
     sourceLang: Language?,
     targetLang: Language,
     translatorType: TranslatorType,
-    isReviewModeEnabled: Boolean,
     isTranslating: Boolean,
-    onSourceLangChanged: (Language?) -> Unit,
     onTargetLangChanged: (Language) -> Unit,
-    onTranslatorTypeChanged: (TranslatorType) -> Unit,
-    onToggleReviewMode: () -> Unit
+    onTranslatorTypeChanged: (TranslatorType) -> Unit
 ) {
     var showTargetLangSheet by remember { mutableStateOf(false) }
     var showEngineSheet by remember { mutableStateOf(false) }
 
-    Column(
+    Surface(
         modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
     ) {
-        // 1. Language Pair Card (Google Translate / DeepL Style)
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
-            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+            // Target Language Picker Pill
+            Surface(
+                onClick = { if (!isTranslating) showTargetLangSheet = true },
+                enabled = !isTranslating,
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.surface,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                modifier = Modifier.weight(1f)
             ) {
-                // Source Language (Dedicated Japanese Manga Source)
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(horizontal = 8.dp, vertical = 6.dp)
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Text(
-                        text = stringResource(R.string.translate_source_lang),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = stringResource(R.string.translate_japanese_fixed),
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-
-                // Arrow indicator
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                    modifier = Modifier.size(16.dp)
-                )
-
-                // Target Language
-                TextButton(
-                    onClick = { if (!isTranslating) showTargetLangSheet = true },
-                    enabled = !isTranslating,
-                    modifier = Modifier.weight(1f),
-                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = stringResource(R.string.translate_target_lang),
                             style = MaterialTheme.typography.labelSmall,
@@ -398,80 +379,64 @@ fun LanguageEngineSelectorBar(
                         )
                         Text(
                             text = targetLang.displayName,
-                            style = MaterialTheme.typography.titleSmall,
+                            style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.primary,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
                     }
-                }
-            }
-        }
-
-        // 2. Engine Selector & Review Deteksi Chips
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Engine Selector Chip
-            FilterChip(
-                selected = true,
-                onClick = { if (!isTranslating) showEngineSheet = true },
-                enabled = !isTranslating,
-                label = {
-                    Text(
-                        text = stringResource(R.string.translate_engine_label, translatorType.displayName),
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.Medium,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                },
-                leadingIcon = {
-                    Icon(
-                        imageVector = Icons.Default.SmartToy,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp)
-                    )
-                },
-                trailingIcon = {
                     Icon(
                         imageVector = Icons.Default.ArrowDropDown,
                         contentDescription = null,
-                        modifier = Modifier.size(18.dp)
-                    )
-                },
-                modifier = Modifier.weight(1f)
-            )
-
-            // Review Deteksi Chip
-            FilterChip(
-                selected = isReviewModeEnabled,
-                onClick = onToggleReviewMode,
-                enabled = !isTranslating,
-                label = {
-                    Text(
-                        text = stringResource(R.string.translate_review_mode),
-                        style = MaterialTheme.typography.labelMedium
-                    )
-                },
-                leadingIcon = {
-                    Icon(
-                        imageVector = if (isReviewModeEnabled) Icons.Default.Check else Icons.Default.HighlightAlt,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp)
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-            )
+            }
+
+            // Engine Picker Pill
+            Surface(
+                onClick = { if (!isTranslating) showEngineSheet = true },
+                enabled = !isTranslating,
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.surface,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                modifier = Modifier.weight(1f)
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = stringResource(R.string.translate_engine),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = translatorType.displayName,
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    Icon(
+                        imageVector = Icons.Default.ArrowDropDown,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
         }
     }
 
     // Modal Bottom Sheet: Target Language Selection
     if (showTargetLangSheet) {
         LanguageSelectionSheet(
-            title = "Pilih Bahasa Tujuan",
+            title = stringResource(R.string.translate_select_target),
             languages = Language.values().toList(),
             selectedLanguage = targetLang,
             onSelect = {
@@ -522,9 +487,9 @@ fun LanguageSelectionSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 8.dp)
-                .padding(bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Text(
                 text = title,
@@ -535,34 +500,33 @@ fun LanguageSelectionSheet(
             OutlinedTextField(
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
-                modifier = Modifier.fillMaxWidth(),
                 placeholder = { Text(stringResource(R.string.translate_search_language)) },
                 leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                shape = RoundedCornerShape(14.dp),
-                singleLine = true
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp)
             )
 
             LazyColumn(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(max = 380.dp),
+                    .heightIn(max = 350.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                items(filteredLanguages, key = { it.code }) { lang ->
+                items(filteredLanguages) { lang ->
                     val isSelected = lang == selectedLanguage
                     Surface(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp)),
+                        onClick = { onSelect(lang) },
+                        shape = RoundedCornerShape(10.dp),
                         color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
-                        onClick = { onSelect(lang) }
+                        modifier = Modifier.fillMaxWidth()
                     ) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(horizontal = 16.dp, vertical = 12.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Column {
                                 Text(
@@ -572,9 +536,9 @@ fun LanguageSelectionSheet(
                                     color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
                                 )
                                 Text(
-                                    text = "${lang.nativeName} (${lang.code})",
+                                    text = lang.nativeName,
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurfaceVariant
+                                    color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f) else MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                             if (isSelected) {
@@ -607,9 +571,9 @@ fun EngineSelectionSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 8.dp)
-                .padding(bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Text(
                 text = stringResource(R.string.translate_select_engine),
@@ -617,44 +581,39 @@ fun EngineSelectionSheet(
                 fontWeight = FontWeight.Bold
             )
 
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = 380.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                items(engines, key = { it.name }) { engine ->
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                engines.forEach { engine ->
                     val isSelected = engine == selectedEngine
                     Surface(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp)),
-                        color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
-                        onClick = { onSelect(engine) }
+                        onClick = { onSelect(engine) },
+                        shape = RoundedCornerShape(12.dp),
+                        color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                        border = if (isSelected) BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else null,
+                        modifier = Modifier.fillMaxWidth()
                     ) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 12.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                                .padding(horizontal = 16.dp, vertical = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Column {
+                            Column(modifier = Modifier.weight(1f)) {
                                 Text(
                                     text = engine.displayName,
                                     style = MaterialTheme.typography.bodyLarge,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
                                     color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
                                 )
                                 Text(
                                     text = if (engine.requiresApiKey) stringResource(R.string.translate_engine_requires_key) else stringResource(R.string.translate_engine_free),
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurfaceVariant
+                                    color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f) else MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                             if (isSelected) {
                                 Icon(
-                                    imageVector = Icons.Default.Check,
+                                    imageVector = Icons.Default.CheckCircle,
                                     contentDescription = null,
                                     tint = MaterialTheme.colorScheme.primary
                                 )
@@ -671,7 +630,7 @@ fun EngineSelectionSheet(
 fun TranslationProgressCard(
     stage: PipelineStage,
     progress: Float,
-    message: String = ""
+    message: String
 ) {
     val stageTitle = when (stage) {
         PipelineStage.DETECTION -> stringResource(R.string.translate_stage_detection)
@@ -682,16 +641,14 @@ fun TranslationProgressCard(
     }
 
     Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
+        shape = RoundedCornerShape(14.dp),
+        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)),
+        modifier = Modifier.fillMaxWidth()
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -726,17 +683,13 @@ fun TranslationProgressCard(
 @Composable
 fun TranslateActionButtons(
     isTranslating: Boolean,
-    isReviewModeEnabled: Boolean,
     hasOriginal: Boolean,
     hasTranslated: Boolean,
     canFastRetranslate: Boolean,
-    savedHistoryId: Long?,
     onCancel: () -> Unit,
     onTranslate: () -> Unit,
     onFastRetranslate: () -> Unit,
-    onOpenRenderEditor: () -> Unit,
-    onOpenReader: () -> Unit,
-    onShare: () -> Unit
+    onOpenRenderEditor: () -> Unit
 ) {
     if (isTranslating) {
         Button(
@@ -762,100 +715,74 @@ fun TranslateActionButtons(
                 enabled = hasOriginal
             ) {
                 Icon(
-                    imageVector = if (isReviewModeEnabled) Icons.Default.HighlightAlt else Icons.Default.Translate,
+                    imageVector = Icons.Default.Translate,
                     contentDescription = null,
                     modifier = Modifier.size(20.dp)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = if (isReviewModeEnabled) stringResource(R.string.translate_action_review_btn) else stringResource(R.string.translate_action_btn),
+                    text = stringResource(R.string.translate_action_btn),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
             }
         } else {
-            Column(
+            // Post-translation Action Bar: Re-translate Text (Primary) & Edit Typeset (Secondary)
+            Row(
                 modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                // Primary Action Row: Open in Reader & Edit Typeset
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                // Primary: Re-translate Text with current engine/language
+                Button(
+                    onClick = {
+                        if (canFastRetranslate) {
+                            onFastRetranslate()
+                        } else {
+                            onTranslate()
+                        }
+                    },
+                    modifier = Modifier
+                        .weight(1.2f)
+                        .height(50.dp),
+                    shape = RoundedCornerShape(14.dp)
                 ) {
-                    Button(
-                        onClick = onOpenReader,
-                        enabled = savedHistoryId != null,
-                        shape = RoundedCornerShape(14.dp),
-                        modifier = Modifier
-                            .weight(1.2f)
-                            .height(48.dp)
-                    ) {
-                        Icon(Icons.AutoMirrored.Filled.MenuBook, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(stringResource(R.string.translate_open_in_reader), maxLines = 1, fontWeight = FontWeight.Bold)
-                    }
-                    OutlinedButton(
-                        onClick = onOpenRenderEditor,
-                        shape = RoundedCornerShape(14.dp),
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(48.dp)
-                    ) {
-                        Icon(Icons.Default.Tune, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(stringResource(R.string.translate_edit_typeset), maxLines = 1, fontWeight = FontWeight.SemiBold)
-                    }
+                    Icon(
+                        imageVector = Icons.Default.Translate,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = stringResource(R.string.translate_retranslate_text),
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 }
 
-                // Secondary Action Row: Re-Translate Text Only & Secondary Options
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                // Secondary: Edit Typeset (Balloons, font size, styling, alignment)
+                FilledTonalButton(
+                    onClick = onOpenRenderEditor,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(50.dp),
+                    shape = RoundedCornerShape(14.dp)
                 ) {
-                    if (canFastRetranslate) {
-                        FilledTonalButton(
-                            onClick = onFastRetranslate,
-                            shape = RoundedCornerShape(14.dp),
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(46.dp)
-                        ) {
-                            Icon(Icons.Default.Translate, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(stringResource(R.string.translate_retranslate_text), maxLines = 1, style = MaterialTheme.typography.labelLarge)
-                        }
-                    } else {
-                        Button(
-                            onClick = onTranslate,
-                            shape = RoundedCornerShape(14.dp),
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(46.dp)
-                        ) {
-                            Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(stringResource(R.string.translate_rescan), maxLines = 1)
-                        }
-                    }
-
-                    FilledTonalIconButton(
-                        onClick = onShare,
-                        shape = RoundedCornerShape(14.dp),
-                        modifier = Modifier.size(46.dp)
-                    ) {
-                        Icon(Icons.Default.Share, contentDescription = stringResource(R.string.action_share))
-                    }
-
-                    FilledTonalIconButton(
-                        onClick = onTranslate,
-                        shape = RoundedCornerShape(14.dp),
-                        modifier = Modifier.size(46.dp)
-                    ) {
-                        Icon(Icons.Default.Refresh, contentDescription = stringResource(R.string.translate_full_rescan))
-                    }
+                    Icon(
+                        imageVector = Icons.Default.Tune,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = stringResource(R.string.translate_edit_typeset),
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 }
             }
         }

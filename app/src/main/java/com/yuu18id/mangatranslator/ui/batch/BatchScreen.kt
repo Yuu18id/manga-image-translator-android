@@ -220,17 +220,14 @@ fun BatchScreen(
                         .padding(paddingValues)
                         .padding(horizontal = 16.dp)
                 ) {
-                    // Shared Language & Translator & Review Mode Bar
+                    // Shared Language & Translator Bar
                     LanguageEngineSelectorBar(
                         sourceLang = uiState.sourceLang,
                         targetLang = uiState.targetLang,
                         translatorType = uiState.translatorType,
-                        isReviewModeEnabled = uiState.isReviewModeEnabled,
                         isTranslating = uiState.isProcessing,
-                        onSourceLangChanged = viewModel::setSourceLang,
                         onTargetLangChanged = viewModel::setTargetLang,
-                        onTranslatorTypeChanged = viewModel::setTranslatorType,
-                        onToggleReviewMode = viewModel::toggleReviewMode
+                        onTranslatorTypeChanged = viewModel::setTranslatorType
                     )
 
                     Spacer(modifier = Modifier.height(12.dp))

@@ -43,7 +43,8 @@
     <string name="home_select_image">选择漫画图片</string>
 
     <!-- 翻译屏幕 -->
-    <string name="translate_title">翻译</string>
+    <string name="translate_title">漫画翻译</string>
+    <string name="translate_edit_title">编辑与重新翻译</string>
     <string name="translate_no_image">未选择图片</string>
     <string name="translate_source_lang">源语言</string>
     <string name="translate_target_lang">目标语言</string>

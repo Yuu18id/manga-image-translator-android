@@ -133,8 +133,7 @@ fun AppNavigation(initialImageUri: android.net.Uri? = null) {
                 TranslateScreen(
                     imageUri = imageUri,
                     onNavigateBack = { navController.popBackStack() },
-                    onNavigateToSettings = { navController.navigate(Screen.Settings.route) },
-                    onOpenInReader = { id -> navController.navigate(Screen.Reader.createRoute(id.toString())) }
+                    onNavigateToSettings = { navController.navigate(Screen.Settings.route) }
                 )
             }
             composable(Screen.Batch.route) {

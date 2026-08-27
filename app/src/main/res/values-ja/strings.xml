@@ -43,7 +43,8 @@
     <string name="home_select_image">画像を選択</string>
 
     <!-- Translate Screen -->
-    <string name="translate_title">画像翻訳</string>
+    <string name="translate_title">マンガ翻訳</string>
+    <string name="translate_edit_title">編集と再翻訳</string>
     <string name="translate_no_image">画像が選択されていません</string>
     <string name="translate_source_lang">翻訳元言語</string>
     <string name="translate_target_lang">翻訳先言語</string>
