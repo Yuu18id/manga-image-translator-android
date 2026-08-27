@@ -22,7 +22,9 @@ Optimized specifically for translating raw **Japanese Manga (`JA / JPN`)** into 
 
 ### 1. On-Device AI Pipeline
 * **Comic Text Detection (CTD):** Deep learning segmentation to identify dialogue bubbles, rectangular narrative boxes, and panel textlines across complex layouts.
-* **48px CTC OCR (Japanese Manga):** High-precision text recognition supporting vertical and horizontal Japanese textlines.
+* **Dual OCR Engine Support:**
+  * **48px CTC OCR (Lightweight & Fast):** CRNN-based Japanese text recognition optimized for mobile performance.
+  * **Manga-OCR (Full-Precision ViT + RoBERTa):** Vision Transformer encoder paired with an autoregressive RoBERTa decoder, delivering maximum accuracy on stylized Japanese manga typography, handwriting, and complex Kanji/Kana layouts.
 * **AOT-GAN Inpainting:** Neural image inpainting that removes original Japanese text strokes while preserving background artwork and screentones.
 
 ### 2. Interactive Correction & Typeset Editing
@@ -143,17 +145,20 @@ cd manga-image-translator/android-app
 ```
 
 ### 2. Model Assets Placement
-Place required ONNX models and dictionary files inside `app/src/main/assets/`:
+Place required ONNX models, vocabularies, and dictionary files inside `app/src/main/assets/models/` or your device's external storage (`/sdcard/Android/data/com.yuu18id.mangatranslator/files/models/`):
 
 ```text
 app/src/main/assets/
 ├── fonts/
 │   └── cc-wild-words-roman.ttf
 └── models/
-    ├── alphabet-all-v5.txt
-    ├── ctd_detector.onnx
-    ├── ocr_ctc_48px.onnx
-    └── aot_inpainter.onnx
+    ├── alphabet-all-v5.txt       # CTC OCR dictionary
+    ├── manga_ocr_vocab.txt       # Manga-OCR Japanese WordPiece vocabulary
+    ├── ctd_detector.onnx         # Comic Text Detector
+    ├── ocr_ctc_48px.onnx         # 48px CTC OCR (default)
+    ├── aot_inpainter.onnx        # AOT-GAN Inpainting
+    ├── manga_ocr_encoder.onnx    # Manga-OCR Vision Transformer (optional)
+    └── manga_ocr_decoder.onnx    # Manga-OCR RoBERTa Autoregressive Decoder (optional)
 ```
 
 Pre-converted models can be downloaded from the repository Releases section or exported from base PyTorch checkpoints using the conversion scripts in `models/`.
@@ -165,16 +170,21 @@ Pre-converted models can be downloaded from the repository Releases section or e
 
 # Build Debug APK
 ./gradlew assembleDebug
+
+# Build Release APK
+./gradlew assembleRelease
 ```
 
 Generated APK output directory:
-`app/build/outputs/apk/debug/app-debug.apk`
+* Debug: `app/build/outputs/apk/debug/app-debug.apk`
+* Release: `app/build/outputs/apk/release/app-release.apk`
 
 ---
 
 ## Settings & Configuration
 
 The application **Settings** screen provides configuration for:
+* **OCR Engine:** Choose between **48px CTC OCR** (Fast & Lightweight) and **Manga-OCR** (Full-Precision Vision Transformer ViT + RoBERTa for complex fonts).
 * **Translation Engine:** Select default provider (DeepL, Gemini, OpenAI, Groq, DeepSeek, OpenRouter, Papago).
 * **API Keys:** Securely input and store provider keys.
 * **Target Language:** Select default output language (English, Indonesian, etc.).
@@ -185,6 +195,7 @@ The application **Settings** screen provides configuration for:
 ## Acknowledgements
 
 * **Base Project:** [zyddnys/manga-image-translator](https://github.com/zyddnys/manga-image-translator) for the original research, pipeline architecture, and training pipelines.
+* **Manga-OCR:** [kha-white/manga-ocr](https://github.com/kha-white/manga-ocr) for the state-of-the-art Japanese manga Vision Transformer OCR model.
 * **Comic Text Detector:** [dmMaze/ComicTextDetector](https://github.com/dmMaze/ComicTextDetector) for the deep learning text detection model.
 * **Neural Inpainting:** [AOT-GAN](https://github.com/researchmm/AOT-GAN-for-Inpainting) for background reconstruction.
 * **Typography:** *CC Wild Words Roman* comic typeface.

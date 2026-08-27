@@ -48,7 +48,14 @@ python export_aot_onnx.py
 - **Output:** `aot_generator.onnx`
 - **Expected Size:** ~150 MB
 
-## Quantization (Optional but Recommended for Android)
+### 4. Manga-OCR (ViT + RoBERTa)
+Exports the state-of-the-art Manga-OCR model into split Vision Transformer encoder and RoBERTa autoregressive decoder ONNX graphs.
+- **Components:**
+  - `manga_ocr_encoder.onnx` (ViT patch embedding & 12 transformer encoder blocks) ~343 MB
+  - `manga_ocr_decoder.onnx` (RoBERTa cross-attention autoregressive decoder) ~117 MB
+  - `manga_ocr_vocab.txt` (6,145 Japanese WordPiece tokens) ~165 KB
+
+## Quantization (Optional but Recommended for Mobile Storage)
 
 Mobile apps benefit greatly from smaller model sizes. We provide a script to apply INT8 dynamic quantization to the exported ONNX models.
 ```bash
@@ -60,7 +67,7 @@ python quantize_models.py
 
 ## Android App Deployment
 
-1.  Take the `.onnx` files (preferably the `_int8.onnx` quantized versions).
-2.  Copy them to your Android project's `app/src/main/assets/` directory.
-3.  Also copy `alphabet-all-v5.txt` to the assets directory, as it's required for OCR decoding.
-4.  Use the ONNX Runtime Android library in your app to load and infer these models!
+1. Take the `.onnx` files and vocabulary files.
+2. Copy them to your Android project's `app/src/main/assets/models/` directory or push directly to device storage (`/sdcard/Android/data/com.yuu18id.mangatranslator/files/models/`).
+3. Ensure `alphabet-all-v5.txt` and `manga_ocr_vocab.txt` are in `app/src/main/assets/models/`.
+4. Use the ONNX Runtime Android library in your app to load and infer these models!
