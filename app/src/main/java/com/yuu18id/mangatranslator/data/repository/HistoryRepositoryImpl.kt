@@ -49,6 +49,13 @@ class HistoryRepositoryImpl @Inject constructor(
         ids.mapNotNull { id -> entityMap[id]?.toDomain() }
     }
 
+    override fun observeTranslationsByIds(ids: List<Long>): Flow<List<TranslationHistoryItem>> {
+        return historyDao.observeByIds(ids).map { entities ->
+            val entityMap = entities.associateBy { it.id }
+            ids.mapNotNull { id -> entityMap[id]?.toDomain() }
+        }
+    }
+
     override suspend fun getFullHistoryRecord(id: Long): FullHistoryRecord? = withContext(Dispatchers.IO) {
         val entity = historyDao.getById(id) ?: return@withContext null
         val item = entity.toDomain()

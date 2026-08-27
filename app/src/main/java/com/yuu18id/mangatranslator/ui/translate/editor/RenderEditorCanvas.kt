@@ -8,6 +8,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculateCentroid
 import androidx.compose.foundation.gestures.calculatePan
 import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.layout.Box
@@ -58,6 +59,8 @@ fun RenderEditorCanvas(
 
     var scale by remember { mutableFloatStateOf(1f) }
     var offset by remember { mutableStateOf(Offset.Zero) }
+    var lastTapTime by remember { mutableLongStateOf(0L) }
+    var lastTapPos by remember { mutableStateOf(Offset.Zero) }
 
     val imageWidth = inpaintedBitmap.width.toFloat()
     val imageHeight = inpaintedBitmap.height.toFloat()
@@ -117,6 +120,15 @@ fun RenderEditorCanvas(
             style = Paint.Style.STROKE
             color = android.graphics.Color.argb(255, 255, 109, 0)
         }
+    }
+
+    fun clampOffset(off: Offset, s: Float, viewW: Float, viewH: Float, fitW: Float, fitH: Float): Offset {
+        val maxOffsetX = max(0f, (fitW * s - viewW) / 2f)
+        val maxOffsetY = max(0f, (fitH * s - viewH) / 2f)
+        return Offset(
+            x = off.x.coerceIn(-maxOffsetX, maxOffsetX),
+            y = off.y.coerceIn(-maxOffsetY, maxOffsetY)
+        )
     }
 
     Box(
@@ -206,11 +218,21 @@ fun RenderEditorCanvas(
                         if (activePointers.isEmpty()) break
 
                         if (activePointers.size >= 2) {
-                            // Two-finger gesture: Pan & Zoom Canvas ONLY
+                            // Two-finger gesture: Centroid Focal Zoom & Pan Canvas
+                            val centroid = event.calculateCentroid(useCurrent = false)
                             val zoom = event.calculateZoom()
                             val pan = event.calculatePan()
-                            scale = (scale * zoom).coerceIn(0.5f, 6.0f)
-                            offset += pan
+                            val oldScale = scale
+                            val newScale = (scale * zoom).coerceIn(1.0f, 5.0f)
+
+                            val center = Offset(viewWidth / 2f, viewHeight / 2f)
+                            val centroidFromCenter = centroid - center
+                            val scaleFactor = newScale / oldScale
+                            val unClampedOffset = (offset - centroidFromCenter) * scaleFactor + centroidFromCenter + pan
+
+                            scale = newScale
+                            offset = clampOffset(unClampedOffset, newScale, viewWidth, viewHeight, fitWidth, fitHeight)
+
                             event.changes.forEach { it.consume() }
                             activeDragMode = CanvasDragMode.NONE
                             isMoved = true
@@ -225,7 +247,10 @@ fun RenderEditorCanvas(
                             if (isMoved) {
                                 change.consume()
                                 if (activeDragMode == CanvasDragMode.PAN) {
-                                    offset += (change.position - change.previousPosition)
+                                    if (scale > 1.0f) {
+                                        val unClamped = offset + (change.position - change.previousPosition)
+                                        offset = clampOffset(unClamped, scale, viewWidth, viewHeight, fitWidth, fitHeight)
+                                    }
                                 } else if (initialBounds != null && dragTargetBlockId != null) {
                                     val curImgPt = screenToImage(change.position, scale, offset)
                                     val totalDx = curImgPt.x - downImgPt.x
@@ -274,10 +299,28 @@ fun RenderEditorCanvas(
                         }
                     }
 
-                    // If released without dragging -> Treat as Tap to select/deselect
+                    // If released without dragging -> Treat as Tap to select/deselect or Double Tap to Zoom
                     if (!isMoved) {
                         val tapHit = currentBlocks.reversed().find { it.bounds.contains(downImgPt.x, downImgPt.y) }
-                        currentOnSelectBlock(tapHit?.id)
+                        val now = System.currentTimeMillis()
+                        if (tapHit == null && (now - lastTapTime) < 300L && (down.position - lastTapPos).getDistance() < 40f) {
+                            if (scale > 1.05f) {
+                                scale = 1.0f
+                                offset = Offset.Zero
+                            } else {
+                                val targetScale = 2.5f
+                                val center = Offset(viewWidth / 2f, viewHeight / 2f)
+                                val tapFromCenter = down.position - center
+                                val targetOffset = -tapFromCenter * (targetScale - 1f)
+                                scale = targetScale
+                                offset = clampOffset(targetOffset, targetScale, viewWidth, viewHeight, fitWidth, fitHeight)
+                            }
+                            lastTapTime = 0L
+                        } else {
+                            lastTapTime = now
+                            lastTapPos = down.position
+                            currentOnSelectBlock(tapHit?.id)
+                        }
                     }
                 }
             }

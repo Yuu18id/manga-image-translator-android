@@ -61,22 +61,24 @@ class ReaderViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, error = null) }
             try {
-                val loadedItems = historyRepository.getTranslationsByIds(ids)
-                if (loadedItems.isNotEmpty()) {
-                    val firstItem = loadedItems.first()
-                    _uiState.update {
-                        it.copy(
-                            pages = loadedItems,
-                            currentPageIndex = 0,
-                            originalImagePath = firstItem.thumbnailPath,
-                            translatedImagePath = firstItem.resultPath,
-                            totalPages = loadedItems.size,
-                            isLoading = false,
-                            error = null
-                        )
+                historyRepository.observeTranslationsByIds(ids).collect { loadedItems ->
+                    if (loadedItems.isNotEmpty()) {
+                        _uiState.update { current ->
+                            val currentIdx = current.currentPageIndex.coerceIn(0, loadedItems.size - 1)
+                            val currentItem = loadedItems[currentIdx]
+                            current.copy(
+                                pages = loadedItems,
+                                currentPageIndex = currentIdx,
+                                originalImagePath = currentItem.thumbnailPath,
+                                translatedImagePath = currentItem.resultPath,
+                                totalPages = loadedItems.size,
+                                isLoading = false,
+                                error = null
+                            )
+                        }
+                    } else {
+                        _uiState.update { it.copy(isLoading = false, error = "Translation pages not found") }
                     }
-                } else {
-                    _uiState.update { it.copy(isLoading = false, error = "Translation pages not found") }
                 }
             } catch (e: Exception) {
                 _uiState.update { it.copy(isLoading = false, error = e.message ?: "Failed to load translation") }

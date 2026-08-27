@@ -109,8 +109,8 @@ class TextlineMerger @Inject constructor() {
     private fun splitTextRegionMst(
         nodeIndices: List<Int>,
         lines: List<Quadrilateral>,
-        gamma: Float = 0.35f,
-        sigma: Float = 1.5f
+        gamma: Float = 0.15f,
+        sigma: Float = 1.2f
     ): List<List<Int>> {
         if (nodeIndices.size <= 1) return listOf(nodeIndices)
 
@@ -119,7 +119,7 @@ class TextlineMerger @Inject constructor() {
             val v = nodeIndices[1]
             val fs = max(getFontSize(lines[u]), getFontSize(lines[v]))
             val d = calculateDistance(lines[u], lines[v])
-            return if (d <= (1.0f + gamma) * fs && abs(lines[u].angle - lines[v].angle) <= 30.0f) {
+            return if (canMerge(lines[u], lines[v]) && d <= (0.95f + gamma) * fs && abs(lines[u].angle - lines[v].angle) <= 25.0f) {
                 listOf(nodeIndices)
             } else {
                 listOf(listOf(u), listOf(v))
@@ -134,14 +134,14 @@ class TextlineMerger @Inject constructor() {
         val variance = distances.map { (it - meanD) * (it - meanD) }.average().toFloat()
         val stdD = kotlin.math.sqrt(variance)
         val avgFontSize = nodeIndices.map { getFontSize(lines[it]) }.average().toFloat()
-        val stdThreshold = max(0.25f * avgFontSize + 3.0f, 4.0f)
+        val stdThreshold = max(0.20f * avgFontSize + 2.0f, 3.0f)
 
         val maxEdge = mstEdges[0]
         val maxD = maxEdge.dist
 
         // If the largest edge is significantly larger than internal line spacing or standard deviation is high,
         // it indicates a bridge between two separate speech bubbles!
-        val shouldKeepTogether = (maxD <= meanD + stdD * sigma || maxD <= avgFontSize * (1.0f + gamma)) && (stdD < stdThreshold)
+        val shouldKeepTogether = (maxD <= meanD + stdD * sigma && maxD <= avgFontSize * (0.95f + gamma)) && (stdD < stdThreshold)
 
         if (shouldKeepTogether) {
             return listOf(nodeIndices)
@@ -207,44 +207,50 @@ class TextlineMerger @Inject constructor() {
         val charSize = min(fs1, fs2)
         if (charSize <= 0f) return false
 
-        // Font size ratio check (tolerant up to 2.0x for comic emphasis/furigana)
-        if (max(fs1, fs2) / charSize > 2.0f) return false
+        // Font size ratio check (tolerant up to 1.8x for comic emphasis/furigana)
+        if (max(fs1, fs2) / charSize > 1.8f) return false
 
         // Orientation direction must match
         if (q1.isVertical != q2.isVertical) return false
 
-        // Angle orientation must be reasonably aligned (within 30 degrees)
-        if (abs(q1.angle - q2.angle) > 30.0f) return false
+        // Angle orientation must be reasonably aligned (within 25 degrees)
+        if (abs(q1.angle - q2.angle) > 25.0f) return false
 
         val xDist = if (r1.right < r2.left) r2.left - r1.right else if (r2.right < r1.left) r1.left - r2.right else 0f
         val yDist = if (r1.bottom < r2.top) r2.top - r1.bottom else if (r2.bottom < r1.top) r1.top - r2.bottom else 0f
-        val rectDist = hypot(xDist, yDist)
 
         return if (q1.isVertical) {
             // Vertical Japanese columns in the same speech bubble
             val verticalOverlap = max(0f, min(r1.bottom, r2.bottom) - max(r1.top, r2.top))
             val minHeight = min(r1.height(), r2.height())
-            val hasOverlap = minHeight > 0f && (verticalOverlap / minHeight) >= 0.15f
+            val hasVerticalOverlap = minHeight > 0f && (verticalOverlap / minHeight) >= 0.40f
 
-            // 1. Parallel adjacent columns with slight or strong vertical overlap
-            val isParallelColumn = hasOverlap && (xDist <= charSize * 1.35f) && (yDist <= charSize * 0.8f)
-            // 2. Collinear stacked segments in the same column
-            val isStackedSegment = (xDist <= charSize * 0.75f) && (yDist <= charSize * 2.0f)
-            // 3. Close neighbors in the same bubble
-            val isCloseNeighbor = (xDist <= charSize * 1.15f) && (rectDist <= charSize * 1.4f)
+            val horizontalOverlap = max(0f, min(r1.right, r2.right) - max(r1.left, r2.left))
+            val minWidth = min(r1.width(), r2.width())
+            val hasHorizontalOverlap = minWidth > 0f && (horizontalOverlap / minWidth) >= 0.45f
 
-            isParallelColumn || isStackedSegment || isCloseNeighbor
+            // 1. Parallel adjacent columns: must have strong vertical overlap and close horizontal column spacing
+            val isParallelColumn = hasVerticalOverlap && (xDist <= charSize * 0.95f) && (yDist <= charSize * 0.5f)
+            // 2. Collinear stacked segments of the SAME vertical column: must have strong horizontal alignment
+            val isStackedSegment = hasHorizontalOverlap && (xDist <= charSize * 0.35f) && (yDist <= charSize * 1.25f)
+
+            isParallelColumn || isStackedSegment
         } else {
             // Horizontal text rows in the same speech bubble
             val horizontalOverlap = max(0f, min(r1.right, r2.right) - max(r1.left, r2.left))
             val minWidth = min(r1.width(), r2.width())
-            val hasOverlap = minWidth > 0f && (horizontalOverlap / minWidth) >= 0.15f
+            val hasHorizontalOverlap = minWidth > 0f && (horizontalOverlap / minWidth) >= 0.40f
 
-            val isParallelRow = hasOverlap && (yDist <= charSize * 1.35f) && (xDist <= charSize * 0.8f)
-            val isSideBySide = (yDist <= charSize * 0.75f) && (xDist <= charSize * 2.0f)
-            val isCloseNeighbor = (yDist <= charSize * 1.15f) && (rectDist <= charSize * 1.4f)
+            val verticalOverlap = max(0f, min(r1.bottom, r2.bottom) - max(r1.top, r2.top))
+            val minHeight = min(r1.height(), r2.height())
+            val hasVerticalOverlap = minHeight > 0f && (verticalOverlap / minHeight) >= 0.45f
 
-            isParallelRow || isSideBySide || isCloseNeighbor
+            // 1. Parallel adjacent rows: must have strong horizontal overlap and close vertical row spacing
+            val isParallelRow = hasHorizontalOverlap && (yDist <= charSize * 0.95f) && (xDist <= charSize * 0.5f)
+            // 2. Collinear inline segments of the SAME horizontal row: must have strong vertical alignment
+            val isInlineSegment = hasVerticalOverlap && (yDist <= charSize * 0.35f) && (xDist <= charSize * 1.25f)
+
+            isParallelRow || isInlineSegment
         }
     }
 

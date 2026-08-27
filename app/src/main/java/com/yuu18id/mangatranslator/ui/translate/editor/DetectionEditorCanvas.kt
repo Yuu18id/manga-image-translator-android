@@ -6,6 +6,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculateCentroid
 import androidx.compose.foundation.gestures.calculatePan
 import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.layout.Box
@@ -37,6 +38,8 @@ fun DetectionEditorCanvas(
 ) {
     var scale by remember { mutableFloatStateOf(1f) }
     var offset by remember { mutableStateOf(Offset.Zero) }
+    var lastTapTime by remember { mutableLongStateOf(0L) }
+    var lastTapPos by remember { mutableStateOf(Offset.Zero) }
 
     var dragMode by remember { mutableStateOf(DragMode.NONE) }
     var liveDrawingStartPt by remember { mutableStateOf<PointF?>(null) }
@@ -51,6 +54,15 @@ fun DetectionEditorCanvas(
     val currentOnSelectBox by rememberUpdatedState(onSelectBox)
     val currentOnUpdateBox by rememberUpdatedState(onUpdateBox)
     val currentOnAddNewBox by rememberUpdatedState(onAddNewBox)
+
+    fun clampOffset(off: Offset, s: Float, viewW: Float, viewH: Float, fitW: Float, fitH: Float): Offset {
+        val maxOffsetX = max(0f, (fitW * s - viewW) / 2f)
+        val maxOffsetY = max(0f, (fitH * s - viewH) / 2f)
+        return Offset(
+            x = off.x.coerceIn(-maxOffsetX, maxOffsetX),
+            y = off.y.coerceIn(-maxOffsetY, maxOffsetY)
+        )
+    }
 
     Box(
         modifier = modifier
@@ -144,11 +156,21 @@ fun DetectionEditorCanvas(
                         if (activePointers.isEmpty()) break
 
                         if (activePointers.size >= 2) {
-                            // Two-finger gesture: Zoom & Pan canvas ONLY
+                            // Two-finger gesture: Centroid Focal Zoom & Pan canvas
+                            val centroid = event.calculateCentroid(useCurrent = false)
                             val zoom = event.calculateZoom()
                             val pan = event.calculatePan()
-                            scale = (scale * zoom).coerceIn(0.5f, 6.0f)
-                            offset += pan
+                            val oldScale = scale
+                            val newScale = (scale * zoom).coerceIn(1.0f, 5.0f)
+
+                            val center = Offset(viewWidth / 2f, viewHeight / 2f)
+                            val centroidFromCenter = centroid - center
+                            val scaleFactor = newScale / oldScale
+                            val unClampedOffset = (offset - centroidFromCenter) * scaleFactor + centroidFromCenter + pan
+
+                            scale = newScale
+                            offset = clampOffset(unClampedOffset, newScale, viewWidth, viewHeight, fitWidth, fitHeight)
+
                             event.changes.forEach { it.consume() }
                             activeDragMode = DragMode.NONE
                             dragMode = DragMode.NONE
@@ -168,7 +190,10 @@ fun DetectionEditorCanvas(
                                 val curImgPt = screenToImage(change.position, scale, offset)
 
                                 if (activeDragMode == DragMode.PAN) {
-                                    offset += (change.position - change.previousPosition)
+                                    if (scale > 1.0f) {
+                                        val unClamped = offset + (change.position - change.previousPosition)
+                                        offset = clampOffset(unClamped, scale, viewWidth, viewHeight, fitWidth, fitHeight)
+                                    }
                                 } else if (activeDragMode == DragMode.DRAW_NEW_BOX) {
                                     liveDrawingCurrentPt = curImgPt
                                 } else if (initialBoundingRect != null && dragTargetBoxId != null) {
@@ -224,7 +249,7 @@ fun DetectionEditorCanvas(
                         }
                     }
 
-                    // Handle Drag End for new box creation or Tap selection
+                    // Handle Drag End for new box creation or Tap selection / Double tap to zoom
                     if (activeDragMode == DragMode.DRAW_NEW_BOX && isMoved) {
                         val p1 = liveDrawingStartPt
                         val p2 = liveDrawingCurrentPt
@@ -239,7 +264,25 @@ fun DetectionEditorCanvas(
                         }
                     } else if (!isMoved && !activeIsAddMode) {
                         val hit = currentBoxes.reversed().find { it.boundingRect().contains(downImgPt.x, downImgPt.y) }
-                        currentOnSelectBox(hit?.id)
+                        val now = System.currentTimeMillis()
+                        if (hit == null && (now - lastTapTime) < 300L && (down.position - lastTapPos).getDistance() < 40f) {
+                            if (scale > 1.05f) {
+                                scale = 1.0f
+                                offset = Offset.Zero
+                            } else {
+                                val targetScale = 2.5f
+                                val center = Offset(viewWidth / 2f, viewHeight / 2f)
+                                val tapFromCenter = down.position - center
+                                val targetOffset = -tapFromCenter * (targetScale - 1f)
+                                scale = targetScale
+                                offset = clampOffset(targetOffset, targetScale, viewWidth, viewHeight, fitWidth, fitHeight)
+                            }
+                            lastTapTime = 0L
+                        } else {
+                            lastTapTime = now
+                            lastTapPos = down.position
+                            currentOnSelectBox(hit?.id)
+                        }
                     }
 
                     dragMode = DragMode.NONE

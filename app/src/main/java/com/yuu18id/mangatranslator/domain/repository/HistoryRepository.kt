@@ -18,6 +18,7 @@ interface HistoryRepository {
     fun getRecentTranslations(limit: Int = 50): Flow<List<TranslationHistoryItem>>
     suspend fun getTranslationById(id: Long): TranslationHistoryItem?
     suspend fun getTranslationsByIds(ids: List<Long>): List<TranslationHistoryItem>
+    fun observeTranslationsByIds(ids: List<Long>): Flow<List<TranslationHistoryItem>>
     suspend fun getFullHistoryRecord(id: Long): FullHistoryRecord?
     suspend fun saveTranslation(
         result: TranslationResult,
