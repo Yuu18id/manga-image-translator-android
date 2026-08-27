@@ -168,8 +168,8 @@
     <string name="settings_dialog_clear_title">清除历史记录</string>
     <string name="settings_dialog_clear_msg">确定要删除所有翻译历史记录吗？此操作无法撤销。</string>
     <string name="settings_about">关于</string>
-    <string name="settings_version">版本 1.0.0</string>
-    <string name="settings_developed_by">开发者 @%1$s</string>
+    <string name="settings_version">版本 %1$s</string>
+    <string name="settings_developed_by">开发者: @%1$s</string>
     <string name="settings_github">GitHub 仓库</string>
 
     <!-- 批量翻译屏幕 -->

@@ -176,7 +176,7 @@
     <string name="settings_dialog_clear_title">Clear History</string>
     <string name="settings_dialog_clear_msg">Are you sure you want to delete all translation history? This action cannot be undone.</string>
     <string name="settings_about">About</string>
-    <string name="settings_version">Version 1.0.0</string>
+    <string name="settings_version">Version %1$s</string>
     <string name="settings_developed_by">Developed by @%1$s</string>
     <string name="settings_github">GitHub Repository</string>
 

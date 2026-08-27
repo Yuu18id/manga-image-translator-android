@@ -1,4 +1,4 @@
-﻿package com.yuu18id.mangatranslator.ui.settings
+package com.yuu18id.mangatranslator.ui.settings
 
 import android.content.Intent
 import android.net.Uri
@@ -618,7 +618,7 @@ fun AboutAppSection() {
                 fontWeight = FontWeight.Bold
             )
             Text(
-                text = stringResource(R.string.settings_version),
+                text = stringResource(R.string.settings_version, com.yuu18id.mangatranslator.BuildConfig.VERSION_NAME),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

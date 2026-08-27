@@ -175,8 +175,8 @@
     <string name="settings_clear_history_btn">Hapus Semua Riwayat Terjemahan</string>
     <string name="settings_dialog_clear_title">Hapus Riwayat</string>
     <string name="settings_dialog_clear_msg">Apakah Anda yakin ingin menghapus seluruh riwayat terjemahan\? Tindakan ini tidak dapat dibatalkan.</string>
-    <string name="settings_about">Tentang Aplikasi</string>
-    <string name="settings_version">Versi 1.0.0</string>
+    <string name="settings_about">Tentang</string>
+    <string name="settings_version">Versi %1$s</string>
     <string name="settings_developed_by">Dikembangkan oleh @%1$s</string>
     <string name="settings_github">Repositori GitHub</string>
 
