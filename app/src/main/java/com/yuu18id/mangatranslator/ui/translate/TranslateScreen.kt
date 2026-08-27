@@ -22,6 +22,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
@@ -160,14 +161,17 @@ fun TranslateScreen(
                         .fillMaxWidth()
                 )
 
-                // 2. Language & Engine Selection Bar (Clean Symmetrical Card)
+                // 2. Language & Engine Selection Bar (Clean Symmetrical Card + Review Detection Toggle when not translated)
                 LanguageEngineSelectorBar(
                     sourceLang = uiState.sourceLang,
                     targetLang = uiState.targetLang,
                     translatorType = uiState.translatorType,
                     isTranslating = progressState.isTranslating,
+                    isReviewModeEnabled = uiState.isReviewModeEnabled,
+                    showReviewToggle = uiState.translatedImage == null,
                     onTargetLangChanged = viewModel::setTargetLang,
-                    onTranslatorTypeChanged = viewModel::setTranslatorType
+                    onTranslatorTypeChanged = viewModel::setTranslatorType,
+                    onToggleReviewMode = viewModel::toggleReviewMode
                 )
 
                 // 3. Progress Card
@@ -182,6 +186,7 @@ fun TranslateScreen(
                 // 4. Primary Action Controls
                 TranslateActionButtons(
                     isTranslating = progressState.isTranslating,
+                    isReviewModeEnabled = uiState.isReviewModeEnabled,
                     hasOriginal = uiState.originalImage != null,
                     hasTranslated = uiState.translatedImage != null,
                     canFastRetranslate = uiState.canFastRetranslate,
@@ -338,95 +343,151 @@ fun LanguageEngineSelectorBar(
     targetLang: Language,
     translatorType: TranslatorType,
     isTranslating: Boolean,
+    isReviewModeEnabled: Boolean = false,
+    showReviewToggle: Boolean = true,
     onTargetLangChanged: (Language) -> Unit,
-    onTranslatorTypeChanged: (TranslatorType) -> Unit
+    onTranslatorTypeChanged: (TranslatorType) -> Unit,
+    onToggleReviewMode: () -> Unit = {}
 ) {
     var showTargetLangSheet by remember { mutableStateOf(false) }
     var showEngineSheet by remember { mutableStateOf(false) }
 
-    Surface(
+    Column(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        // 1. Language & Engine Selection Card
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
         ) {
-            // Target Language Picker Pill
-            Surface(
-                onClick = { if (!isTranslating) showTargetLangSheet = true },
-                enabled = !isTranslating,
-                shape = RoundedCornerShape(12.dp),
-                color = MaterialTheme.colorScheme.surface,
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
-                modifier = Modifier.weight(1f)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+                // Target Language Picker Pill
+                Surface(
+                    onClick = { if (!isTranslating) showTargetLangSheet = true },
+                    enabled = !isTranslating,
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.surface,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                    modifier = Modifier.weight(1f)
                 ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = stringResource(R.string.translate_target_lang),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Text(
-                            text = targetLang.displayName,
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = stringResource(R.string.translate_target_lang),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = targetLang.displayName,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                        Icon(
+                            imageVector = Icons.Default.ArrowDropDown,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                    Icon(
-                        imageVector = Icons.Default.ArrowDropDown,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                }
+
+                // Engine Picker Pill
+                Surface(
+                    onClick = { if (!isTranslating) showEngineSheet = true },
+                    enabled = !isTranslating,
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.surface,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = stringResource(R.string.translate_engine),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = translatorType.displayName,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                        Icon(
+                            imageVector = Icons.Default.ArrowDropDown,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             }
+        }
 
-            // Engine Picker Pill
+        // 2. Review Detection Toggle (shown when translating a new image)
+        if (showReviewToggle) {
             Surface(
-                onClick = { if (!isTranslating) showEngineSheet = true },
+                onClick = onToggleReviewMode,
                 enabled = !isTranslating,
                 shape = RoundedCornerShape(12.dp),
-                color = MaterialTheme.colorScheme.surface,
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
-                modifier = Modifier.weight(1f)
+                color = if (isReviewModeEnabled) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                border = BorderStroke(
+                    1.dp,
+                    if (isReviewModeEnabled) MaterialTheme.colorScheme.primary.copy(alpha = 0.6f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                ),
+                modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = stringResource(R.string.translate_engine),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Icon(
+                            imageVector = if (isReviewModeEnabled) Icons.Default.HighlightAlt else Icons.Default.CropFree,
+                            contentDescription = null,
+                            tint = if (isReviewModeEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(20.dp)
                         )
                         Text(
-                            text = translatorType.displayName,
+                            text = stringResource(R.string.translate_review_mode),
                             style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
+                            fontWeight = if (isReviewModeEnabled) FontWeight.Bold else FontWeight.Medium,
+                            color = if (isReviewModeEnabled) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
                         )
                     }
-                    Icon(
-                        imageVector = Icons.Default.ArrowDropDown,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    Switch(
+                        checked = isReviewModeEnabled,
+                        onCheckedChange = { onToggleReviewMode() },
+                        enabled = !isTranslating,
+                        modifier = Modifier.scale(0.85f)
                     )
                 }
             }
@@ -683,6 +744,7 @@ fun TranslationProgressCard(
 @Composable
 fun TranslateActionButtons(
     isTranslating: Boolean,
+    isReviewModeEnabled: Boolean,
     hasOriginal: Boolean,
     hasTranslated: Boolean,
     canFastRetranslate: Boolean,
@@ -715,13 +777,13 @@ fun TranslateActionButtons(
                 enabled = hasOriginal
             ) {
                 Icon(
-                    imageVector = Icons.Default.Translate,
+                    imageVector = if (isReviewModeEnabled) Icons.Default.HighlightAlt else Icons.Default.Translate,
                     contentDescription = null,
                     modifier = Modifier.size(20.dp)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = stringResource(R.string.translate_action_btn),
+                    text = if (isReviewModeEnabled) stringResource(R.string.translate_action_review_btn) else stringResource(R.string.translate_action_btn),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
