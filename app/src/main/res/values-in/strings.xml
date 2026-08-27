@@ -129,6 +129,15 @@
     <string name="reader_page_indicator">Halaman %1$d / %2$d</string>
     <string name="reader_prev_page">Halaman Sebelumnya</string>
     <string name="reader_next_page">Halaman Berikutnya</string>
+    <string name="action_save_to_gallery">Simpan ke Perangkat</string>
+    <string name="gallery_save_selected">Simpan ke Galeri</string>
+    <string name="gallery_save_album">Simpan Album ke Galeri</string>
+    <string name="gallery_save_page">Simpan Halaman Ini</string>
+    <string name="gallery_save_success_single">Berhasil disimpan ke Pictures/MangaTranslator</string>
+    <string name="gallery_save_success_multiple">Berhasil menyimpan %1$d gambar ke Pictures/MangaTranslator</string>
+    <string name="gallery_save_failed">Gagal menyimpan gambar ke penyimpanan</string>
+    <string name="reader_save_chapter_prompt">Simpan Seluruh Chapter (%1$d Halaman)</string>
+    <string name="reader_save_options_title">Simpan ke Perangkat</string>
 
     <!-- Layar Pengaturan -->
     <string name="settings_title">Pengaturan</string>

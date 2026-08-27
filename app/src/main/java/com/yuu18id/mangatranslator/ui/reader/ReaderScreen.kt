@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -45,12 +46,66 @@ fun ReaderScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val snackbarHostState = remember { SnackbarHostState() }
 
-
+    LaunchedEffect(Unit) {
+        viewModel.exportEvents.collect { event ->
+            when (event) {
+                is ReaderExportEvent.Success -> {
+                    val msg = if (event.count == 1) {
+                        context.getString(R.string.gallery_save_success_single)
+                    } else {
+                        context.getString(R.string.gallery_save_success_multiple, event.count)
+                    }
+                    snackbarHostState.showSnackbar(msg)
+                }
+                is ReaderExportEvent.Error -> {
+                    snackbarHostState.showSnackbar(event.message)
+                }
+            }
+        }
+    }
 
     var showUi by remember { mutableStateOf(true) }
     var showOriginal by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
+    var showSaveDialog by remember { mutableStateOf(false) }
+
+    if (showSaveDialog) {
+        AlertDialog(
+            onDismissRequest = { showSaveDialog = false },
+            icon = { Icon(Icons.Filled.Download, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+            title = { Text(stringResource(R.string.reader_save_options_title)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(
+                        onClick = {
+                            showSaveDialog = false
+                            viewModel.saveCurrentPage()
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(stringResource(R.string.gallery_save_page))
+                    }
+                    OutlinedButton(
+                        onClick = {
+                            showSaveDialog = false
+                            viewModel.saveEntireChapter()
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(stringResource(R.string.reader_save_chapter_prompt, uiState.totalPages))
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { showSaveDialog = false }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            }
+        )
+    }
 
     if (showDeleteDialog) {
         AlertDialog(
@@ -171,6 +226,20 @@ fun ReaderScreen(
                     }
                 },
                 actions = {
+                    // Save to Device
+                    IconButton(onClick = {
+                        if (uiState.totalPages > 1) {
+                            showSaveDialog = true
+                        } else {
+                            viewModel.saveCurrentPage()
+                        }
+                    }) {
+                        Icon(
+                            Icons.Default.Download,
+                            contentDescription = stringResource(R.string.action_save_to_gallery),
+                            tint = Color.White
+                        )
+                    }
                     // Translate Ulang (Re-translate)
                     IconButton(onClick = {
                         val currentItem = uiState.pages.getOrNull(uiState.currentPageIndex)
@@ -299,5 +368,12 @@ fun ReaderScreen(
                 }
             }
         }
+
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = if (showUi) 80.dp else 16.dp)
+        )
     }
 }

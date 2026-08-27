@@ -17,6 +17,7 @@ import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PhotoLibrary
@@ -32,6 +33,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -57,6 +59,26 @@ fun GalleryScreen(
     val items by viewModel.galleryItems.collectAsStateWithLifecycle()
     var selectedKeys by remember { mutableStateOf(setOf<String>()) }
     val isSelectionMode by remember { derivedStateOf { selectedKeys.isNotEmpty() } }
+    val context = LocalContext.current
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(Unit) {
+        viewModel.exportEvents.collect { event ->
+            when (event) {
+                is ExportEvent.Success -> {
+                    val msg = if (event.count == 1) {
+                        context.getString(R.string.gallery_save_success_single)
+                    } else {
+                        context.getString(R.string.gallery_save_success_multiple, event.count)
+                    }
+                    snackbarHostState.showSnackbar(msg)
+                }
+                is ExportEvent.Error -> {
+                    snackbarHostState.showSnackbar(event.message)
+                }
+            }
+        }
+    }
 
     var showClearAllDialog by remember { mutableStateOf(false) }
     var showBatchDeleteDialog by remember { mutableStateOf(false) }
@@ -160,6 +182,7 @@ fun GalleryScreen(
     }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             if (isSelectionMode) {
                 // Contextual Action Bar (Google Photos Style)
@@ -185,6 +208,16 @@ fun GalleryScreen(
                             }
                         }) {
                             Icon(Icons.Default.SelectAll, contentDescription = stringResource(R.string.action_select_all))
+                        }
+                        IconButton(onClick = {
+                            viewModel.saveSelectedItems(selectedKeys)
+                            selectedKeys = emptySet()
+                        }) {
+                            Icon(
+                                Icons.Default.Download,
+                                contentDescription = stringResource(R.string.gallery_save_selected),
+                                tint = MaterialTheme.colorScheme.primary
+                            )
                         }
                         IconButton(onClick = { showBatchDeleteDialog = true }) {
                             Icon(
@@ -342,6 +375,9 @@ fun GalleryScreen(
                                 },
                                 onReTranslate = {
                                     onNavigateToTranslate("history:${item.item.id}")
+                                },
+                                onSave = {
+                                    viewModel.saveSingleItem(item.item)
                                 }
                             )
                         }
@@ -366,6 +402,9 @@ fun GalleryScreen(
                                 onRename = {
                                     albumToRename = item
                                     renameInputText = item.title
+                                },
+                                onSave = {
+                                    viewModel.saveAlbum(item)
                                 }
                             )
                         }
@@ -384,7 +423,8 @@ fun GallerySingleCard(
     isSelectionMode: Boolean,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
-    onReTranslate: () -> Unit
+    onReTranslate: () -> Unit,
+    onSave: () -> Unit = {}
 ) {
     val dateString = remember(item.timestamp) {
         HistoryDateFormat.format(Date(item.timestamp))
@@ -449,7 +489,7 @@ fun GallerySingleCard(
                 }
             }
 
-            // Bottom Bar: Re-translate Button & Date
+            // Bottom Bar: Actions & Date
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -459,19 +499,36 @@ fun GallerySingleCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 if (!isSelectionMode) {
-                    Surface(
-                        color = Color.Black.copy(alpha = 0.65f),
-                        shape = CircleShape,
-                        modifier = Modifier.size(28.dp),
-                        onClick = onReTranslate
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                imageVector = Icons.Default.Translate,
-                                contentDescription = stringResource(R.string.gallery_retranslate_btn),
-                                tint = Color.White,
-                                modifier = Modifier.size(16.dp)
-                            )
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Surface(
+                            color = Color.Black.copy(alpha = 0.65f),
+                            shape = CircleShape,
+                            modifier = Modifier.size(28.dp),
+                            onClick = onReTranslate
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Default.Translate,
+                                    contentDescription = stringResource(R.string.gallery_retranslate_btn),
+                                    tint = Color.White,
+                                    modifier = Modifier.size(15.dp)
+                                )
+                            }
+                        }
+                        Surface(
+                            color = Color.Black.copy(alpha = 0.65f),
+                            shape = CircleShape,
+                            modifier = Modifier.size(28.dp),
+                            onClick = onSave
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Default.Download,
+                                    contentDescription = stringResource(R.string.action_save_to_gallery),
+                                    tint = Color.White,
+                                    modifier = Modifier.size(15.dp)
+                                )
+                            }
                         }
                     }
                 } else {
@@ -504,7 +561,8 @@ fun GalleryAlbumCard(
     isSelectionMode: Boolean,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
-    onRename: () -> Unit = {}
+    onRename: () -> Unit = {},
+    onSave: () -> Unit = {}
 ) {
     val dateString = remember(album.timestamp) {
         HistoryDateFormat.format(Date(album.timestamp))
@@ -608,7 +666,7 @@ fun GalleryAlbumCard(
                 }
             }
 
-            // Bottom Overlay: Album Title, Rename Action & Date
+            // Bottom Overlay: Album Title, Actions & Date
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -631,21 +689,36 @@ fun GalleryAlbumCard(
                         modifier = Modifier.weight(1f)
                     )
                     if (!isSelectionMode) {
-                        Surface(
-                            color = Color.Black.copy(alpha = 0.65f),
-                            shape = CircleShape,
-                            modifier = Modifier
-                                .size(24.dp)
-                                .padding(start = 4.dp),
-                            onClick = onRename
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    imageVector = Icons.Default.Edit,
-                                    contentDescription = stringResource(R.string.album_rename_edit),
-                                    tint = Color.White,
-                                    modifier = Modifier.size(12.dp)
-                                )
+                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Surface(
+                                color = Color.Black.copy(alpha = 0.65f),
+                                shape = CircleShape,
+                                modifier = Modifier.size(24.dp),
+                                onClick = onSave
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Default.Download,
+                                        contentDescription = stringResource(R.string.gallery_save_album),
+                                        tint = Color.White,
+                                        modifier = Modifier.size(13.dp)
+                                    )
+                                }
+                            }
+                            Surface(
+                                color = Color.Black.copy(alpha = 0.65f),
+                                shape = CircleShape,
+                                modifier = Modifier.size(24.dp),
+                                onClick = onRename
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Default.Edit,
+                                        contentDescription = stringResource(R.string.album_rename_edit),
+                                        tint = Color.White,
+                                        modifier = Modifier.size(12.dp)
+                                    )
+                                }
                             }
                         }
                     }

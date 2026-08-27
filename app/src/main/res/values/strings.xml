@@ -129,6 +129,15 @@
     <string name="reader_page_indicator">Page %1$d / %2$d</string>
     <string name="reader_prev_page">Previous Page</string>
     <string name="reader_next_page">Next Page</string>
+    <string name="action_save_to_gallery">Save to Device</string>
+    <string name="gallery_save_selected">Save to Device</string>
+    <string name="gallery_save_album">Save Album to Device</string>
+    <string name="gallery_save_page">Save Current Page</string>
+    <string name="gallery_save_success_single">Saved to Pictures/MangaTranslator</string>
+    <string name="gallery_save_success_multiple">Saved %1$d images to Pictures/MangaTranslator</string>
+    <string name="gallery_save_failed">Failed to save images to storage</string>
+    <string name="reader_save_chapter_prompt">Save Entire Chapter (%1$d Pages)</string>
+    <string name="reader_save_options_title">Save to Device</string>
 
     <!-- Settings Screen -->
     <string name="settings_title">Settings</string>

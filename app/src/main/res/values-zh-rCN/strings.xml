@@ -129,6 +129,15 @@
     <string name="reader_page_indicator">第 %1$d / %2$d 页</string>
     <string name="reader_prev_page">上一页</string>
     <string name="reader_next_page">下一页</string>
+    <string name="action_save_to_gallery">保存至相册</string>
+    <string name="gallery_save_selected">保存到相册</string>
+    <string name="gallery_save_album">保存整个相册</string>
+    <string name="gallery_save_page">保存当前页</string>
+    <string name="gallery_save_success_single">已保存至 Pictures/MangaTranslator</string>
+    <string name="gallery_save_success_multiple">已将 %1$d 张图片保存至 Pictures/MangaTranslator</string>
+    <string name="gallery_save_failed">保存到存储失败</string>
+    <string name="reader_save_chapter_prompt">保存整个章节 (%1$d 页)</string>
+    <string name="reader_save_options_title">保存至相册</string>
 
     <!-- 设置屏幕 -->
     <string name="settings_title">设置</string>

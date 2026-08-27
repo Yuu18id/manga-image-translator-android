@@ -3,12 +3,16 @@ package com.yuu18id.mangatranslator.ui.gallery
 import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.yuu18id.mangatranslator.data.storage.MediaExporter
 import com.yuu18id.mangatranslator.domain.model.Language
 import com.yuu18id.mangatranslator.domain.model.TranslationHistoryItem
 import com.yuu18id.mangatranslator.domain.repository.HistoryRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -52,10 +56,19 @@ sealed interface GalleryUiItem {
     }
 }
 
+sealed interface ExportEvent {
+    data class Success(val count: Int) : ExportEvent
+    data class Error(val message: String) : ExportEvent
+}
+
 @HiltViewModel
 class GalleryViewModel @Inject constructor(
-    private val historyRepository: HistoryRepository
+    private val historyRepository: HistoryRepository,
+    private val mediaExporter: MediaExporter
 ) : ViewModel() {
+
+    private val _exportEvents = MutableSharedFlow<ExportEvent>()
+    val exportEvents: SharedFlow<ExportEvent> = _exportEvents.asSharedFlow()
 
     val galleryItems: StateFlow<List<GalleryUiItem>> = historyRepository.getRecentTranslations(300)
         .map { items ->
@@ -97,6 +110,70 @@ class GalleryViewModel @Inject constructor(
             }
         }
         return result.sortedByDescending { it.timestamp }
+    }
+
+    fun saveSingleItem(item: TranslationHistoryItem) {
+        viewModelScope.launch {
+            val sourcePath = if (item.resultPath.isNotBlank()) item.resultPath else item.thumbnailPath
+            val dateStr = java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.getDefault()).format(java.util.Date(item.timestamp))
+            val fileName = "MangaTranslator_$dateStr"
+            val result = mediaExporter.exportImage(sourcePath, fileName)
+            if (result.isSuccess) {
+                _exportEvents.emit(ExportEvent.Success(1))
+            } else {
+                _exportEvents.emit(ExportEvent.Error(result.exceptionOrNull()?.message ?: "Failed to save image"))
+            }
+        }
+    }
+
+    fun saveAlbum(album: GalleryUiItem.Album) {
+        viewModelScope.launch {
+            val pairs = album.pageItems.map { page ->
+                val sourcePath = if (page.resultPath.isNotBlank()) page.resultPath else page.thumbnailPath
+                val pageIndexStr = String.format(java.util.Locale.getDefault(), "%03d", page.pageIndex + 1)
+                val fileName = "${album.title}_page_$pageIndexStr"
+                Pair(sourcePath, fileName)
+            }
+            val count = mediaExporter.exportBatch(pairs, album.title)
+            if (count > 0) {
+                _exportEvents.emit(ExportEvent.Success(count))
+            } else {
+                _exportEvents.emit(ExportEvent.Error("Failed to save album images"))
+            }
+        }
+    }
+
+    fun saveSelectedItems(selectedKeys: Set<String>) {
+        viewModelScope.launch {
+            val currentItems = galleryItems.value.filter { it.key in selectedKeys }
+            var totalSaved = 0
+            for (uiItem in currentItems) {
+                when (uiItem) {
+                    is GalleryUiItem.Single -> {
+                        val item = uiItem.item
+                        val sourcePath = if (item.resultPath.isNotBlank()) item.resultPath else item.thumbnailPath
+                        val dateStr = java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.getDefault()).format(java.util.Date(item.timestamp))
+                        val fileName = "MangaTranslator_$dateStr"
+                        val res = mediaExporter.exportImage(sourcePath, fileName)
+                        if (res.isSuccess) totalSaved++
+                    }
+                    is GalleryUiItem.Album -> {
+                        val pairs = uiItem.pageItems.map { page ->
+                            val sourcePath = if (page.resultPath.isNotBlank()) page.resultPath else page.thumbnailPath
+                            val pageIndexStr = String.format(java.util.Locale.getDefault(), "%03d", page.pageIndex + 1)
+                            val fileName = "${uiItem.title}_page_$pageIndexStr"
+                            Pair(sourcePath, fileName)
+                        }
+                        totalSaved += mediaExporter.exportBatch(pairs, uiItem.title)
+                    }
+                }
+            }
+            if (totalSaved > 0) {
+                _exportEvents.emit(ExportEvent.Success(totalSaved))
+            } else {
+                _exportEvents.emit(ExportEvent.Error("Failed to save selected images"))
+            }
+        }
     }
 
     fun renameAlbum(batchId: String, newTitle: String) {
