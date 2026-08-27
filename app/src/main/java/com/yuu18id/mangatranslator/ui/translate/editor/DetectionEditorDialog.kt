@@ -69,22 +69,6 @@ fun DetectionEditorDialog(
                         }
                     },
                     actions = {
-                        // Quick Delete action in Top Bar if a box is selected
-                        if (selectedBoxId != null) {
-                            IconButton(
-                                onClick = {
-                                    boxes = boxes.filter { it.id != selectedBoxId }
-                                    selectedBoxId = null
-                                }
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Delete,
-                                    contentDescription = stringResource(R.string.editor_action_delete_box),
-                                    tint = MaterialTheme.colorScheme.error
-                                )
-                            }
-                        }
-
                         // Toggle Add Box Mode
                         FilledIconToggleButton(
                             checked = isAddBoxMode,
