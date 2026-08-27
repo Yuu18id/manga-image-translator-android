@@ -2,6 +2,7 @@ package com.yuu18id.mangatranslator.ui.translate.editor
 
 import android.graphics.PointF
 import android.graphics.RectF
+import com.yuu18id.mangatranslator.domain.model.CustomFontStyle
 import com.yuu18id.mangatranslator.domain.model.Language
 import com.yuu18id.mangatranslator.domain.model.Quadrilateral
 import com.yuu18id.mangatranslator.domain.model.TextAlignment
@@ -14,6 +15,7 @@ data class EditableRenderBlock(
     val bounds: RectF,
     val customFontSize: Float? = null,
     val customAlignment: TextAlignment = TextAlignment.CENTER,
+    val customFontStyle: CustomFontStyle = CustomFontStyle.NORMAL,
     val isVertical: Boolean = false,
     val language: Language? = null,
     val fgColor: IntArray = intArrayOf(0, 0, 0),
@@ -77,6 +79,7 @@ data class EditableRenderBlock(
             isVertical = isVertical,
             customFontSize = customFontSize,
             customAlignment = customAlignment,
+            customFontStyle = customFontStyle,
             isManualBounds = true
         )
     }
@@ -97,6 +100,7 @@ data class EditableRenderBlock(
                 bounds = RectF(safeBounds),
                 customFontSize = block.customFontSize,
                 customAlignment = block.customAlignment ?: TextAlignment.CENTER,
+                customFontStyle = block.customFontStyle ?: CustomFontStyle.NORMAL,
                 isVertical = block.isVertical,
                 language = block.language,
                 fgColor = block.fgColor,

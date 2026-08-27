@@ -3,6 +3,7 @@ package com.yuu18id.mangatranslator.data.rendering
 import android.content.Context
 import android.graphics.Typeface
 import android.util.Log
+import com.yuu18id.mangatranslator.domain.model.CustomFontStyle
 import com.yuu18id.mangatranslator.domain.model.Language
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
@@ -46,10 +47,11 @@ class FontManager @Inject constructor(
         customFont = null
     }
 
-    fun getTypefaceForLanguage(language: Language): Typeface {
-        customFont?.let { return it }
-
-        return when (language) {
+    fun getTypefaceForLanguage(
+        language: Language,
+        fontStyle: CustomFontStyle = CustomFontStyle.NORMAL
+    ): Typeface {
+        val baseTypeface = customFont ?: when (language) {
             Language.JPN, Language.CHS, Language.CHT, Language.KOR -> {
                 Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
             }
@@ -57,5 +59,14 @@ class FontManager @Inject constructor(
                 wildWordsTypeface ?: Typeface.DEFAULT_BOLD
             }
         }
+
+        val styleFlag = when (fontStyle) {
+            CustomFontStyle.NORMAL -> Typeface.NORMAL
+            CustomFontStyle.BOLD -> Typeface.BOLD
+            CustomFontStyle.ITALIC -> Typeface.ITALIC
+            CustomFontStyle.BOLD_ITALIC -> Typeface.BOLD_ITALIC
+        }
+
+        return Typeface.create(baseTypeface, styleFlag)
     }
 }

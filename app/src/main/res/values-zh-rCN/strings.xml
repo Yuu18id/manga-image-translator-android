@@ -97,6 +97,9 @@
     <string name="typeset_align_left">左对齐</string>
     <string name="typeset_align_center">居中对齐</string>
     <string name="typeset_align_right">右对齐</string>
+    <string name="typeset_style_bold">粗体</string>
+    <string name="typeset_style_italic">斜体</string>
+    <string name="typeset_style_normal">常规</string>
     <string name="typeset_hint_idle">点击文本气泡以调整字号、位置和译文内容。</string>
     <string name="typeset_save_apply">保存并应用排版 (%1$d 个气泡)</string>
     <string name="typeset_dialog_edit_title">编辑气泡文本 #%1$d</string>

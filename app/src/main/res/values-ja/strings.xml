@@ -97,6 +97,9 @@
     <string name="typeset_align_left">左揃え</string>
     <string name="typeset_align_center">中央揃え</string>
     <string name="typeset_align_right">右揃え</string>
+    <string name="typeset_style_bold">太字</string>
+    <string name="typeset_style_italic">斜体</string>
+    <string name="typeset_style_normal">標準</string>
     <string name="typeset_hint_idle">吹き出しをタップしてフォント、位置、テキストを調整</string>
     <string name="typeset_save_apply">保存して適用 (%1$d 個)</string>
     <string name="typeset_dialog_edit_title">吹き出し #%1$d のテキスト編集</string>

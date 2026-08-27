@@ -1,6 +1,7 @@
 package com.yuu18id.mangatranslator.data.local.model
 
 import android.graphics.RectF
+import com.yuu18id.mangatranslator.domain.model.CustomFontStyle
 import com.yuu18id.mangatranslator.domain.model.Language
 import com.yuu18id.mangatranslator.domain.model.TextAlignment
 import com.yuu18id.mangatranslator.domain.model.TextBlock
@@ -19,6 +20,7 @@ data class TextBlockDto(
     val isVertical: Boolean = false,
     val customFontSize: Float? = null,
     val customAlignment: String? = null,
+    val customFontStyle: String? = null,
     val isManualBounds: Boolean = false
 ) {
     fun toDomain(): TextBlock = TextBlock(
@@ -31,6 +33,7 @@ data class TextBlockDto(
         isVertical = isVertical,
         customFontSize = customFontSize,
         customAlignment = customAlignment?.let { runCatching { TextAlignment.valueOf(it) }.getOrNull() },
+        customFontStyle = customFontStyle?.let { runCatching { CustomFontStyle.valueOf(it) }.getOrNull() },
         isManualBounds = isManualBounds
     )
 
@@ -47,6 +50,7 @@ data class TextBlockDto(
             isVertical = block.isVertical,
             customFontSize = block.customFontSize,
             customAlignment = block.customAlignment?.name,
+            customFontStyle = block.customFontStyle?.name,
             isManualBounds = block.isManualBounds
         )
     }

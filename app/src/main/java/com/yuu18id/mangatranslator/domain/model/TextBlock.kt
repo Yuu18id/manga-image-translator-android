@@ -17,6 +17,7 @@ data class TextBlock(
     val isBulletedList: Boolean = false,
     val customFontSize: Float? = null,
     val customAlignment: TextAlignment? = null,
+    val customFontStyle: CustomFontStyle? = null,
     val isManualBounds: Boolean = false
 ) {
     fun mergedBoundingBox(): RectF {
@@ -54,6 +55,10 @@ data class TextBlock(
         if (angle != other.angle) return false
         if (isVertical != other.isVertical) return false
         if (isBulletedList != other.isBulletedList) return false
+        if (customFontSize != other.customFontSize) return false
+        if (customAlignment != other.customAlignment) return false
+        if (customFontStyle != other.customFontStyle) return false
+        if (isManualBounds != other.isManualBounds) return false
 
         return true
     }
@@ -69,6 +74,10 @@ data class TextBlock(
         result = 31 * result + angle.hashCode()
         result = 31 * result + isVertical.hashCode()
         result = 31 * result + isBulletedList.hashCode()
+        result = 31 * result + (customFontSize?.hashCode() ?: 0)
+        result = 31 * result + (customAlignment?.hashCode() ?: 0)
+        result = 31 * result + (customFontStyle?.hashCode() ?: 0)
+        result = 31 * result + isManualBounds.hashCode()
         return result
     }
 }

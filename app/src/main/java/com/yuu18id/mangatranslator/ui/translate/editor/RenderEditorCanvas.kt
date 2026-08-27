@@ -24,6 +24,7 @@ import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import com.yuu18id.mangatranslator.domain.model.CustomFontStyle
 import com.yuu18id.mangatranslator.domain.model.TextAlignment
 import kotlin.math.hypot
 import kotlin.math.max
@@ -383,6 +384,17 @@ fun RenderEditorCanvas(
 
                     val maxAllowedWidth = b.width() * 0.94f
                     val maxAllowedHeight = b.height() * 0.92f
+
+                    val styleFlag = when (block.customFontStyle) {
+                        CustomFontStyle.NORMAL -> Typeface.NORMAL
+                        CustomFontStyle.BOLD -> Typeface.BOLD
+                        CustomFontStyle.ITALIC -> Typeface.ITALIC
+                        CustomFontStyle.BOLD_ITALIC -> Typeface.BOLD_ITALIC
+                    }
+                    val blockTypeface = Typeface.create(typeface, styleFlag)
+                    testPaint.typeface = blockTypeface
+                    fillPaint.typeface = blockTypeface
+                    strokePaint.typeface = blockTypeface
 
                     val fontSize: Float
                     val finalLines: List<String>

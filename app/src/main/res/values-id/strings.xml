@@ -97,6 +97,9 @@
     <string name="typeset_align_left">Rata Kiri</string>
     <string name="typeset_align_center">Rata Tengah</string>
     <string name="typeset_align_right">Rata Kanan</string>
+    <string name="typeset_style_bold">Tebal (Bold)</string>
+    <string name="typeset_style_italic">Miring (Italic)</string>
+    <string name="typeset_style_normal">Normal</string>
     <string name="typeset_hint_idle">Ketuk balon teks untuk mengatur font, posisi, dan teks.</string>
     <string name="typeset_save_apply">Simpan &amp; Terapkan Render (%1$d Balon)</string>
     <string name="typeset_dialog_edit_title">Edit Teks Balon #%1$d</string>

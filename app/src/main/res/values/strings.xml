@@ -97,6 +97,9 @@
     <string name="typeset_align_left">Align Left</string>
     <string name="typeset_align_center">Align Center</string>
     <string name="typeset_align_right">Align Right</string>
+    <string name="typeset_style_bold">Bold</string>
+    <string name="typeset_style_italic">Italic</string>
+    <string name="typeset_style_normal">Normal</string>
     <string name="typeset_hint_idle">Tap a text bubble to adjust font, position, and text.</string>
     <string name="typeset_save_apply">Save &amp; Apply Render (%1$d Bubbles)</string>
     <string name="typeset_dialog_edit_title">Edit Bubble Text #%1$d</string>

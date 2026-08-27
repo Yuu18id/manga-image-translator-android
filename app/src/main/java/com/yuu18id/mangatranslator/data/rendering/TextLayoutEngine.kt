@@ -2,6 +2,7 @@ package com.yuu18id.mangatranslator.data.rendering
 
 import android.graphics.Paint
 import android.graphics.Rect
+import com.yuu18id.mangatranslator.domain.model.CustomFontStyle
 import com.yuu18id.mangatranslator.domain.model.Language
 import com.yuu18id.mangatranslator.domain.model.RenderConfig
 import com.yuu18id.mangatranslator.domain.model.TextDirection
@@ -29,7 +30,8 @@ class TextLayoutEngine @Inject constructor(
         estimatedOriginalFontSize: Float,
         language: Language?,
         config: RenderConfig,
-        isVertical: Boolean
+        isVertical: Boolean,
+        fontStyle: CustomFontStyle = CustomFontStyle.NORMAL
     ): LayoutResult {
         val cleanText = text.trim()
         if (cleanText.isEmpty()) {
@@ -37,7 +39,7 @@ class TextLayoutEngine @Inject constructor(
         }
 
         val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.SUBPIXEL_TEXT_FLAG).apply {
-            typeface = fontManager.getTypefaceForLanguage(language ?: Language.ENG)
+            typeface = fontManager.getTypefaceForLanguage(language ?: Language.ENG, fontStyle)
         }
 
         val isCJK = language in listOf(Language.JPN, Language.CHS, Language.CHT, Language.KOR)
@@ -84,7 +86,8 @@ class TextLayoutEngine @Inject constructor(
         fontSize: Float,
         language: Language?,
         config: RenderConfig,
-        isVertical: Boolean
+        isVertical: Boolean,
+        fontStyle: CustomFontStyle = CustomFontStyle.NORMAL
     ): LayoutResult {
         val cleanText = text.trim()
         if (cleanText.isEmpty()) {
@@ -92,7 +95,7 @@ class TextLayoutEngine @Inject constructor(
         }
 
         val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.SUBPIXEL_TEXT_FLAG).apply {
-            typeface = fontManager.getTypefaceForLanguage(language ?: Language.ENG)
+            typeface = fontManager.getTypefaceForLanguage(language ?: Language.ENG, fontStyle)
             textSize = fontSize
         }
 

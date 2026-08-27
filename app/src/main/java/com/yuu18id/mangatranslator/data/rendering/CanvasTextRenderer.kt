@@ -8,6 +8,7 @@ import android.graphics.Rect
 import android.graphics.RectF
 import android.util.Log
 import com.yuu18id.mangatranslator.data.ml.TextRenderer
+import com.yuu18id.mangatranslator.domain.model.CustomFontStyle
 import com.yuu18id.mangatranslator.domain.model.Language
 import com.yuu18id.mangatranslator.domain.model.RenderConfig
 import com.yuu18id.mangatranslator.domain.model.TextAlignment
@@ -95,6 +96,7 @@ class CanvasTextRenderer @Inject constructor(
                 config
             }
 
+            val blockFontStyle = block.customFontStyle ?: CustomFontStyle.NORMAL
             val layoutResult = if (block.customFontSize != null) {
                 layoutEngine.layoutWithFontSize(
                     text = textToRender,
@@ -103,7 +105,8 @@ class CanvasTextRenderer @Inject constructor(
                     fontSize = block.customFontSize,
                     language = block.language,
                     config = customConfig,
-                    isVertical = isVertical
+                    isVertical = isVertical,
+                    fontStyle = blockFontStyle
                 )
             } else {
                 layoutEngine.calculateLayout(
@@ -113,7 +116,8 @@ class CanvasTextRenderer @Inject constructor(
                     estimatedOriginalFontSize = avgLineHeight,
                     language = block.language,
                     config = customConfig,
-                    isVertical = isVertical
+                    isVertical = isVertical,
+                    fontStyle = blockFontStyle
                 )
             }
 
@@ -149,7 +153,8 @@ class CanvasTextRenderer @Inject constructor(
                         fontSize = medianFontSize,
                         language = c.block.language,
                         config = config,
-                        isVertical = c.isVertical
+                        isVertical = c.isVertical,
+                        fontStyle = c.block.customFontStyle ?: CustomFontStyle.NORMAL
                     )
                     Log.i(TAG, "   Harmonized Block ${c.index} font size from $currentSize -> $medianFontSize")
                     c.layoutResult = harmonized
@@ -164,7 +169,10 @@ class CanvasTextRenderer @Inject constructor(
             val bounds = c.bounds
             val isVertical = c.isVertical
 
-            val targetTypeface = fontManager.getTypefaceForLanguage(block.language ?: Language.ENG)
+            val targetTypeface = fontManager.getTypefaceForLanguage(
+                block.language ?: Language.ENG,
+                block.customFontStyle ?: CustomFontStyle.NORMAL
+            )
 
             Log.i(TAG, "   Block ${c.index} RENDERING: text=\"${c.textToRender}\"")
             Log.i(TAG, "      rawBounds=${c.rawBounds}, expandedBounds=$bounds, fontSize=${layoutResult.fontSize}, lines=${layoutResult.lines.size}, isVertical=$isVertical")
@@ -213,6 +221,7 @@ class CanvasTextRenderer @Inject constructor(
                     boundingBox = matchingCandidate.bounds,
                     customFontSize = matchingCandidate.layoutResult.fontSize,
                     customAlignment = matchingCandidate.block.customAlignment ?: config.alignment,
+                    customFontStyle = matchingCandidate.block.customFontStyle ?: CustomFontStyle.NORMAL,
                     isManualBounds = true
                 )
             } else {

@@ -24,6 +24,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.yuu18id.mangatranslator.R
+import com.yuu18id.mangatranslator.domain.model.CustomFontStyle
 import com.yuu18id.mangatranslator.domain.model.TextAlignment
 import com.yuu18id.mangatranslator.domain.model.TextBlock
 import kotlin.math.min
@@ -208,7 +209,7 @@ fun RenderEditorDialog(
 
                                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
 
-                                    // Row 2: Typesetting Steppers & Alignment
+                                    // Row 2: Typesetting Steppers, Style & Alignment
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
                                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -252,6 +253,53 @@ fun RenderEditorDialog(
                                                     modifier = Modifier.size(32.dp)
                                                 ) {
                                                     Icon(Icons.Default.Add, contentDescription = stringResource(R.string.typeset_increase_font), modifier = Modifier.size(16.dp))
+                                                }
+                                            }
+                                        }
+
+                                        // Font Style Controls (Bold, Italic)
+                                        Surface(
+                                            shape = RoundedCornerShape(12.dp),
+                                            color = MaterialTheme.colorScheme.surface,
+                                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                                        ) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                modifier = Modifier.padding(2.dp)
+                                            ) {
+                                                val isBold = selectedBlock.customFontStyle.isBold
+                                                val isItalic = selectedBlock.customFontStyle.isItalic
+
+                                                IconButton(
+                                                    onClick = {
+                                                        val newStyle = selectedBlock.customFontStyle.withBold(!isBold)
+                                                        val updated = selectedBlock.copy(customFontStyle = newStyle)
+                                                        blocks = blocks.map { if (it.id == updated.id) updated else it }
+                                                    },
+                                                    modifier = Modifier.size(32.dp)
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.FormatBold,
+                                                        contentDescription = stringResource(R.string.typeset_style_bold),
+                                                        tint = if (isBold) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                                        modifier = Modifier.size(18.dp)
+                                                    )
+                                                }
+
+                                                IconButton(
+                                                    onClick = {
+                                                        val newStyle = selectedBlock.customFontStyle.withItalic(!isItalic)
+                                                        val updated = selectedBlock.copy(customFontStyle = newStyle)
+                                                        blocks = blocks.map { if (it.id == updated.id) updated else it }
+                                                    },
+                                                    modifier = Modifier.size(32.dp)
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.FormatItalic,
+                                                        contentDescription = stringResource(R.string.typeset_style_italic),
+                                                        tint = if (isItalic) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                                        modifier = Modifier.size(18.dp)
+                                                    )
                                                 }
                                             }
                                         }
