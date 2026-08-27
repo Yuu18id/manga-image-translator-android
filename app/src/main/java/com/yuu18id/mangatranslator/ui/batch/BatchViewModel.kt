@@ -13,6 +13,7 @@ import com.yuu18id.mangatranslator.domain.model.*
 import com.yuu18id.mangatranslator.domain.repository.HistoryRepository
 import com.yuu18id.mangatranslator.domain.repository.SettingsRepository
 import com.yuu18id.mangatranslator.domain.usecase.TranslateImageUseCase
+import com.yuu18id.mangatranslator.service.BatchTranslationService
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CompletableDeferred
@@ -44,6 +45,7 @@ class BatchViewModel @Inject constructor(
     private var currentEditingOriginalBitmap: Bitmap? = null
 
     init {
+        BatchTranslationService.onCancelRequested = { cancelBatchTranslation() }
         viewModelScope.launch {
             val config = settingsRepository.getTranslationConfig().first()
             _uiState.update {
@@ -305,138 +307,167 @@ class BatchViewModel @Inject constructor(
                 )
             }
 
-            for (i in pagesToProcess.indices) {
-                val page = _uiState.value.pages[i]
-                if (page.status == BatchPageStatus.COMPLETED) {
-                    continue
-                }
+            // Start Foreground Service with WakeLock
+            BatchTranslationService.start(context, total)
 
-                _uiState.update { current ->
-                    val updatedList = current.pages.toMutableList()
-                    updatedList[i] = page.copy(
-                        status = BatchPageStatus.PROCESSING,
-                        progress = 0f,
-                        stageMessage = "Loading..."
-                    )
-                    current.copy(
-                        pages = updatedList,
-                        currentProcessingIndex = i,
-                        overallProgress = (i.toFloat() / total.toFloat())
-                    )
-                }
-
-                var originalBitmap: Bitmap? = null
-                try {
-                    originalBitmap = withContext(Dispatchers.IO) {
-                        decodeBitmapFromUri(Uri.parse(page.uriString))
+            try {
+                for (i in pagesToProcess.indices) {
+                    val page = _uiState.value.pages[i]
+                    if (page.status == BatchPageStatus.COMPLETED) {
+                        continue
                     }
 
-                    val pipelineFlow: Flow<PipelineState> = if (state.isReviewModeEnabled) {
-                        // 1. Detection Only
-                        _uiState.update { current ->
-                            val updatedList = current.pages.toMutableList()
-                            updatedList[i] = updatedList[i].copy(
-                                stageMessage = "Detecting text bubbles...",
-                                progress = 0.15f
-                            )
-                            current.copy(pages = updatedList)
-                        }
-
-                        val detResult = translateImageUseCase.detectOnly(originalBitmap, config.detector)
-                        currentReviewRawMask = detResult.mask
-
-                        val deferred = CompletableDeferred<List<Quadrilateral>?>()
-                        detectionReviewDeferred = deferred
-
-                        _uiState.update {
-                            it.copy(
-                                isShowingDetectionEditor = true,
-                                reviewImageBitmap = originalBitmap.asImageBitmap(),
-                                pendingDetections = detResult.textlines,
-                                reviewPageIndex = i
-                            )
-                        }
-
-                        // Wait for user review response
-                        val curatedQuads = deferred.await()
-                        val finalQuads = curatedQuads ?: detResult.textlines
-
-                        translateImageUseCase.executeFromDetections(
-                            image = originalBitmap,
-                            customTextlines = finalQuads,
-                            config = config,
-                            rawMask = currentReviewRawMask
-                        )
-                    } else {
-                        translateImageUseCase(originalBitmap, config)
-                    }
-
-                    pipelineFlow.collect { pipelineState ->
-                        when (pipelineState) {
-                            is PipelineState.Progress -> {
-                                _uiState.update { current ->
-                                    val updatedList = current.pages.toMutableList()
-                                    updatedList[i] = updatedList[i].copy(
-                                        currentStage = pipelineState.stage,
-                                        progress = pipelineState.progress,
-                                        stageMessage = pipelineState.message
-                                    )
-                                    val pageProgressContribution = pipelineState.progress / total.toFloat()
-                                    val currentOverall = (i.toFloat() / total.toFloat()) + pageProgressContribution
-                                    current.copy(
-                                        pages = updatedList,
-                                        overallProgress = currentOverall.coerceIn(0f, 1f)
-                                    )
-                                }
-                            }
-                            is PipelineState.Completed -> {
-                                val result = pipelineState.result
-                                val historyId = withContext(Dispatchers.IO) {
-                                    saveResultToHistory(result, currentBatchId, currentBatchName, i)
-                                }
-
-                                _uiState.update { current ->
-                                    val updatedList = current.pages.toMutableList()
-                                    val updatedCompleted = current.completedCount + 1
-                                    updatedList[i] = updatedList[i].copy(
-                                        status = BatchPageStatus.COMPLETED,
-                                        progress = 1.0f,
-                                        stageMessage = "",
-                                        historyId = historyId
-                                    )
-                                    current.copy(
-                                        pages = updatedList,
-                                        completedCount = updatedCompleted,
-                                        overallProgress = (updatedCompleted.toFloat() / total.toFloat())
-                                    )
-                                }
-                            }
-                            is PipelineState.Error -> {
-                                throw Exception(pipelineState.message)
-                            }
-                        }
-                    }
-                } catch (e: Exception) {
                     _uiState.update { current ->
                         val updatedList = current.pages.toMutableList()
-                        updatedList[i] = updatedList[i].copy(
-                            status = BatchPageStatus.FAILED,
+                        updatedList[i] = page.copy(
+                            status = BatchPageStatus.PROCESSING,
                             progress = 0f,
-                            errorMessage = e.message ?: "Translation error"
+                            stageMessage = "Loading..."
                         )
                         current.copy(
                             pages = updatedList,
-                            failedCount = current.failedCount + 1
+                            currentProcessingIndex = i,
+                            overallProgress = (i.toFloat() / total.toFloat())
                         )
                     }
-                } finally {
+
+                    var originalBitmap: Bitmap? = null
                     try {
-                        currentReviewRawMask?.recycle()
-                        currentReviewRawMask = null
-                        originalBitmap?.recycle()
-                        originalBitmap = null
-                    } catch (_: Throwable) {}
+                        originalBitmap = withContext(Dispatchers.IO) {
+                            decodeBitmapFromUri(Uri.parse(page.uriString))
+                        }
+
+                        val pipelineFlow: Flow<PipelineState> = if (state.isReviewModeEnabled) {
+                            // 1. Detection Only
+                            _uiState.update { current ->
+                                val updatedList = current.pages.toMutableList()
+                                updatedList[i] = updatedList[i].copy(
+                                    stageMessage = "Detecting text bubbles...",
+                                    progress = 0.15f
+                                )
+                                current.copy(pages = updatedList)
+                            }
+
+                            val detResult = translateImageUseCase.detectOnly(originalBitmap, config.detector)
+                            currentReviewRawMask = detResult.mask
+
+                            val deferred = CompletableDeferred<List<Quadrilateral>?>()
+                            detectionReviewDeferred = deferred
+
+                            _uiState.update {
+                                it.copy(
+                                    isShowingDetectionEditor = true,
+                                    reviewImageBitmap = originalBitmap.asImageBitmap(),
+                                    pendingDetections = detResult.textlines,
+                                    reviewPageIndex = i
+                                )
+                            }
+
+                            // Wait for user review response
+                            val curatedQuads = deferred.await()
+                            val finalQuads = curatedQuads ?: detResult.textlines
+
+                            translateImageUseCase.executeFromDetections(
+                                image = originalBitmap,
+                                customTextlines = finalQuads,
+                                config = config,
+                                rawMask = currentReviewRawMask
+                            )
+                        } else {
+                            translateImageUseCase(originalBitmap, config)
+                        }
+
+                        pipelineFlow.collect { pipelineState ->
+                            when (pipelineState) {
+                                is PipelineState.Progress -> {
+                                    _uiState.update { current ->
+                                        val updatedList = current.pages.toMutableList()
+                                        updatedList[i] = updatedList[i].copy(
+                                            currentStage = pipelineState.stage,
+                                            progress = pipelineState.progress,
+                                            stageMessage = pipelineState.message
+                                        )
+                                        val pageProgressContribution = pipelineState.progress / total.toFloat()
+                                        val currentOverall = (i.toFloat() / total.toFloat()) + pageProgressContribution
+                                        BatchTranslationService.updateProgress(
+                                            context,
+                                            current.completedCount,
+                                            total,
+                                            currentOverall.coerceIn(0f, 1f),
+                                            pipelineState.message
+                                        )
+                                        current.copy(
+                                            pages = updatedList,
+                                            overallProgress = currentOverall.coerceIn(0f, 1f)
+                                        )
+                                    }
+                                }
+                                is PipelineState.Completed -> {
+                                    val result = pipelineState.result
+                                    val historyId = withContext(Dispatchers.IO) {
+                                        saveResultToHistory(result, currentBatchId, currentBatchName, i)
+                                    }
+
+                                    _uiState.update { current ->
+                                        val updatedList = current.pages.toMutableList()
+                                        val updatedCompleted = current.completedCount + 1
+                                        updatedList[i] = updatedList[i].copy(
+                                            status = BatchPageStatus.COMPLETED,
+                                            progress = 1.0f,
+                                            stageMessage = "",
+                                            historyId = historyId
+                                        )
+                                        val currentOverall = (updatedCompleted.toFloat() / total.toFloat())
+                                        BatchTranslationService.updateProgress(
+                                            context,
+                                            updatedCompleted,
+                                            total,
+                                            currentOverall,
+                                            ""
+                                        )
+                                        current.copy(
+                                            pages = updatedList,
+                                            completedCount = updatedCompleted,
+                                            overallProgress = currentOverall
+                                        )
+                                    }
+                                }
+                                is PipelineState.Error -> {
+                                    throw Exception(pipelineState.message)
+                                }
+                            }
+                        }
+                    } catch (e: Exception) {
+                        _uiState.update { current ->
+                            val updatedList = current.pages.toMutableList()
+                            updatedList[i] = updatedList[i].copy(
+                                status = BatchPageStatus.FAILED,
+                                progress = 0f,
+                                errorMessage = e.message ?: "Translation error"
+                            )
+                            current.copy(
+                                pages = updatedList,
+                                failedCount = current.failedCount + 1
+                            )
+                        }
+                    } finally {
+                        try {
+                            currentReviewRawMask?.recycle()
+                            currentReviewRawMask = null
+                            originalBitmap?.recycle()
+                            originalBitmap = null
+                        } catch (_: Throwable) {}
+                    }
                 }
+            } finally {
+                val finalState = _uiState.value
+                val isSuccess = finalState.failedCount == 0 && finalState.completedCount > 0
+                BatchTranslationService.stop(
+                    context,
+                    isSuccess = isSuccess,
+                    completed = finalState.completedCount,
+                    total = total
+                )
             }
 
             _uiState.update {
@@ -452,6 +483,7 @@ class BatchViewModel @Inject constructor(
     fun cancelBatchTranslation() {
         batchJob?.cancel()
         dismissDetectionEditor()
+        BatchTranslationService.stop(context, isSuccess = false, completed = 0, total = 0)
         _uiState.update { current ->
             val updatedList = current.pages.map { page ->
                 if (page.status == BatchPageStatus.PROCESSING || page.status == BatchPageStatus.QUEUED) {
@@ -463,6 +495,14 @@ class BatchViewModel @Inject constructor(
                 currentProcessingIndex = -1,
                 pages = updatedList
             )
+        }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        BatchTranslationService.onCancelRequested = null
+        if (_uiState.value.isProcessing) {
+            BatchTranslationService.stop(context, isSuccess = false, completed = 0, total = 0)
         }
     }
 

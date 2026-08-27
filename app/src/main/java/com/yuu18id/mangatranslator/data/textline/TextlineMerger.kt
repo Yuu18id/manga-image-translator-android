@@ -119,7 +119,7 @@ class TextlineMerger @Inject constructor() {
             val v = nodeIndices[1]
             val fs = max(getFontSize(lines[u]), getFontSize(lines[v]))
             val d = calculateDistance(lines[u], lines[v])
-            return if (canMerge(lines[u], lines[v]) && d <= (1.0f + gamma) * fs && abs(lines[u].angle - lines[v].angle) <= 25.0f) {
+            return if (canMerge(lines[u], lines[v]) && d <= 2.2f * fs && abs(lines[u].angle - lines[v].angle) <= 25.0f) {
                 listOf(nodeIndices)
             } else {
                 listOf(listOf(u), listOf(v))
@@ -141,7 +141,7 @@ class TextlineMerger @Inject constructor() {
 
         // If the largest edge is significantly larger than internal line spacing or standard deviation is high,
         // it indicates a bridge between two separate speech bubbles!
-        val shouldKeepTogether = (maxD <= meanD + stdD * sigma || maxD <= avgFontSize * (1.0f + gamma)) && (stdD < stdThreshold)
+        val shouldKeepTogether = (maxD <= meanD + stdD * sigma || maxD <= avgFontSize * 2.2f) && (stdD < stdThreshold || maxD <= avgFontSize * 2.0f)
 
         if (shouldKeepTogether) {
             return listOf(nodeIndices)
@@ -192,44 +192,63 @@ class TextlineMerger @Inject constructor() {
         val c2 = q2.center()
         val fs = max(getFontSize(q1), getFontSize(q2))
 
-        return if (q1.isVertical) {
-            // Vertical text in manga
-            val dx = abs(c1.x - c2.x)
-            val centerDiffY = abs(c1.y - c2.y)
-            val topDiffY = abs(r1.top - r2.top)
-            val bottomDiffY = abs(r1.bottom - r2.bottom)
-            val alignY = minOf(centerDiffY, topDiffY, bottomDiffY)
+        val ar1 = max(r1.width(), r1.height()) / max(min(r1.width(), r1.height()), 1f)
+        val ar2 = max(r2.width(), r2.height()) / max(min(r2.width(), r2.height()), 1f)
+        val isSingleChar1 = ar1 <= 1.35f
+        val isSingleChar2 = ar2 <= 1.35f
 
-            // Check if collinear stacked segments in the same column
-            val isCollinear = dx <= fs * 0.5f
+        val isVertical = when {
+            !isSingleChar1 && !isSingleChar2 -> q1.isVertical
+            !isSingleChar1 -> q1.isVertical
+            !isSingleChar2 -> q2.isVertical
+            else -> q1.isVertical || q2.isVertical
+        }
+
+        return if (isVertical) {
+            val dx = abs(c1.x - c2.x)
+            val vOverlap = max(0f, min(r1.bottom, r2.bottom) - max(r1.top, r2.top))
+            val minHeight = min(r1.height(), r2.height())
+            val overlapRatio = if (minHeight > 0f) vOverlap / minHeight else 0f
+            val alignY = minOf(abs(c1.y - c2.y), abs(r1.top - r2.top), abs(r1.bottom - r2.bottom))
+            val yGap = if (r1.bottom < r2.top) r2.top - r1.bottom else if (r2.bottom < r1.top) r1.top - r2.bottom else 0f
+
+            val isCollinear = dx <= fs * 0.55f
             if (isCollinear) {
-                val yGap = if (r1.bottom < r2.top) r2.top - r1.bottom else if (r2.bottom < r1.top) r1.top - r2.bottom else 0f
                 hypot(dx, yGap)
+            } else if (overlapRatio >= 0.50f || (vOverlap > 0f && alignY <= fs * 1.2f)) {
+                dx
             } else {
-                // Side-by-side parallel columns: penalize large vertical misalignment
-                hypot(dx, alignY * 1.8f)
+                hypot(dx, yGap + alignY * 1.5f)
             }
         } else {
-            // Horizontal text
             val dy = abs(c1.y - c2.y)
-            val centerDiffX = abs(c1.x - c2.x)
-            val leftDiffX = abs(r1.left - r2.left)
-            val rightDiffX = abs(r1.right - r2.right)
-            val alignX = minOf(centerDiffX, leftDiffX, rightDiffX)
+            val hOverlap = max(0f, min(r1.right, r2.right) - max(r1.left, r2.left))
+            val minWidth = min(r1.width(), r2.width())
+            val overlapRatio = if (minWidth > 0f) hOverlap / minWidth else 0f
+            val alignX = minOf(abs(c1.x - c2.x), abs(r1.left - r2.left), abs(r1.right - r2.right))
+            val xGap = if (r1.right < r2.left) r2.left - r1.right else if (r2.right < r1.left) r1.left - r2.right else 0f
 
-            val isInline = dy <= fs * 0.5f
+            val isInline = dy <= fs * 0.55f
             if (isInline) {
-                val xGap = if (r1.right < r2.left) r2.left - r1.right else if (r2.right < r1.left) r1.left - r2.right else 0f
                 hypot(xGap, dy)
+            } else if (overlapRatio >= 0.50f || (hOverlap > 0f && alignX <= fs * 1.2f)) {
+                dy
             } else {
-                hypot(alignX * 1.8f, dy)
+                hypot(xGap + alignX * 1.5f, dy)
             }
         }
     }
 
     private fun getFontSize(q: Quadrilateral): Float {
         val rect = q.boundingRect()
-        return if (q.isVertical) rect.width() else rect.height()
+        val ar = max(rect.width(), rect.height()) / max(min(rect.width(), rect.height()), 1f)
+        return if (ar <= 1.35f) {
+            min(rect.width(), rect.height())
+        } else if (q.isVertical) {
+            rect.width()
+        } else {
+            rect.height()
+        }
     }
 
     fun canMerge(q1: Quadrilateral, q2: Quadrilateral): Boolean {
@@ -246,21 +265,36 @@ class TextlineMerger @Inject constructor() {
         // Font size ratio check (tolerant up to 2.2x for comic emphasis/furigana)
         if (max(fs1, fs2) / charSize > 2.2f) return false
 
-        // Orientation direction must match
-        if (q1.isVertical != q2.isVertical) return false
+        // Check if either box is a single square character (aspect ratio ~1.0)
+        val ar1 = max(r1.width(), r1.height()) / max(min(r1.width(), r1.height()), 1f)
+        val ar2 = max(r2.width(), r2.height()) / max(min(r2.width(), r2.height()), 1f)
+        val isSingleChar1 = ar1 <= 1.35f
+        val isSingleChar2 = ar2 <= 1.35f
+
+        // Orientation direction: if one box is a single square character, its orientation aligns with the multi-char line
+        val effectiveVertical = when {
+            !isSingleChar1 && !isSingleChar2 -> {
+                if (q1.isVertical != q2.isVertical) return false
+                q1.isVertical
+            }
+            !isSingleChar1 -> q1.isVertical
+            !isSingleChar2 -> q2.isVertical
+            else -> q1.isVertical || q2.isVertical
+        }
 
         // Angle orientation must be reasonably aligned (within 25 degrees)
         if (abs(q1.angle - q2.angle) > 25.0f) return false
 
-        return if (q1.isVertical) {
+        return if (effectiveVertical) {
             val dx = abs(c1.x - c2.x)
             val vOverlap = max(0f, min(r1.bottom, r2.bottom) - max(r1.top, r2.top))
-            val maxH = max(r1.height(), r2.height())
+            val minHeight = min(r1.height(), r2.height())
+            val overlapRatio = if (minHeight > 0f) vOverlap / minHeight else 0f
             val alignY = minOf(abs(c1.y - c2.y), abs(r1.top - r2.top), abs(r1.bottom - r2.bottom))
             val yGap = if (r1.bottom < r2.top) r2.top - r1.bottom else if (r2.bottom < r1.top) r1.top - r2.bottom else 0f
 
-            // 1. Parallel adjacent columns in the same speech bubble
-            val isParallelColumn = (dx <= charSize * 2.2f) && (vOverlap > 0f || alignY <= maxH * 0.75f) && (yGap <= charSize * 1.5f)
+            // 1. Parallel adjacent columns in the same speech bubble (requires substantial overlap or vertical alignment)
+            val isParallelColumn = (dx <= charSize * 2.2f) && (overlapRatio >= 0.35f || alignY <= charSize * 1.8f) && (yGap <= charSize * 1.5f)
             // 2. Collinear stacked segments in the same vertical column
             val isStackedSegment = (dx <= charSize * 0.55f) && (yGap <= charSize * 2.5f)
 
@@ -268,12 +302,13 @@ class TextlineMerger @Inject constructor() {
         } else {
             val dy = abs(c1.y - c2.y)
             val hOverlap = max(0f, min(r1.right, r2.right) - max(r1.left, r2.left))
-            val maxW = max(r1.width(), r2.width())
+            val minWidth = min(r1.width(), r2.width())
+            val overlapRatio = if (minWidth > 0f) hOverlap / minWidth else 0f
             val alignX = minOf(abs(c1.x - c2.x), abs(r1.left - r2.left), abs(r1.right - r2.right))
             val xGap = if (r1.right < r2.left) r2.left - r1.right else if (r2.right < r1.left) r1.left - r2.right else 0f
 
-            // 1. Parallel adjacent rows in the same speech bubble
-            val isParallelRow = (dy <= charSize * 2.2f) && (hOverlap > 0f || alignX <= maxW * 0.75f) && (xGap <= charSize * 1.5f)
+            // 1. Parallel adjacent rows in the same speech bubble (requires substantial overlap or horizontal alignment)
+            val isParallelRow = (dy <= charSize * 2.2f) && (overlapRatio >= 0.35f || alignX <= charSize * 1.8f) && (xGap <= charSize * 1.5f)
             // 2. Collinear inline segments in the same horizontal row
             val isInlineSegment = (dy <= charSize * 0.55f) && (xGap <= charSize * 2.5f)
 
@@ -296,16 +331,30 @@ class TextlineMerger @Inject constructor() {
         }
 
         val boundingBox = RectF(minX, minY, maxX, maxY)
-        // Majority voting for orientation
-        val verticalCount = cluster.count { it.isVertical }
-        val isVertical = verticalCount >= (cluster.size - verticalCount)
+        var verticalScore = 0
+        for (q in cluster) {
+            val r = q.boundingRect()
+            val ar = max(r.width(), r.height()) / max(min(r.width(), r.height()), 1f)
+            if (ar > 1.35f) {
+                verticalScore += if (q.isVertical) 3 else -3
+            } else {
+                verticalScore += if (q.isVertical) 1 else -1
+            }
+        }
+        val isVertical = verticalScore >= 0
 
         val sortedCluster = if (isVertical) {
             // Right-to-left for vertical columns in Japanese manga, then top-to-bottom
-            cluster.sortedWith(compareByDescending<Quadrilateral> { it.center().x }.thenBy { it.center().y })
+            cluster.sortedWith { a, b ->
+                val dx = b.center().x.compareTo(a.center().x)
+                if (dx != 0) dx else a.center().y.compareTo(b.center().y)
+            }
         } else {
             // Top-to-bottom for horizontal lines, then left-to-right
-            cluster.sortedWith(compareBy<Quadrilateral> { it.center().y }.thenBy { it.center().x })
+            cluster.sortedWith { a, b ->
+                val dy = a.center().y.compareTo(b.center().y)
+                if (dy != 0) dy else a.center().x.compareTo(b.center().x)
+            }
         }
 
         val text = sortedCluster.joinToString(if (isVertical) "" else " ") { it.text.trim() }.trim()

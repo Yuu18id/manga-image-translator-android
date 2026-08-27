@@ -186,4 +186,13 @@
     <string name="album_rename_edit">修改相册名称</string>
     <string name="album_rename_hint">输入章节或相册名称（例如：第1话）</string>
     <string name="gallery_menu_rename_album">重命名相册</string>
+
+    <!-- Notifications -->
+    <string name="notification_channel_batch_title">批量章节翻译</string>
+    <string name="notification_channel_batch_desc">显示章节翻译的后台进度和状态</string>
+    <string name="notification_batch_title">正在翻译章节</string>
+    <string name="notification_batch_progress">第 %1$d 页，共 %2$d 页 (%3$d%%)</string>
+    <string name="notification_batch_progress_with_stage">第 %1$d 页，共 %2$d 页 (%3$d%%) • %4$s</string>
+    <string name="notification_batch_complete_title">章节翻译完成</string>
+    <string name="notification_batch_complete_msg">已成功翻译 %1$d / %2$d 页</string>
 </resources>

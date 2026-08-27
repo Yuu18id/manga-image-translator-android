@@ -186,4 +186,13 @@
     <string name="album_rename_edit">Edit Album Name</string>
     <string name="album_rename_hint">Enter chapter or album name (e.g. Chapter 1)</string>
     <string name="gallery_menu_rename_album">Rename Album</string>
+
+    <!-- Notifications -->
+    <string name="notification_channel_batch_title">Batch Chapter Translation</string>
+    <string name="notification_channel_batch_desc">Shows background progress and status of chapter translations</string>
+    <string name="notification_batch_title">Translating Chapter</string>
+    <string name="notification_batch_progress">Page %1$d of %2$d (%3$d%%)</string>
+    <string name="notification_batch_progress_with_stage">Page %1$d of %2$d (%3$d%%) • %4$s</string>
+    <string name="notification_batch_complete_title">Chapter Translation Completed</string>
+    <string name="notification_batch_complete_msg">%1$d of %2$d pages successfully translated</string>
 </resources>

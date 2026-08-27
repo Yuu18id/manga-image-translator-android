@@ -186,4 +186,13 @@
     <string name="album_rename_edit">アルバム名を変更</string>
     <string name="album_rename_hint">チャプターまたはアルバム名を入力（例：第1話）</string>
     <string name="gallery_menu_rename_album">アルバム名を変更</string>
+
+    <!-- Notifications -->
+    <string name="notification_channel_batch_title">一括チャプター翻訳</string>
+    <string name="notification_channel_batch_desc">チャプター翻訳のバックグラウンド進捗とステータスを表示</string>
+    <string name="notification_batch_title">チャプターを翻訳中</string>
+    <string name="notification_batch_progress">%1$d / %2$d ページ (%3$d%%)</string>
+    <string name="notification_batch_progress_with_stage">%1$d / %2$d ページ (%3$d%%) • %4$s</string>
+    <string name="notification_batch_complete_title">チャプター翻訳完了</string>
+    <string name="notification_batch_complete_msg">%1$d / %2$d ページの翻訳が完了しました</string>
 </resources>

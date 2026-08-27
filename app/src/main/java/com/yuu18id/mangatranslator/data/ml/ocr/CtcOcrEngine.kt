@@ -137,7 +137,7 @@ class CtcOcrEngine @Inject constructor(
                         outputBuffer.position(i * itemFloats)
                         outputBuffer.get(flatLogits)
 
-                        val decodeResult = decoder.decodeGreedy(flatLogits, seqLen, vocabSize)
+                        val decodeResult = decoder.decodePrefixBeamSearch(flatLogits, seqLen, vocabSize, beamWidth = 8)
 
                         val colors = if (colorBuffer != null && colorSeqLen > 0 && colorDim > 0) {
                             val colorItemFloats = colorSeqLen * colorDim

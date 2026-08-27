@@ -89,8 +89,11 @@ class OcrPreProcessor @Inject constructor() {
         val dstMat = MatOfPoint2f(*dstPoints)
         val transform = Imgproc.getPerspectiveTransform(srcMat, dstMat)
 
+        val isDownsampling = cropW > targetW || cropH > targetH
+        val interpolation = if (isDownsampling) Imgproc.INTER_AREA else Imgproc.INTER_LINEAR
+
         var regionMat = Mat()
-        Imgproc.warpPerspective(cropRoi, regionMat, transform, Size(targetW.toDouble(), targetH.toDouble()), Imgproc.INTER_LINEAR)
+        Imgproc.warpPerspective(cropRoi, regionMat, transform, Size(targetW.toDouble(), targetH.toDouble()), interpolation)
 
         if (isVertical) {
             val rotatedMat = Mat()
@@ -98,6 +101,12 @@ class OcrPreProcessor @Inject constructor() {
             regionMat.release()
             regionMat = rotatedMat
         }
+
+        // Mild unsharp mask to crispen fine kanji strokes at 48px height
+        val blurred = Mat()
+        Imgproc.GaussianBlur(regionMat, blurred, Size(0.0, 0.0), 1.0)
+        Core.addWeighted(regionMat, 1.2, blurred, -0.2, 0.0, regionMat)
+        blurred.release()
 
         val outBmp = Bitmap.createBitmap(regionMat.cols(), regionMat.rows(), Bitmap.Config.ARGB_8888)
         val rgbaMat = Mat()
