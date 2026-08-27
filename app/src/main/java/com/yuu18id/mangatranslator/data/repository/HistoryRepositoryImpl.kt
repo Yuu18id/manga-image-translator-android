@@ -204,6 +204,14 @@ class HistoryRepositoryImpl @Inject constructor(
         id
     }
 
+    override suspend fun updateBatchName(batchId: String, newName: String) = withContext(Dispatchers.IO) {
+        historyDao.updateBatchName(batchId, newName)
+    }
+
+    override suspend fun updateBatchNameByIds(ids: List<Long>, newName: String) = withContext(Dispatchers.IO) {
+        historyDao.updateBatchNameByIds(ids, newName)
+    }
+
     override suspend fun deleteTranslation(id: Long) = withContext(Dispatchers.IO) {
         val entity = historyDao.getById(id)
         if (entity != null) {

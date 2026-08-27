@@ -99,6 +99,14 @@ class GalleryViewModel @Inject constructor(
         return result.sortedByDescending { it.timestamp }
     }
 
+    fun renameAlbum(batchId: String, newTitle: String) {
+        val trimmed = newTitle.trim()
+        if (trimmed.isBlank()) return
+        viewModelScope.launch {
+            historyRepository.updateBatchName(batchId, trimmed)
+        }
+    }
+
     fun deleteItem(id: Long) {
         viewModelScope.launch {
             historyRepository.deleteTranslation(id)

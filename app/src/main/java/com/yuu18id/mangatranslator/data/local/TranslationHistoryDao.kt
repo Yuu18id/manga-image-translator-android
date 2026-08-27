@@ -27,6 +27,12 @@ interface TranslationHistoryDao {
     @androidx.room.Update
     suspend fun updateOne(entity: TranslationHistoryEntity)
 
+    @Query("UPDATE translation_history SET batchName = :newName WHERE batchId = :batchId")
+    suspend fun updateBatchName(batchId: String, newName: String)
+
+    @Query("UPDATE translation_history SET batchName = :newName WHERE id IN (:ids)")
+    suspend fun updateBatchNameByIds(ids: List<Long>, newName: String)
+
     @Query("DELETE FROM translation_history WHERE id = :id")
     suspend fun deleteOne(id: Long)
 

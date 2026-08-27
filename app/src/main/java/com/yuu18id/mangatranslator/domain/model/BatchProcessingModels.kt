@@ -41,6 +41,8 @@ data class BatchUiState(
     val completedCount: Int = 0,
     val failedCount: Int = 0,
     val error: String? = null,
+    val currentBatchId: String? = null,
+    val currentBatchName: String = "",
 
     // Detection Review Dialog State (when review mode is enabled)
     val isShowingDetectionEditor: Boolean = false,

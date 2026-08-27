@@ -118,8 +118,27 @@ class BatchViewModel @Inject constructor(
                 overallProgress = 0f,
                 completedCount = 0,
                 failedCount = 0,
-                error = null
+                error = null,
+                currentBatchId = null,
+                currentBatchName = ""
             )
+        }
+    }
+
+    fun updateAlbumName(newName: String) {
+        val trimmed = newName.trim()
+        if (trimmed.isBlank()) return
+        val batchId = _uiState.value.currentBatchId
+        val completedIds = _uiState.value.pages.mapNotNull { it.historyId }
+
+        _uiState.update { it.copy(currentBatchName = trimmed) }
+
+        viewModelScope.launch(Dispatchers.IO) {
+            if (!batchId.isNullOrBlank()) {
+                historyRepository.updateBatchName(batchId, trimmed)
+            } else if (completedIds.isNotEmpty()) {
+                historyRepository.updateBatchNameByIds(completedIds, trimmed)
+            }
         }
     }
 
@@ -272,8 +291,19 @@ class BatchViewModel @Inject constructor(
             )
 
             val total = pagesToProcess.size
-            val currentBatchId = "batch_${System.currentTimeMillis()}"
-            val currentBatchName = "Chapter ($total Pages)"
+            val currentBatchId = _uiState.value.currentBatchId ?: "batch_${System.currentTimeMillis()}"
+            val currentBatchName = if (_uiState.value.currentBatchName.isNotBlank()) {
+                _uiState.value.currentBatchName
+            } else {
+                "Chapter ($total Pages)"
+            }
+
+            _uiState.update {
+                it.copy(
+                    currentBatchId = currentBatchId,
+                    currentBatchName = currentBatchName
+                )
+            }
 
             for (i in pagesToProcess.indices) {
                 val page = _uiState.value.pages[i]

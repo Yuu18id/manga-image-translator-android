@@ -181,4 +181,9 @@
     <string name="batch_stage_detecting">Mendeteksi balon teks...</string>
     <string name="batch_stage_completed">Selesai</string>
     <string name="batch_stage_typeset_updated">Typeset diperbarui</string>
+    <string name="album_name_label">Nama Album</string>
+    <string name="album_rename_title">Beri Nama Album</string>
+    <string name="album_rename_edit">Ubah Nama Album</string>
+    <string name="album_rename_hint">Masukkan nama chapter atau album (contoh: Chapter 1)</string>
+    <string name="gallery_menu_rename_album">Ubah Nama Album</string>
 </resources>

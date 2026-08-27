@@ -56,6 +56,8 @@ fun BatchScreen(
     }
 
     var showClearDialog by remember { mutableStateOf(false) }
+    var showRenameAlbumDialog by remember { mutableStateOf(false) }
+    var albumNameInput by remember { mutableStateOf("") }
 
     if (showClearDialog) {
         AlertDialog(
@@ -76,6 +78,39 @@ fun BatchScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showClearDialog = false }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            }
+        )
+    }
+
+    if (showRenameAlbumDialog) {
+        AlertDialog(
+            onDismissRequest = { showRenameAlbumDialog = false },
+            icon = { Icon(Icons.Default.Edit, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+            title = { Text(stringResource(R.string.album_rename_edit)) },
+            text = {
+                OutlinedTextField(
+                    value = albumNameInput,
+                    onValueChange = { albumNameInput = it },
+                    label = { Text(stringResource(R.string.album_name_label)) },
+                    placeholder = { Text(stringResource(R.string.album_rename_hint)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.updateAlbumName(albumNameInput)
+                        showRenameAlbumDialog = false
+                    }
+                ) {
+                    Text(stringResource(R.string.action_save))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRenameAlbumDialog = false }) {
                     Text(stringResource(R.string.action_cancel))
                 }
             }
@@ -208,6 +243,11 @@ fun BatchScreen(
                             completed = uiState.completedCount,
                             failed = uiState.failedCount,
                             progress = uiState.overallProgress,
+                            albumName = uiState.currentBatchName,
+                            onEditAlbumName = {
+                                albumNameInput = uiState.currentBatchName
+                                showRenameAlbumDialog = true
+                            },
                             onCancel = viewModel::cancelBatchTranslation,
                             onReadChapter = {
                                 val completedIds = uiState.pages.mapNotNull { it.historyId }
@@ -300,6 +340,8 @@ fun BatchProgressBanner(
     completed: Int,
     failed: Int,
     progress: Float,
+    albumName: String,
+    onEditAlbumName: () -> Unit,
     onCancel: () -> Unit,
     onReadChapter: () -> Unit,
     onRetryFailed: () -> Unit
@@ -333,6 +375,62 @@ fun BatchProgressBanner(
                 progress = { progress },
                 modifier = Modifier.fillMaxWidth()
             )
+
+            // Album Name Display & Editing Row (Available once batch has progress/completed)
+            if (!isProcessing && completed > 0) {
+                Spacer(modifier = Modifier.height(10.dp))
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.PhotoLibrary,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text(
+                                    text = stringResource(R.string.album_name_label),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    text = albumName.ifBlank { stringResource(R.string.album_rename_title) },
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+
+                        FilledTonalIconButton(
+                            onClick = onEditAlbumName,
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Edit,
+                                contentDescription = stringResource(R.string.album_rename_edit),
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
+                }
+            }
 
             Spacer(modifier = Modifier.height(10.dp))
             Row(

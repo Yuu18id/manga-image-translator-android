@@ -181,4 +181,9 @@
     <string name="batch_stage_detecting">正在检测文本气泡...</string>
     <string name="batch_stage_completed">已完成</string>
     <string name="batch_stage_typeset_updated">排版已更新</string>
+    <string name="album_name_label">相册名称</string>
+    <string name="album_rename_title">设置相册名称</string>
+    <string name="album_rename_edit">修改相册名称</string>
+    <string name="album_rename_hint">输入章节或相册名称（例如：第1话）</string>
+    <string name="gallery_menu_rename_album">重命名相册</string>
 </resources>

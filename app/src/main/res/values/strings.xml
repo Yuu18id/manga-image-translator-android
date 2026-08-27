@@ -181,4 +181,9 @@
     <string name="batch_stage_detecting">Detecting text bubbles...</string>
     <string name="batch_stage_completed">Completed</string>
     <string name="batch_stage_typeset_updated">Typeset updated</string>
+    <string name="album_name_label">Album Name</string>
+    <string name="album_rename_title">Set Album Name</string>
+    <string name="album_rename_edit">Edit Album Name</string>
+    <string name="album_rename_hint">Enter chapter or album name (e.g. Chapter 1)</string>
+    <string name="gallery_menu_rename_album">Rename Album</string>
 </resources>

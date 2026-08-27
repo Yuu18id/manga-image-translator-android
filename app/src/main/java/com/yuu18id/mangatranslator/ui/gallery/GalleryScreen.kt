@@ -17,6 +17,7 @@ import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.SelectAll
@@ -60,10 +61,48 @@ fun GalleryScreen(
     var showClearAllDialog by remember { mutableStateOf(false) }
     var showBatchDeleteDialog by remember { mutableStateOf(false) }
     var showMenu by remember { mutableStateOf(false) }
+    var albumToRename by remember { mutableStateOf<GalleryUiItem.Album?>(null) }
+    var renameInputText by remember { mutableStateOf("") }
 
     // Intercept back button when in selection mode
     BackHandler(enabled = isSelectionMode) {
         selectedKeys = emptySet()
+    }
+
+    // Rename Album Dialog
+    if (albumToRename != null) {
+        AlertDialog(
+            onDismissRequest = { albumToRename = null },
+            icon = { Icon(Icons.Default.Edit, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+            title = { Text(stringResource(R.string.album_rename_edit)) },
+            text = {
+                OutlinedTextField(
+                    value = renameInputText,
+                    onValueChange = { renameInputText = it },
+                    label = { Text(stringResource(R.string.album_name_label)) },
+                    placeholder = { Text(stringResource(R.string.album_rename_hint)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        albumToRename?.let { album ->
+                            viewModel.renameAlbum(album.batchId, renameInputText)
+                        }
+                        albumToRename = null
+                    }
+                ) {
+                    Text(stringResource(R.string.action_save))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { albumToRename = null }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            }
+        )
     }
 
     // Clear All Dialog
@@ -323,6 +362,10 @@ fun GalleryScreen(
                                     if (!isSelectionMode) {
                                         selectedKeys = setOf(item.key)
                                     }
+                                },
+                                onRename = {
+                                    albumToRename = item
+                                    renameInputText = item.title
                                 }
                             )
                         }
@@ -460,7 +503,8 @@ fun GalleryAlbumCard(
     isSelected: Boolean,
     isSelectionMode: Boolean,
     onClick: () -> Unit,
-    onLongClick: () -> Unit
+    onLongClick: () -> Unit,
+    onRename: () -> Unit = {}
 ) {
     val dateString = remember(album.timestamp) {
         HistoryDateFormat.format(Date(album.timestamp))
@@ -564,22 +608,48 @@ fun GalleryAlbumCard(
                 }
             }
 
-            // Bottom Overlay: Album Title & Date
+            // Bottom Overlay: Album Title, Rename Action & Date
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .align(Alignment.BottomCenter)
                     .padding(8.dp)
             ) {
-                Text(
-                    text = album.title,
-                    style = MaterialTheme.typography.bodyMedium.copy(
-                        color = Color.White,
-                        fontWeight = FontWeight.Bold
-                    ),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = album.title,
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold
+                        ),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
+                    if (!isSelectionMode) {
+                        Surface(
+                            color = Color.Black.copy(alpha = 0.65f),
+                            shape = CircleShape,
+                            modifier = Modifier
+                                .size(24.dp)
+                                .padding(start = 4.dp),
+                            onClick = onRename
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Default.Edit,
+                                    contentDescription = stringResource(R.string.album_rename_edit),
+                                    tint = Color.White,
+                                    modifier = Modifier.size(12.dp)
+                                )
+                            }
+                        }
+                    }
+                }
                 Spacer(modifier = Modifier.height(2.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
