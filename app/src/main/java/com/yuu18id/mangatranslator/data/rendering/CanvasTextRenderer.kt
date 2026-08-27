@@ -8,6 +8,7 @@ import android.graphics.Rect
 import android.graphics.RectF
 import android.util.Log
 import com.yuu18id.mangatranslator.data.ml.TextRenderer
+import com.yuu18id.mangatranslator.data.textline.TextPostProcessor
 import com.yuu18id.mangatranslator.domain.model.CustomFontStyle
 import com.yuu18id.mangatranslator.domain.model.Language
 import com.yuu18id.mangatranslator.domain.model.RenderConfig
@@ -24,9 +25,9 @@ import kotlin.math.min
 @Singleton
 class CanvasTextRenderer @Inject constructor(
     private val fontManager: FontManager,
-    private val layoutEngine: TextLayoutEngine
+    private val layoutEngine: TextLayoutEngine,
+    private val textPostProcessor: TextPostProcessor
 ) : TextRenderer {
-
     companion object {
         private const val TAG = "MangaTranslator"
     }
@@ -52,7 +53,8 @@ class CanvasTextRenderer @Inject constructor(
         val candidates = mutableListOf<RenderCandidate>()
 
         for ((i, block) in textBlocks.withIndex()) {
-            val textToRender = if (block.translatedText.isNotBlank()) block.translatedText.trim() else block.text.trim()
+            val rawText = if (block.translatedText.isNotBlank()) block.translatedText.trim() else block.text.trim()
+            val textToRender = textPostProcessor.process(rawText, originalText = block.text)
             if (textToRender.isBlank()) {
                 Log.w(TAG, "   Block $i SKIPPED: text is blank (orig=\"${block.text}\", trans=\"${block.translatedText}\")")
                 continue

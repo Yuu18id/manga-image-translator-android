@@ -34,6 +34,7 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 
 import com.yuu18id.mangatranslator.data.ml.TextRenderer
+import com.yuu18id.mangatranslator.data.textline.TextPostProcessor
 import com.yuu18id.mangatranslator.data.translation.TranslatorFactory
 import com.yuu18id.mangatranslator.domain.model.TextBlock
 import com.yuu18id.mangatranslator.domain.model.TranslationResult
@@ -72,6 +73,7 @@ class TranslateViewModel @Inject constructor(
     private val translateImageUseCase: TranslateImageUseCase,
     private val translatorFactory: TranslatorFactory,
     private val textRenderer: TextRenderer,
+    private val textPostProcessor: TextPostProcessor,
     private val settingsRepository: SettingsRepository,
     private val historyRepository: HistoryRepository,
     @ApplicationContext private val context: Context
@@ -459,8 +461,12 @@ class TranslateViewModel @Inject constructor(
                 
                 // Clear old translated text so engine translates fresh from original Japanese source text
                 val blocksToTranslate = currentBlocks.map { it.copy(translatedText = "") }
-                val translatedBlocks: List<TextBlock> = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                val rawTranslatedBlocks: List<TextBlock> = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                     translator.translate(blocksToTranslate, translatorConfig)
+                }
+                val translatedBlocks = rawTranslatedBlocks.map { block ->
+                    val processed = textPostProcessor.process(block.translatedText, originalText = block.text)
+                    block.copy(translatedText = processed, language = activeTargetLang)
                 }
 
                 _progressState.update {

@@ -11,6 +11,7 @@ import com.yuu18id.mangatranslator.data.textline.BracketBalancer
 import com.yuu18id.mangatranslator.data.textline.DictionaryFilter
 import com.yuu18id.mangatranslator.data.textline.PostTranslationVerifier
 import com.yuu18id.mangatranslator.data.textline.ReadingOrderSorter
+import com.yuu18id.mangatranslator.data.textline.TextPostProcessor
 import com.yuu18id.mangatranslator.data.textline.TextlineMerger
 import com.yuu18id.mangatranslator.data.translation.TranslatorFactory
 import com.yuu18id.mangatranslator.domain.model.PipelineStage
@@ -36,6 +37,7 @@ class TranslateImageUseCase @Inject constructor(
     private val bracketBalancer: BracketBalancer,
     private val dictionaryFilter: DictionaryFilter,
     private val postTranslationVerifier: PostTranslationVerifier,
+    private val textPostProcessor: TextPostProcessor,
     private val translatorFactory: TranslatorFactory,
     private val maskRefinement: MaskRefinement,
     private val inpainter: Inpainter,
@@ -197,11 +199,12 @@ class TranslateImageUseCase @Inject constructor(
 
             translatedBlocks = translatedBlocks.mapIndexed { index, block ->
                 val targetText = if (block.translatedText.isNotBlank()) block.translatedText else block.text
-                val verification = postTranslationVerifier.verify(block.text, targetText, config.translator.targetLang)
+                val postProcessedText = textPostProcessor.process(targetText, originalText = block.text)
+                val verification = postTranslationVerifier.verify(block.text, postProcessedText, config.translator.targetLang)
                 val finalTranslatedText = if (verification.isValid) {
-                    dictionaryFilter.applyRules(targetText, emptyMap())
+                    dictionaryFilter.applyRules(postProcessedText, emptyMap())
                 } else {
-                    targetText
+                    postProcessedText
                 }
                 Log.i(TAG, "   Block $index Result:")
                 Log.i(TAG, "      Original:   \"${block.text}\"")
