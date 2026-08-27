@@ -57,6 +57,7 @@ fun GalleryScreen(
     onNavigateToSettings: (() -> Unit)? = null
 ) {
     val items by viewModel.galleryItems.collectAsStateWithLifecycle()
+    val isExporting by viewModel.isExporting.collectAsStateWithLifecycle()
     var selectedKeys by remember { mutableStateOf(setOf<String>()) }
     val isSelectionMode by remember { derivedStateOf { selectedKeys.isNotEmpty() } }
     val context = LocalContext.current
@@ -209,15 +210,26 @@ fun GalleryScreen(
                         }) {
                             Icon(Icons.Default.SelectAll, contentDescription = stringResource(R.string.action_select_all))
                         }
-                        IconButton(onClick = {
-                            viewModel.saveSelectedItems(selectedKeys)
-                            selectedKeys = emptySet()
-                        }) {
-                            Icon(
-                                Icons.Default.Download,
-                                contentDescription = stringResource(R.string.gallery_save_selected),
-                                tint = MaterialTheme.colorScheme.primary
-                            )
+                        IconButton(
+                            onClick = {
+                                viewModel.saveSelectedItems(selectedKeys)
+                                selectedKeys = emptySet()
+                            },
+                            enabled = !isExporting
+                        ) {
+                            if (isExporting) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(18.dp),
+                                    strokeWidth = 2.dp,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            } else {
+                                Icon(
+                                    Icons.Default.Download,
+                                    contentDescription = stringResource(R.string.gallery_save_selected),
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            }
                         }
                         IconButton(onClick = { showBatchDeleteDialog = true }) {
                             Icon(
@@ -232,7 +244,6 @@ fun GalleryScreen(
                     )
                 )
             } else {
-                // Standard Gallery Top Bar
                 TopAppBar(
                     title = {
                         Column {
@@ -296,12 +307,12 @@ fun GalleryScreen(
                 )
             }
         }
-    ) { padding ->
+    ) { innerPadding ->
         if (items.isEmpty()) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(padding),
+                    .padding(innerPadding),
                 contentAlignment = Alignment.Center
             ) {
                 Column(
@@ -341,17 +352,19 @@ fun GalleryScreen(
         } else {
             LazyVerticalGrid(
                 columns = GridCells.Fixed(2),
-                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding)
+                contentPadding = PaddingValues(
+                    start = 12.dp,
+                    end = 12.dp,
+                    top = innerPadding.calculateTopPadding() + 8.dp,
+                    bottom = innerPadding.calculateBottomPadding() + 16.dp
+                ),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier.fillMaxSize()
             ) {
                 items(
                     items = items,
-                    key = { it.key },
-                    contentType = { if (it is GalleryUiItem.Album) "album_item" else "single_item" }
+                    key = { it.key }
                 ) { item ->
                     val isSelected by remember { derivedStateOf { selectedKeys.contains(item.key) } }
 
@@ -361,6 +374,7 @@ fun GalleryScreen(
                                 item = item,
                                 isSelected = isSelected,
                                 isSelectionMode = isSelectionMode,
+                                isExporting = isExporting,
                                 onClick = {
                                     if (isSelectionMode) {
                                         selectedKeys = if (isSelected) selectedKeys - item.key else selectedKeys + item.key
@@ -386,6 +400,7 @@ fun GalleryScreen(
                                 album = item,
                                 isSelected = isSelected,
                                 isSelectionMode = isSelectionMode,
+                                isExporting = isExporting,
                                 onClick = {
                                     if (isSelectionMode) {
                                         selectedKeys = if (isSelected) selectedKeys - item.key else selectedKeys + item.key
@@ -421,6 +436,7 @@ fun GallerySingleCard(
     item: GalleryUiItem.Single,
     isSelected: Boolean,
     isSelectionMode: Boolean,
+    isExporting: Boolean = false,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
     onReTranslate: () -> Unit,
@@ -519,15 +535,23 @@ fun GallerySingleCard(
                             color = Color.Black.copy(alpha = 0.65f),
                             shape = CircleShape,
                             modifier = Modifier.size(28.dp),
-                            onClick = onSave
+                            onClick = { if (!isExporting) onSave() }
                         ) {
                             Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    imageVector = Icons.Default.Download,
-                                    contentDescription = stringResource(R.string.action_save_to_gallery),
-                                    tint = Color.White,
-                                    modifier = Modifier.size(15.dp)
-                                )
+                                if (isExporting) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(14.dp),
+                                        strokeWidth = 2.dp,
+                                        color = Color.White
+                                    )
+                                } else {
+                                    Icon(
+                                        imageVector = Icons.Default.Download,
+                                        contentDescription = stringResource(R.string.action_save_to_gallery),
+                                        tint = Color.White,
+                                        modifier = Modifier.size(15.dp)
+                                    )
+                                }
                             }
                         }
                     }
@@ -559,6 +583,7 @@ fun GalleryAlbumCard(
     album: GalleryUiItem.Album,
     isSelected: Boolean,
     isSelectionMode: Boolean,
+    isExporting: Boolean = false,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
     onRename: () -> Unit = {},
@@ -694,15 +719,23 @@ fun GalleryAlbumCard(
                                 color = Color.Black.copy(alpha = 0.65f),
                                 shape = CircleShape,
                                 modifier = Modifier.size(24.dp),
-                                onClick = onSave
+                                onClick = { if (!isExporting) onSave() }
                             ) {
                                 Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        imageVector = Icons.Default.Download,
-                                        contentDescription = stringResource(R.string.gallery_save_album),
-                                        tint = Color.White,
-                                        modifier = Modifier.size(13.dp)
-                                    )
+                                    if (isExporting) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(12.dp),
+                                            strokeWidth = 2.dp,
+                                            color = Color.White
+                                        )
+                                    } else {
+                                        Icon(
+                                            imageVector = Icons.Default.Download,
+                                            contentDescription = stringResource(R.string.gallery_save_album),
+                                            tint = Color.White,
+                                            modifier = Modifier.size(13.dp)
+                                        )
+                                    }
                                 }
                             }
                             Surface(

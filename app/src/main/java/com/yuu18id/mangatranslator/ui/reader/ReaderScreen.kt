@@ -45,6 +45,7 @@ fun ReaderScreen(
     onNavigateToTranslate: (String) -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val isExporting by viewModel.isExporting.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -227,18 +228,31 @@ fun ReaderScreen(
                 },
                 actions = {
                     // Save to Device
-                    IconButton(onClick = {
-                        if (uiState.totalPages > 1) {
-                            showSaveDialog = true
+                    IconButton(
+                        onClick = {
+                            if (!isExporting) {
+                                if (uiState.totalPages > 1) {
+                                    showSaveDialog = true
+                                } else {
+                                    viewModel.saveCurrentPage()
+                                }
+                            }
+                        },
+                        enabled = !isExporting
+                    ) {
+                        if (isExporting) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(20.dp),
+                                strokeWidth = 2.dp,
+                                color = Color.White
+                            )
                         } else {
-                            viewModel.saveCurrentPage()
+                            Icon(
+                                Icons.Default.Download,
+                                contentDescription = stringResource(R.string.action_save_to_gallery),
+                                tint = Color.White
+                            )
                         }
-                    }) {
-                        Icon(
-                            Icons.Default.Download,
-                            contentDescription = stringResource(R.string.action_save_to_gallery),
-                            tint = Color.White
-                        )
                     }
                     // Translate Ulang (Re-translate)
                     IconButton(onClick = {

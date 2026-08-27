@@ -48,6 +48,9 @@ class ReaderViewModel @Inject constructor(
     private val _exportEvents = MutableSharedFlow<ReaderExportEvent>()
     val exportEvents: SharedFlow<ReaderExportEvent> = _exportEvents.asSharedFlow()
 
+    private val _isExporting = MutableStateFlow(false)
+    val isExporting: StateFlow<Boolean> = _isExporting.asStateFlow()
+
     private val _uiState = MutableStateFlow(ReaderUiState())
     val uiState: StateFlow<ReaderUiState> = _uiState.asStateFlow()
 
@@ -130,48 +133,66 @@ class ReaderViewModel @Inject constructor(
     }
 
     fun saveCurrentPage() {
+        if (_isExporting.value) return
+        _isExporting.value = true
         val state = _uiState.value
-        if (state.pages.isEmpty()) return
+        if (state.pages.isEmpty()) {
+            _isExporting.value = false
+            return
+        }
         val currentItem = state.pages[state.currentPageIndex]
 
         viewModelScope.launch {
-            val sourcePath = if (currentItem.resultPath.isNotBlank()) currentItem.resultPath else currentItem.thumbnailPath
-            val subFolder = currentItem.batchName
-            val fileName = if (!subFolder.isNullOrBlank()) {
-                val pageIndexStr = String.format(Locale.getDefault(), "%03d", currentItem.pageIndex + 1)
-                "${subFolder}_page_$pageIndexStr"
-            } else {
-                val dateStr = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date(currentItem.timestamp))
-                "MangaTranslator_$dateStr"
-            }
+            try {
+                val sourcePath = if (currentItem.resultPath.isNotBlank()) currentItem.resultPath else currentItem.thumbnailPath
+                val subFolder = currentItem.batchName
+                val fileName = if (!subFolder.isNullOrBlank()) {
+                    val pageIndexStr = String.format(Locale.getDefault(), "%03d", currentItem.pageIndex + 1)
+                    "${subFolder}_page_$pageIndexStr"
+                } else {
+                    val dateStr = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date(currentItem.timestamp))
+                    "MangaTranslator_$dateStr"
+                }
 
-            val result = mediaExporter.exportImage(sourcePath, fileName, subFolder)
-            if (result.isSuccess) {
-                _exportEvents.emit(ReaderExportEvent.Success(1))
-            } else {
-                _exportEvents.emit(ReaderExportEvent.Error(result.exceptionOrNull()?.message ?: "Failed to save image"))
+                val result = mediaExporter.exportImage(sourcePath, fileName, subFolder)
+                if (result.isSuccess) {
+                    _exportEvents.emit(ReaderExportEvent.Success(1))
+                } else {
+                    _exportEvents.emit(ReaderExportEvent.Error(result.exceptionOrNull()?.message ?: "Failed to save image"))
+                }
+            } finally {
+                _isExporting.value = false
             }
         }
     }
 
     fun saveEntireChapter() {
+        if (_isExporting.value) return
+        _isExporting.value = true
         val state = _uiState.value
-        if (state.pages.isEmpty()) return
+        if (state.pages.isEmpty()) {
+            _isExporting.value = false
+            return
+        }
 
         viewModelScope.launch {
-            val firstItem = state.pages.first()
-            val subFolder = firstItem.batchName ?: "Chapter"
-            val pairs = state.pages.map { page ->
-                val sourcePath = if (page.resultPath.isNotBlank()) page.resultPath else page.thumbnailPath
-                val pageIndexStr = String.format(Locale.getDefault(), "%03d", page.pageIndex + 1)
-                val fileName = "${subFolder}_page_$pageIndexStr"
-                Pair(sourcePath, fileName)
-            }
-            val count = mediaExporter.exportBatch(pairs, subFolder)
-            if (count > 0) {
-                _exportEvents.emit(ReaderExportEvent.Success(count))
-            } else {
-                _exportEvents.emit(ReaderExportEvent.Error("Failed to save chapter images"))
+            try {
+                val firstItem = state.pages.first()
+                val subFolder = firstItem.batchName ?: "Chapter"
+                val pairs = state.pages.map { page ->
+                    val sourcePath = if (page.resultPath.isNotBlank()) page.resultPath else page.thumbnailPath
+                    val pageIndexStr = String.format(Locale.getDefault(), "%03d", page.pageIndex + 1)
+                    val fileName = "${subFolder}_page_$pageIndexStr"
+                    Pair(sourcePath, fileName)
+                }
+                val count = mediaExporter.exportBatch(pairs, subFolder)
+                if (count > 0) {
+                    _exportEvents.emit(ReaderExportEvent.Success(count))
+                } else {
+                    _exportEvents.emit(ReaderExportEvent.Error("Failed to save chapter images"))
+                }
+            } finally {
+                _isExporting.value = false
             }
         }
     }
