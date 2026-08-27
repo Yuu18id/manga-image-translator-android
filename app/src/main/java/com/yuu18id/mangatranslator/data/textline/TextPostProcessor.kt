@@ -7,50 +7,52 @@ import javax.inject.Singleton
 class TextPostProcessor @Inject constructor() {
 
     companion object {
-        // Regex matching Unicode heart emojis and decorative symbols along with their variation selectors
+        // Unicode character for classic monochrome manga heart
+        const val MANGA_HEART = "♡" // U+2661: WHITE HEART SUIT (always renders monochrome in Android text stack)
+
+        // 1. Regex specifically matching all heart emojis, heart symbols, and compound heart sequences
+        // Note: \u2665 (BLACK HEART) and \u2764 (HEAVY BLACK HEART) on Android are rendered in RED by NotoColorEmoji.
+        // Therefore, ALL heart emojis and symbols are converted to \u2661 ('♡') for authentic manga typography.
         private val HEART_EMOJI_REGEX = Regex(
-            "[" +
-                "\u2764\u2763\u2665\u2661\u2765\u2766\u2767\u2619" +
-            "][\uFE0E\uFE0F]?" +
+            "(?:[\u2764\u2665\u2763\u2765\u2766\u2767\u2619][\uFE0E\uFE0F]?(?:\u200D[^\u0000-\u007F]+)?)" +
             "|" +
-            "[\uD83D][\uDC93-\uDC9F\uDDA4\uDE0D\uDE18]" +
+            "(?:[\uD83D][\uDC93-\uDC9F\uDDA4\uDE0D\uDE18])" +
             "|" +
-            "[\uD83E][\uDD0D\uDD0E\uDDE1\uDE75-\uDE77\uDEF6\uDD70]"
+            "(?:[\uD83E][\uDD0D\uDD0E\uDDE1\uDE75-\uDE77\uDEF6\uDD70])"
         )
 
-        // General cleaner for stray invisible variation selectors and zero-width spaces
-        private val STRAY_VARIATION_SELECTORS = Regex("[\uFE0E\uFE0F\u200B-\u200D\uFEFF]")
+        // 2. Invisible control characters, variation selectors, zero-width spaces
+        private val INVISIBLE_CHARS_REGEX = Regex("[\uFE0E\uFE0F\u200B-\u200D\uFEFF\u00AD]")
+
+        /**
+         * Static helper to process translated manga text:
+         * Replaces all colored/API heart emojis and symbols with the authentic monochrome manga heart '♡' (U+2661).
+         */
+        fun processText(translatedText: String, originalText: String = ""): String {
+            if (translatedText.isBlank()) return translatedText
+
+            var result = translatedText
+
+            // Step 1: Replace all heart emojis/symbols with the monochrome manga heart '♡'
+            result = HEART_EMOJI_REGEX.replace(result, MANGA_HEART)
+
+            // Step 2: Ensure any '♥' (U+2665) or '❤' (U+2764) remaining is converted to '♡' (U+2661)
+            result = result.replace("♥", MANGA_HEART).replace("❤", MANGA_HEART)
+
+            // Step 3: Strip stray invisible variation selectors
+            result = INVISIBLE_CHARS_REGEX.replace(result, "")
+
+            // Step 4: Normalize spaces
+            result = result.replace(Regex("[ \\t]+"), " ").trim()
+
+            return result
+        }
     }
 
     /**
-     * Post-processes translated manga text:
-     * 1. Filters and converts all colorful/API heart emojis into clean monochrome manga hearts ('♡' or '♥').
-     * 2. Strips orphaned variation selectors and zero-width characters.
-     * 3. Cleans up formatting artifacts.
+     * Instance method for DI injection.
      */
     fun process(translatedText: String, originalText: String = ""): String {
-        if (translatedText.isBlank()) return translatedText
-
-        // Determine preferred manga heart style from original text:
-        // If original Japanese used black heart '♥', preserve '♥', otherwise default to classic manga white heart '♡'
-        val preferredHeart = if (originalText.contains("♥")) "♥" else "♡"
-
-        var result = translatedText
-
-        // Replace all heart emojis with the clean manga heart
-        result = HEART_EMOJI_REGEX.replace(result) { matchResult ->
-            val match = matchResult.value
-            if (match == "♡") "♡"
-            else if (match == "♥") "♥"
-            else preferredHeart
-        }
-
-        // Clean any stray variation selectors
-        result = STRAY_VARIATION_SELECTORS.replace(result, "")
-
-        // Normalize multiple spaces caused by emoji replacements
-        result = result.replace(Regex("[ \\t]+"), " ").trim()
-
-        return result
+        return processText(translatedText, originalText)
     }
 }

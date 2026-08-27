@@ -24,6 +24,7 @@ import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import com.yuu18id.mangatranslator.data.textline.TextPostProcessor
 import com.yuu18id.mangatranslator.domain.model.CustomFontStyle
 import com.yuu18id.mangatranslator.domain.model.TextAlignment
 import kotlin.math.hypot
@@ -354,7 +355,7 @@ fun RenderEditorCanvas(
                 for (block in blocks) {
                     val isSelected = block.id == selectedBlockId
                     val b = block.bounds
-                    val text = block.translatedText.trim()
+                    val text = TextPostProcessor.processText(block.translatedText)
                     if (text.isBlank() || b.width() <= 0 || b.height() <= 0) continue
 
                     fun wrapText(textToWrap: String, p: Paint, maxSpan: Float): List<String> {

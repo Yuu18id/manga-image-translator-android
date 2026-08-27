@@ -2,6 +2,7 @@ package com.yuu18id.mangatranslator.data.rendering
 
 import android.graphics.Paint
 import android.graphics.Rect
+import com.yuu18id.mangatranslator.data.textline.TextPostProcessor
 import com.yuu18id.mangatranslator.domain.model.CustomFontStyle
 import com.yuu18id.mangatranslator.domain.model.Language
 import com.yuu18id.mangatranslator.domain.model.RenderConfig
@@ -33,7 +34,7 @@ class TextLayoutEngine @Inject constructor(
         isVertical: Boolean,
         fontStyle: CustomFontStyle = CustomFontStyle.NORMAL
     ): LayoutResult {
-        val cleanText = text.trim()
+        val cleanText = TextPostProcessor.processText(text.trim())
         if (cleanText.isEmpty()) {
             return LayoutResult(emptyList(), 16f, 0f, 0f, emptyList())
         }
@@ -89,7 +90,7 @@ class TextLayoutEngine @Inject constructor(
         isVertical: Boolean,
         fontStyle: CustomFontStyle = CustomFontStyle.NORMAL
     ): LayoutResult {
-        val cleanText = text.trim()
+        val cleanText = TextPostProcessor.processText(text.trim())
         if (cleanText.isEmpty()) {
             return LayoutResult(emptyList(), fontSize, 0f, 0f, emptyList())
         }

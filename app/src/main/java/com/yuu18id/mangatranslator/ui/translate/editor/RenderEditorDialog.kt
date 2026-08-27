@@ -24,6 +24,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.yuu18id.mangatranslator.R
+import com.yuu18id.mangatranslator.data.textline.TextPostProcessor
 import com.yuu18id.mangatranslator.domain.model.CustomFontStyle
 import com.yuu18id.mangatranslator.domain.model.TextAlignment
 import com.yuu18id.mangatranslator.domain.model.TextBlock
@@ -56,7 +57,10 @@ fun RenderEditorDialog(
 
     var blocks by remember(initialBlocks) {
         mutableStateOf(
-            initialBlocks.mapIndexed { idx, b -> EditableRenderBlock.fromTextBlock(idx + 1, b) }
+            initialBlocks.mapIndexed { idx, b ->
+                val clean = b.copy(translatedText = TextPostProcessor.processText(b.translatedText, b.text))
+                EditableRenderBlock.fromTextBlock(idx + 1, clean)
+            }
         )
     }
     var selectedBlockId by remember { mutableStateOf<Int?>(null) }
@@ -394,7 +398,10 @@ fun RenderEditorDialog(
                         // Primary Confirmation Action Button
                         Button(
                             onClick = {
-                                val updatedTextBlocks = blocks.map { it.toTextBlock() }
+                                val updatedTextBlocks = blocks.map { 
+                                    val tb = it.toTextBlock()
+                                    tb.copy(translatedText = TextPostProcessor.processText(tb.translatedText, tb.text))
+                                }
                                 onConfirmBlocks(updatedTextBlocks)
                             },
                             modifier = Modifier
@@ -481,7 +488,8 @@ fun RenderEditorDialog(
                 confirmButton = {
                     Button(
                         onClick = {
-                            val updated = selectedBlock.copy(translatedText = textEditingDraft)
+                            val cleanText = TextPostProcessor.processText(textEditingDraft)
+                            val updated = selectedBlock.copy(translatedText = cleanText)
                             blocks = blocks.map { if (it.id == updated.id) updated else it }
                             isEditingTextContent = false
                         },

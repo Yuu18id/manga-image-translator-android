@@ -220,6 +220,7 @@ class CanvasTextRenderer @Inject constructor(
             val matchingCandidate = candidates.find { it.index == idx }
             if (matchingCandidate != null) {
                 originalBlock.copy(
+                    translatedText = matchingCandidate.textToRender,
                     boundingBox = matchingCandidate.bounds,
                     customFontSize = matchingCandidate.layoutResult.fontSize,
                     customAlignment = matchingCandidate.block.customAlignment ?: config.alignment,

@@ -164,7 +164,10 @@ class TranslateViewModel @Inject constructor(
                     _originalBitmap = record.originalBitmap
                     _translatedBitmap = record.translatedBitmap
                     _inpaintedBitmap = record.inpaintedBitmap
-                    _currentTextBlocks = record.textBlocks
+                    val sanitizedBlocks = record.textBlocks.map { b ->
+                        b.copy(translatedText = textPostProcessor.process(b.translatedText, b.text))
+                    }
+                    _currentTextBlocks = sanitizedBlocks
                     _pendingRawMask?.recycle()
                     _pendingRawMask = null
 
@@ -174,7 +177,7 @@ class TranslateViewModel @Inject constructor(
                             originalImage = record.originalBitmap?.asImageBitmap(),
                             translatedImage = record.translatedBitmap?.asImageBitmap(),
                             inpaintedImage = record.inpaintedBitmap?.asImageBitmap(),
-                            currentTextBlocks = record.textBlocks,
+                            currentTextBlocks = sanitizedBlocks,
                             sourceLang = record.item.sourceLang,
                             targetLang = record.item.targetLang,
                             translatorType = record.item.translatorType,
