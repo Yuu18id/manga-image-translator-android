@@ -57,7 +57,7 @@ fun GalleryScreen(
     onNavigateToSettings: (() -> Unit)? = null
 ) {
     val items by viewModel.galleryItems.collectAsStateWithLifecycle()
-    val isExporting by viewModel.isExporting.collectAsStateWithLifecycle()
+    val exportingKeys by viewModel.exportingKeys.collectAsStateWithLifecycle()
     var selectedKeys by remember { mutableStateOf(setOf<String>()) }
     val isSelectionMode by remember { derivedStateOf { selectedKeys.isNotEmpty() } }
     val context = LocalContext.current
@@ -210,14 +210,15 @@ fun GalleryScreen(
                         }) {
                             Icon(Icons.Default.SelectAll, contentDescription = stringResource(R.string.action_select_all))
                         }
+                        val isAnyExporting = exportingKeys.isNotEmpty()
                         IconButton(
                             onClick = {
                                 viewModel.saveSelectedItems(selectedKeys)
                                 selectedKeys = emptySet()
                             },
-                            enabled = !isExporting
+                            enabled = !isAnyExporting
                         ) {
-                            if (isExporting) {
+                            if (isAnyExporting) {
                                 CircularProgressIndicator(
                                     modifier = Modifier.size(18.dp),
                                     strokeWidth = 2.dp,
@@ -320,20 +321,12 @@ fun GalleryScreen(
                     verticalArrangement = Arrangement.Center,
                     modifier = Modifier.padding(32.dp)
                 ) {
-                    Surface(
-                        modifier = Modifier.size(80.dp),
-                        shape = CircleShape,
-                        color = MaterialTheme.colorScheme.surfaceVariant
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                imageVector = Icons.Default.PhotoLibrary,
-                                contentDescription = null,
-                                modifier = Modifier.size(40.dp),
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                        }
-                    }
+                    Icon(
+                        imageVector = Icons.Default.PhotoLibrary,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                        modifier = Modifier.size(72.dp)
+                    )
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
                         text = stringResource(R.string.gallery_empty_title),
@@ -367,6 +360,9 @@ fun GalleryScreen(
                     key = { it.key }
                 ) { item ->
                     val isSelected by remember { derivedStateOf { selectedKeys.contains(item.key) } }
+                    val isItemExporting by remember(exportingKeys, item.key) {
+                        derivedStateOf { exportingKeys.contains(item.key) }
+                    }
 
                     when (item) {
                         is GalleryUiItem.Single -> {
@@ -374,7 +370,7 @@ fun GalleryScreen(
                                 item = item,
                                 isSelected = isSelected,
                                 isSelectionMode = isSelectionMode,
-                                isExporting = isExporting,
+                                isExporting = isItemExporting,
                                 onClick = {
                                     if (isSelectionMode) {
                                         selectedKeys = if (isSelected) selectedKeys - item.key else selectedKeys + item.key
@@ -400,7 +396,7 @@ fun GalleryScreen(
                                 album = item,
                                 isSelected = isSelected,
                                 isSelectionMode = isSelectionMode,
-                                isExporting = isExporting,
+                                isExporting = isItemExporting,
                                 onClick = {
                                     if (isSelectionMode) {
                                         selectedKeys = if (isSelected) selectedKeys - item.key else selectedKeys + item.key

@@ -72,8 +72,8 @@ class GalleryViewModel @Inject constructor(
     private val _exportEvents = MutableSharedFlow<ExportEvent>()
     val exportEvents: SharedFlow<ExportEvent> = _exportEvents.asSharedFlow()
 
-    private val _isExporting = MutableStateFlow(false)
-    val isExporting: StateFlow<Boolean> = _isExporting.asStateFlow()
+    private val _exportingKeys = MutableStateFlow<Set<String>>(emptySet())
+    val exportingKeys: StateFlow<Set<String>> = _exportingKeys.asStateFlow()
 
     val galleryItems: StateFlow<List<GalleryUiItem>> = historyRepository.getRecentTranslations(300)
         .map { items ->
@@ -118,8 +118,9 @@ class GalleryViewModel @Inject constructor(
     }
 
     fun saveSingleItem(item: TranslationHistoryItem) {
-        if (_isExporting.value) return
-        _isExporting.value = true
+        val key = "single_${item.id}"
+        if (_exportingKeys.value.contains(key)) return
+        _exportingKeys.value = _exportingKeys.value + key
         viewModelScope.launch {
             try {
                 val sourcePath = if (item.resultPath.isNotBlank()) item.resultPath else item.thumbnailPath
@@ -132,14 +133,15 @@ class GalleryViewModel @Inject constructor(
                     _exportEvents.emit(ExportEvent.Error(result.exceptionOrNull()?.message ?: "Failed to save image"))
                 }
             } finally {
-                _isExporting.value = false
+                _exportingKeys.value = _exportingKeys.value - key
             }
         }
     }
 
     fun saveAlbum(album: GalleryUiItem.Album) {
-        if (_isExporting.value) return
-        _isExporting.value = true
+        val key = album.key
+        if (_exportingKeys.value.contains(key)) return
+        _exportingKeys.value = _exportingKeys.value + key
         viewModelScope.launch {
             try {
                 val pairs = album.pageItems.map { page ->
@@ -155,14 +157,15 @@ class GalleryViewModel @Inject constructor(
                     _exportEvents.emit(ExportEvent.Error("Failed to save album images"))
                 }
             } finally {
-                _isExporting.value = false
+                _exportingKeys.value = _exportingKeys.value - key
             }
         }
     }
 
     fun saveSelectedItems(selectedKeys: Set<String>) {
-        if (_isExporting.value) return
-        _isExporting.value = true
+        if (selectedKeys.isEmpty()) return
+        if (_exportingKeys.value.any { it in selectedKeys }) return
+        _exportingKeys.value = _exportingKeys.value + selectedKeys
         viewModelScope.launch {
             try {
                 val currentItems = galleryItems.value.filter { it.key in selectedKeys }
@@ -194,7 +197,7 @@ class GalleryViewModel @Inject constructor(
                     _exportEvents.emit(ExportEvent.Error("Failed to save selected images"))
                 }
             } finally {
-                _isExporting.value = false
+                _exportingKeys.value = _exportingKeys.value - selectedKeys
             }
         }
     }
