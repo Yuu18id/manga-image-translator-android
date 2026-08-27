@@ -135,6 +135,9 @@
     <string name="settings_language_engine">言語と翻訳エンジン</string>
     <string name="settings_default_target_lang">デフォルト翻訳先言語</string>
     <string name="settings_default_translator">デフォルト翻訳エンジン</string>
+    <string name="settings_default_ocr_engine">デフォルトOCRエンジン</string>
+    <string name="ocr_engine_ctc">48px CTC OCR (高速・軽量)</string>
+    <string name="ocr_engine_manga_ocr">Manga-OCR (ViT + RoBERTa - 最高精度)</string>
     <string name="settings_api_keys">APIキー</string>
     <string name="settings_api_keys_subtitle">翻訳プロバイダーのAPIキーを設定します。キーはローカルストレージに安全に保管されます。</string>
     <string name="settings_key_active">有効</string>

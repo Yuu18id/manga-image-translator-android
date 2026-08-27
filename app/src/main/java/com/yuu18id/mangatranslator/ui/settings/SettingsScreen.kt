@@ -46,6 +46,7 @@ fun SettingsScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val scrollState = rememberScrollState()
+    val context = LocalContext.current
 
     var showClearHistoryDialog by remember { mutableStateOf(false) }
 
@@ -127,12 +128,12 @@ fun SettingsScreen(
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
 
                 SettingsDropdownItem(
-                    label = "Engine OCR",
+                    label = stringResource(R.string.settings_default_ocr_engine),
                     icon = Icons.Default.TextFields,
                     options = remember { com.yuu18id.mangatranslator.domain.model.OcrType.values().toList() },
                     selectedOption = uiState.config.ocr.ocrType,
                     onOptionSelected = viewModel::updateOcrType,
-                    optionLabel = { it.displayName }
+                    optionLabel = { context.getString(it.titleResId) }
                 )
             }
 

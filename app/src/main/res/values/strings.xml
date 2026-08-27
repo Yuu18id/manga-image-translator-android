@@ -135,6 +135,9 @@
     <string name="settings_language_engine">Language &amp; Engine</string>
     <string name="settings_default_target_lang">Default Target Language</string>
     <string name="settings_default_translator">Default Translator Engine</string>
+    <string name="settings_default_ocr_engine">Default OCR Engine</string>
+    <string name="ocr_engine_ctc">48px CTC OCR (Fast &amp; Lightweight)</string>
+    <string name="ocr_engine_manga_ocr">Manga-OCR (ViT + RoBERTa - Maximum Accuracy)</string>
     <string name="settings_api_keys">API Keys</string>
     <string name="settings_api_keys_subtitle">Configure API keys for translation providers. Keys are stored securely in local app storage.</string>
     <string name="settings_key_active">ACTIVE</string>

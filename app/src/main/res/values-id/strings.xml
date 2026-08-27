@@ -135,6 +135,9 @@
     <string name="settings_language_engine">Bahasa &amp; Mesin Terjemahan</string>
     <string name="settings_default_target_lang">Bahasa Tujuan Default</string>
     <string name="settings_default_translator">Penyedia Terjemahan Default</string>
+    <string name="settings_default_ocr_engine">Engine OCR Default</string>
+    <string name="ocr_engine_ctc">48px CTC OCR (Cepat &amp; Ringan)</string>
+    <string name="ocr_engine_manga_ocr">Manga-OCR (ViT + RoBERTa - Akurasi Maksimal)</string>
     <string name="settings_api_keys">Kunci API (API Keys)</string>
     <string name="settings_api_keys_subtitle">Atur API key penyedia terjemahan. Kunci disimpan aman di penyimpanan lokal perangkat.</string>
     <string name="settings_key_active">AKTIF</string>

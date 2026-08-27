@@ -135,6 +135,9 @@
     <string name="settings_language_engine">语言与引擎</string>
     <string name="settings_default_target_lang">默认目标语言</string>
     <string name="settings_default_translator">默认翻译引擎</string>
+    <string name="settings_default_ocr_engine">默认OCR引擎</string>
+    <string name="ocr_engine_ctc">48px CTC OCR (快速轻量)</string>
+    <string name="ocr_engine_manga_ocr">Manga-OCR (ViT + RoBERTa - 最高准确率)</string>
     <string name="settings_api_keys">API 密钥</string>
     <string name="settings_api_keys_subtitle">配置翻译服务商的 API 密钥。密钥将安全保存在本地存储中。</string>
     <string name="settings_key_active">当前激活</string>
