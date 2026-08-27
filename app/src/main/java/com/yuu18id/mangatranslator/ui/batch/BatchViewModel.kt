@@ -266,19 +266,39 @@ class BatchViewModel @Inject constructor(
         }
     }
 
-    fun startBatchTranslation() {
+    fun startBatchTranslation(singlePageIndex: Int? = null) {
         val state = _uiState.value
         val pagesToProcess = state.pages
         if (pagesToProcess.isEmpty() || state.isProcessing) return
 
         batchJob?.cancel()
         batchJob = viewModelScope.launch {
+            val initialCompletedCount = pagesToProcess.count { it.status == BatchPageStatus.COMPLETED }
+            val total = pagesToProcess.size
+            val initialProgress = if (total > 0) (initialCompletedCount.toFloat() / total.toFloat()).coerceIn(0f, 1f) else 0f
+
+            // Prepare pages: reset FAILED / CANCELLED status for pages to be translated
+            val preparedPages = pagesToProcess.mapIndexed { index, page ->
+                if (singlePageIndex != null) {
+                    if (index == singlePageIndex && page.status != BatchPageStatus.COMPLETED) {
+                        page.copy(status = BatchPageStatus.QUEUED, errorMessage = null, stageMessage = "")
+                    } else page
+                } else {
+                    if (page.status != BatchPageStatus.COMPLETED) {
+                        page.copy(status = BatchPageStatus.QUEUED, errorMessage = null, stageMessage = "")
+                    } else page
+                }
+            }
+
+            val remainingFailed = preparedPages.count { it.status == BatchPageStatus.FAILED }
+
             _uiState.update {
                 it.copy(
                     isProcessing = true,
-                    completedCount = 0,
-                    failedCount = 0,
-                    overallProgress = 0f,
+                    pages = preparedPages,
+                    completedCount = initialCompletedCount,
+                    failedCount = remainingFailed,
+                    overallProgress = initialProgress,
                     error = null
                 )
             }
@@ -292,7 +312,6 @@ class BatchViewModel @Inject constructor(
                 )
             )
 
-            val total = pagesToProcess.size
             val currentBatchId = _uiState.value.currentBatchId ?: "batch_${System.currentTimeMillis()}"
             val currentBatchName = if (_uiState.value.currentBatchName.isNotBlank()) {
                 _uiState.value.currentBatchName
@@ -309,11 +328,21 @@ class BatchViewModel @Inject constructor(
 
             // Start Foreground Service with WakeLock
             BatchTranslationService.start(context, total)
+            BatchTranslationService.updateProgress(
+                context,
+                initialCompletedCount,
+                total,
+                initialProgress,
+                ""
+            )
 
             try {
                 for (i in pagesToProcess.indices) {
                     val page = _uiState.value.pages[i]
                     if (page.status == BatchPageStatus.COMPLETED) {
+                        continue
+                    }
+                    if (singlePageIndex != null && i != singlePageIndex) {
                         continue
                     }
 
@@ -326,8 +355,7 @@ class BatchViewModel @Inject constructor(
                         )
                         current.copy(
                             pages = updatedList,
-                            currentProcessingIndex = i,
-                            overallProgress = (i.toFloat() / total.toFloat())
+                            currentProcessingIndex = i
                         )
                     }
 
@@ -388,17 +416,17 @@ class BatchViewModel @Inject constructor(
                                             stageMessage = pipelineState.message
                                         )
                                         val pageProgressContribution = pipelineState.progress / total.toFloat()
-                                        val currentOverall = (i.toFloat() / total.toFloat()) + pageProgressContribution
+                                        val currentOverall = ((current.completedCount.toFloat() / total.toFloat()) + pageProgressContribution).coerceIn(0f, 1f)
                                         BatchTranslationService.updateProgress(
                                             context,
                                             current.completedCount,
                                             total,
-                                            currentOverall.coerceIn(0f, 1f),
+                                            currentOverall,
                                             pipelineState.message
                                         )
                                         current.copy(
                                             pages = updatedList,
-                                            overallProgress = currentOverall.coerceIn(0f, 1f)
+                                            overallProgress = currentOverall
                                         )
                                     }
                                 }
@@ -411,13 +439,14 @@ class BatchViewModel @Inject constructor(
                                     _uiState.update { current ->
                                         val updatedList = current.pages.toMutableList()
                                         val updatedCompleted = current.completedCount + 1
+                                        val remainingFailedCount = updatedList.count { it.status == BatchPageStatus.FAILED }
                                         updatedList[i] = updatedList[i].copy(
                                             status = BatchPageStatus.COMPLETED,
                                             progress = 1.0f,
                                             stageMessage = "",
                                             historyId = historyId
                                         )
-                                        val currentOverall = (updatedCompleted.toFloat() / total.toFloat())
+                                        val currentOverall = (updatedCompleted.toFloat() / total.toFloat()).coerceIn(0f, 1f)
                                         BatchTranslationService.updateProgress(
                                             context,
                                             updatedCompleted,
@@ -428,6 +457,7 @@ class BatchViewModel @Inject constructor(
                                         current.copy(
                                             pages = updatedList,
                                             completedCount = updatedCompleted,
+                                            failedCount = remainingFailedCount,
                                             overallProgress = currentOverall
                                         )
                                     }
@@ -461,20 +491,26 @@ class BatchViewModel @Inject constructor(
                 }
             } finally {
                 val finalState = _uiState.value
-                val isSuccess = finalState.failedCount == 0 && finalState.completedCount > 0
+                val finalCompleted = finalState.pages.count { it.status == BatchPageStatus.COMPLETED }
+                val finalFailed = finalState.pages.count { it.status == BatchPageStatus.FAILED }
+                val isSuccess = finalFailed == 0 && finalCompleted > 0
                 BatchTranslationService.stop(
                     context,
                     isSuccess = isSuccess,
-                    completed = finalState.completedCount,
+                    completed = finalCompleted,
                     total = total
                 )
             }
 
-            _uiState.update {
-                it.copy(
+            _uiState.update { current ->
+                val finalCompleted = current.pages.count { it.status == BatchPageStatus.COMPLETED }
+                val finalFailed = current.pages.count { it.status == BatchPageStatus.FAILED }
+                current.copy(
                     isProcessing = false,
                     currentProcessingIndex = -1,
-                    overallProgress = 1.0f
+                    completedCount = finalCompleted,
+                    failedCount = finalFailed,
+                    overallProgress = if (total > 0) (finalCompleted.toFloat() / total.toFloat()).coerceIn(0f, 1f) else 1f
                 )
             }
         }

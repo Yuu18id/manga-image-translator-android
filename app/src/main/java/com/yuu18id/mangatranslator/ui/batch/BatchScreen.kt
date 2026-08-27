@@ -277,7 +277,8 @@ fun BatchScreen(
                                 onMoveUp = { viewModel.movePageUp(index) },
                                 onMoveDown = { viewModel.movePageDown(index) },
                                 onDelete = { viewModel.removePage(item.id) },
-                                onEditTypeset = { viewModel.openRenderEditor(index) }
+                                onEditTypeset = { viewModel.openRenderEditor(index) },
+                                onRetry = { viewModel.startBatchTranslation(index) }
                             )
                         }
                         item {
@@ -478,7 +479,8 @@ fun BatchPageCard(
     onMoveUp: () -> Unit,
     onMoveDown: () -> Unit,
     onDelete: () -> Unit,
-    onEditTypeset: () -> Unit
+    onEditTypeset: () -> Unit,
+    onRetry: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val imageRequest = remember(item.uriString) {
@@ -607,7 +609,7 @@ fun BatchPageCard(
                 }
             }
 
-            // Actions: Edit Typeset for completed pages, Reorder & Delete for pending pages
+            // Actions: Edit Typeset for completed pages, Retry for failed, Reorder & Delete for pending pages
             if (!isProcessingActive && item.status != BatchPageStatus.PROCESSING) {
                 if (item.status == BatchPageStatus.COMPLETED) {
                     FilledTonalButton(
@@ -619,6 +621,28 @@ fun BatchPageCard(
                         Icon(Icons.Default.Tune, contentDescription = null, modifier = Modifier.size(14.dp))
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(stringResource(R.string.action_typeset), style = MaterialTheme.typography.labelSmall)
+                    }
+                    Spacer(modifier = Modifier.width(4.dp))
+                    IconButton(
+                        onClick = onDelete,
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(Icons.Default.Close, contentDescription = stringResource(R.string.action_remove), tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp))
+                    }
+                } else if (item.status == BatchPageStatus.FAILED) {
+                    FilledTonalButton(
+                        onClick = onRetry,
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
+                        shape = RoundedCornerShape(8.dp),
+                        colors = ButtonDefaults.filledTonalButtonColors(
+                            containerColor = MaterialTheme.colorScheme.errorContainer,
+                            contentColor = MaterialTheme.colorScheme.onErrorContainer
+                        ),
+                        modifier = Modifier.height(34.dp)
+                    ) {
+                        Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(14.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(stringResource(R.string.action_retry), style = MaterialTheme.typography.labelSmall)
                     }
                     Spacer(modifier = Modifier.width(4.dp))
                     IconButton(
