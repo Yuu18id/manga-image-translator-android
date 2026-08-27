@@ -1,4 +1,4 @@
-﻿package com.yuu18id.mangatranslator.ui.translate.editor
+package com.yuu18id.mangatranslator.ui.translate.editor
 
 import android.graphics.Paint
 import android.graphics.PointF
@@ -305,9 +305,12 @@ fun RenderEditorCanvas(
                     fillPaint.typeface = blockTypeface
                     strokePaint.typeface = blockTypeface
 
+                    val isCJK = block.language in listOf(Language.JPN, Language.CHS, Language.CHT, Language.KOR)
+                    val isEffectiveVertical = isCJK && block.isVertical
+
                     val renderConfig = RenderConfig(
                         alignment = block.customAlignment,
-                        direction = if (block.isVertical) com.yuu18id.mangatranslator.domain.model.TextDirection.VERTICAL else com.yuu18id.mangatranslator.domain.model.TextDirection.HORIZONTAL
+                        direction = if (isEffectiveVertical) com.yuu18id.mangatranslator.domain.model.TextDirection.VERTICAL else com.yuu18id.mangatranslator.domain.model.TextDirection.HORIZONTAL
                     )
 
                     val layoutResult: LayoutResult = if (block.customFontSize != null) {
@@ -318,7 +321,7 @@ fun RenderEditorCanvas(
                             fontSize = block.customFontSize,
                             language = block.language,
                             config = renderConfig,
-                            isVertical = block.isVertical,
+                            isVertical = isEffectiveVertical,
                             fontStyle = block.customFontStyle
                         )
                     } else {
@@ -329,7 +332,7 @@ fun RenderEditorCanvas(
                             estimatedOriginalFontSize = b.height() / 3f,
                             language = block.language,
                             config = renderConfig,
-                            isVertical = block.isVertical,
+                            isVertical = isEffectiveVertical,
                             fontStyle = block.customFontStyle
                         )
                     }
@@ -341,7 +344,7 @@ fun RenderEditorCanvas(
                     strokePaint.textSize = fontSize
                     strokePaint.strokeWidth = max(5.0f, fontSize * 0.28f)
 
-                    if (block.isVertical) {
+                    if (isEffectiveVertical) {
                         drawVerticalTextOnCanvas(nativeCanvas, layoutResult, b, fillPaint, strokePaint)
                     } else {
                         drawHorizontalTextOnCanvas(nativeCanvas, layoutResult, b, fillPaint, strokePaint, block.customAlignment)
