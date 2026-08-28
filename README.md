@@ -8,12 +8,12 @@
 
 Native Android application based on [zyddnys/manga-image-translator](https://github.com/zyddnys/manga-image-translator), providing on-device AI manga translation, interactive text bubble correction, manual typesetting adjustment, and chapter batch processing powered by ONNX Runtime Mobile, OpenCV, and Jetpack Compose (Material Design 3).
 
-Optimized specifically for translating raw **Japanese Manga (`JA / JPN`)** into **English, Indonesian, and other target languages** directly on mobile devices with comic-grade typesetting and neural inpainting.
+Optimized specifically for translating raw **Japanese Manga (`JA / JPN`)** into **English, and other target languages** directly on mobile devices with comic-grade typesetting and neural inpainting.
 
 > [!WARNING]
 > ### Disclaimer
-> * **Hardware Requirements:** Running deep learning models (CTD, 48px CTC OCR, AOT-GAN) directly on-device requires sufficient RAM and CPU processing. Performance depends on device specifications.
-> * **Source Language Specialization:** The on-device 48px CTC OCR model and dictionary are specialized for Japanese Manga typography (Kanji, Hiragana, Katakana, Romaji, and common comic symbols). Translating non-Japanese comics is not supported.
+> * **Hardware Requirements:** Running deep learning models directly on-device requires sufficient RAM and CPU processing. Performance depends on device specifications.
+> * **Source Language Specialization:** The on-device OCR model and dictionary are specialized for Japanese Manga typography (Kanji, Hiragana, Katakana, Romaji, and common comic symbols). Translating non-Japanese comics is not supported for now.
 > * **Edge Cases:** Highly distorted handwritten script, dense sound effects (SFX), or degraded low-resolution scans may require manual adjustment via the built-in interactive editors.
 
 ---
@@ -49,7 +49,7 @@ Optimized specifically for translating raw **Japanese Manga (`JA / JPN`)** into 
 * Chapter album grouping in the gallery database with multi-page reader support.
 
 ### 4. Translation Engines
-* Cloud API integration: **DeepL**, **Google Gemini**, **OpenAI (GPT-4o / GPT-4o-mini)**, **DeepSeek**, **Groq**, **OpenRouter**, and **Naver Papago**.
+* Cloud API integration: **Claude**, **GLM**, **DeepL**, **Google Gemini**, **OpenAI**, **DeepSeek**, **Groq**, **OpenRouter**, and **Naver Papago**.
 * Encrypted local storage for provider API keys.
 * Fast re-translate capability to switch engines without re-running OCR and inpainting.
 
@@ -187,7 +187,7 @@ The application **Settings** screen provides configuration for:
 * **OCR Engine:** Choose between **48px CTC OCR** (Fast & Lightweight) and **Manga-OCR** (Full-Precision Vision Transformer ViT + RoBERTa for complex fonts).
 * **Translation Engine:** Select default provider (DeepL, Gemini, OpenAI, Groq, DeepSeek, OpenRouter, Papago).
 * **API Keys:** Securely input and store provider keys.
-* **Target Language:** Select default output language (English, Indonesian, etc.).
+* **Target Language:** Select default output language (English, etc.).
 * **Storage Management:** View and clear translation cache and historical rendered image files.
 
 ---
