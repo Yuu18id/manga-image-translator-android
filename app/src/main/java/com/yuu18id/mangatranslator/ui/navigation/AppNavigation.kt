@@ -12,6 +12,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -62,8 +63,8 @@ fun AppNavigation(initialImageUri: android.net.Uri? = null) {
             if (isTopLevelDestination) {
                 NavigationBar {
                     NavigationBarItem(
-                        icon = { Icon(Icons.Default.Translate, contentDescription = "Translate") },
-                        label = { Text("Translate") },
+                        icon = { Icon(Icons.Default.Translate, contentDescription = stringResource(com.yuu18id.mangatranslator.R.string.nav_translate)) },
+                        label = { Text(stringResource(com.yuu18id.mangatranslator.R.string.nav_translate)) },
                         selected = currentRoute == Screen.Home.route,
                         onClick = {
                             if (currentRoute != Screen.Home.route) {
@@ -78,8 +79,8 @@ fun AppNavigation(initialImageUri: android.net.Uri? = null) {
                         }
                     )
                     NavigationBarItem(
-                        icon = { Icon(Icons.Default.PhotoLibrary, contentDescription = "Galeri") },
-                        label = { Text("Galeri") },
+                        icon = { Icon(Icons.Default.PhotoLibrary, contentDescription = stringResource(com.yuu18id.mangatranslator.R.string.nav_gallery)) },
+                        label = { Text(stringResource(com.yuu18id.mangatranslator.R.string.nav_gallery)) },
                         selected = currentRoute == Screen.Gallery.route,
                         onClick = {
                             if (currentRoute != Screen.Gallery.route) {
