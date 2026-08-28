@@ -25,6 +25,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.yuu18id.mangatranslator.R
 import com.yuu18id.mangatranslator.data.textline.TextPostProcessor
+import com.yuu18id.mangatranslator.domain.model.CustomFontFamily
 import com.yuu18id.mangatranslator.domain.model.CustomFontStyle
 import com.yuu18id.mangatranslator.domain.model.TextAlignment
 import com.yuu18id.mangatranslator.domain.model.TextBlock
@@ -302,6 +303,50 @@ fun RenderEditorDialog(
                                                         imageVector = Icons.Default.FormatItalic,
                                                         contentDescription = stringResource(R.string.typeset_style_italic),
                                                         tint = if (isItalic) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                                        modifier = Modifier.size(18.dp)
+                                                    )
+                                                }
+                                            }
+                                        }
+
+                                        // Font Family Controls (Wild Words vs Badabb for Shouting/Impact)
+                                        Surface(
+                                            shape = RoundedCornerShape(12.dp),
+                                            color = MaterialTheme.colorScheme.surface,
+                                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                                        ) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                modifier = Modifier.padding(2.dp)
+                                            ) {
+                                                val isBadaboom = selectedBlock.customFontFamily == CustomFontFamily.BADABOOM
+
+                                                IconButton(
+                                                    onClick = {
+                                                        val updated = selectedBlock.copy(customFontFamily = CustomFontFamily.WILD_WORDS)
+                                                        blocks = blocks.map { if (it.id == updated.id) updated else it }
+                                                    },
+                                                    modifier = Modifier.size(32.dp)
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.TextFields,
+                                                        contentDescription = stringResource(R.string.typeset_font_wild_words),
+                                                        tint = if (!isBadaboom) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                                        modifier = Modifier.size(18.dp)
+                                                    )
+                                                }
+
+                                                IconButton(
+                                                    onClick = {
+                                                        val updated = selectedBlock.copy(customFontFamily = CustomFontFamily.BADABOOM)
+                                                        blocks = blocks.map { if (it.id == updated.id) updated else it }
+                                                    },
+                                                    modifier = Modifier.size(32.dp)
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.Campaign,
+                                                        contentDescription = stringResource(R.string.typeset_font_badaboom),
+                                                        tint = if (isBadaboom) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                                                         modifier = Modifier.size(18.dp)
                                                     )
                                                 }

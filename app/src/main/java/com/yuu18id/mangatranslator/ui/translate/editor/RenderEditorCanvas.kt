@@ -301,7 +301,11 @@ fun RenderEditorCanvas(
                     val textToRender = TextPostProcessor.processText(block.translatedText, block.originalText)
                     if (textToRender.isBlank() || b.width() <= 0 || b.height() <= 0) continue
 
-                    val blockTypeface = fontManager.getTypefaceForLanguage(block.language ?: Language.ENG, block.customFontStyle)
+                    val blockTypeface = fontManager.getTypefaceForLanguage(
+                        language = block.language ?: Language.ENG,
+                        fontStyle = block.customFontStyle,
+                        fontFamily = block.customFontFamily
+                    )
                     fillPaint.typeface = blockTypeface
                     strokePaint.typeface = blockTypeface
 
@@ -322,7 +326,8 @@ fun RenderEditorCanvas(
                             language = block.language,
                             config = renderConfig,
                             isVertical = isEffectiveVertical,
-                            fontStyle = block.customFontStyle
+                            fontStyle = block.customFontStyle,
+                            fontFamily = block.customFontFamily
                         )
                     } else {
                         layoutEngine.calculateLayout(
@@ -333,7 +338,8 @@ fun RenderEditorCanvas(
                             language = block.language,
                             config = renderConfig,
                             isVertical = isEffectiveVertical,
-                            fontStyle = block.customFontStyle
+                            fontStyle = block.customFontStyle,
+                            fontFamily = block.customFontFamily
                         )
                     }
 

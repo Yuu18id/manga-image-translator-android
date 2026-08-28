@@ -1,8 +1,9 @@
-package com.yuu18id.mangatranslator.data.rendering
+﻿package com.yuu18id.mangatranslator.data.rendering
 
 import android.content.Context
 import android.graphics.Typeface
 import android.util.Log
+import com.yuu18id.mangatranslator.domain.model.CustomFontFamily
 import com.yuu18id.mangatranslator.domain.model.CustomFontStyle
 import com.yuu18id.mangatranslator.domain.model.Language
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -25,15 +26,20 @@ class FontManager @Inject constructor(
             Typeface.createFromAsset(context.assets, "fonts/cc-wild-words-roman.ttf").also {
                 Log.i(TAG, "Loaded Wild Words font from assets/fonts/cc-wild-words-roman.ttf")
             }
-        } catch (e1: Exception) {
-            try {
-                Typeface.createFromAsset(context.assets, "font/cc-wild-words-roman.ttf").also {
-                    Log.i(TAG, "Loaded Wild Words font from assets/font/cc-wild-words-roman.ttf")
-                }
-            } catch (e2: Exception) {
-                Log.e(TAG, "Failed to load Wild Words font: ${e2.message}", e2)
-                null
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to load Wild Words font: ${e.message}", e)
+            null
+        }
+    }
+
+    val badaboomTypeface: Typeface? by lazy {
+        try {
+            Typeface.createFromAsset(context.assets, "fonts/BADABB__.TTF").also {
+                Log.i(TAG, "Loaded Badabb font from assets/fonts/BADABB__.TTF")
             }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to load Badabb font: ${e.message}", e)
+            null
         }
     }
 
@@ -49,14 +55,18 @@ class FontManager @Inject constructor(
 
     fun getTypefaceForLanguage(
         language: Language,
-        fontStyle: CustomFontStyle = CustomFontStyle.NORMAL
+        fontStyle: CustomFontStyle = CustomFontStyle.NORMAL,
+        fontFamily: CustomFontFamily = CustomFontFamily.WILD_WORDS
     ): Typeface {
         val baseTypeface = customFont ?: when (language) {
             Language.JPN, Language.CHS, Language.CHT, Language.KOR -> {
                 Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
             }
             else -> {
-                wildWordsTypeface ?: Typeface.DEFAULT_BOLD
+                when (fontFamily) {
+                    CustomFontFamily.BADABOOM -> badaboomTypeface ?: wildWordsTypeface ?: Typeface.DEFAULT_BOLD
+                    CustomFontFamily.WILD_WORDS -> wildWordsTypeface ?: Typeface.DEFAULT_BOLD
+                }
             }
         }
 

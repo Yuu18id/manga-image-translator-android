@@ -21,6 +21,7 @@ data class TextBlockDto(
     val customFontSize: Float? = null,
     val customAlignment: String? = null,
     val customFontStyle: String? = null,
+    val customFontFamily: String? = null,
     val isManualBounds: Boolean = false
 ) {
     fun toDomain(): TextBlock = TextBlock(
@@ -34,6 +35,7 @@ data class TextBlockDto(
         customFontSize = customFontSize,
         customAlignment = customAlignment?.let { runCatching { TextAlignment.valueOf(it) }.getOrNull() },
         customFontStyle = customFontStyle?.let { runCatching { CustomFontStyle.valueOf(it) }.getOrNull() },
+        customFontFamily = customFontFamily?.let { runCatching { com.yuu18id.mangatranslator.domain.model.CustomFontFamily.valueOf(it) }.getOrNull() },
         isManualBounds = isManualBounds
     )
 
@@ -51,6 +53,7 @@ data class TextBlockDto(
             customFontSize = block.customFontSize,
             customAlignment = block.customAlignment?.name,
             customFontStyle = block.customFontStyle?.name,
+            customFontFamily = block.customFontFamily?.name,
             isManualBounds = block.isManualBounds
         )
     }

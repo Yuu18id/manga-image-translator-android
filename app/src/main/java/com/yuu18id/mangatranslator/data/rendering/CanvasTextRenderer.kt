@@ -99,6 +99,7 @@ class CanvasTextRenderer @Inject constructor(
             }
 
             val blockFontStyle = block.customFontStyle ?: CustomFontStyle.NORMAL
+            val blockFontFamily = block.customFontFamily ?: com.yuu18id.mangatranslator.domain.model.CustomFontFamily.WILD_WORDS
             val layoutResult = if (block.customFontSize != null) {
                 layoutEngine.layoutWithFontSize(
                     text = textToRender,
@@ -108,7 +109,8 @@ class CanvasTextRenderer @Inject constructor(
                     language = block.language,
                     config = customConfig,
                     isVertical = isVertical,
-                    fontStyle = blockFontStyle
+                    fontStyle = blockFontStyle,
+                    fontFamily = blockFontFamily
                 )
             } else {
                 layoutEngine.calculateLayout(
@@ -119,7 +121,8 @@ class CanvasTextRenderer @Inject constructor(
                     language = block.language,
                     config = customConfig,
                     isVertical = isVertical,
-                    fontStyle = blockFontStyle
+                    fontStyle = blockFontStyle,
+                    fontFamily = blockFontFamily
                 )
             }
 
@@ -156,7 +159,8 @@ class CanvasTextRenderer @Inject constructor(
                         language = c.block.language,
                         config = config,
                         isVertical = c.isVertical,
-                        fontStyle = c.block.customFontStyle ?: CustomFontStyle.NORMAL
+                        fontStyle = c.block.customFontStyle ?: CustomFontStyle.NORMAL,
+                        fontFamily = c.block.customFontFamily ?: com.yuu18id.mangatranslator.domain.model.CustomFontFamily.WILD_WORDS
                     )
                     Log.i(TAG, "   Harmonized Block ${c.index} font size from $currentSize -> $medianFontSize")
                     c.layoutResult = harmonized
@@ -173,7 +177,8 @@ class CanvasTextRenderer @Inject constructor(
 
             val targetTypeface = fontManager.getTypefaceForLanguage(
                 block.language ?: Language.ENG,
-                block.customFontStyle ?: CustomFontStyle.NORMAL
+                block.customFontStyle ?: CustomFontStyle.NORMAL,
+                block.customFontFamily ?: com.yuu18id.mangatranslator.domain.model.CustomFontFamily.WILD_WORDS
             )
 
             Log.i(TAG, "   Block ${c.index} RENDERING: text=\"${c.textToRender}\"")

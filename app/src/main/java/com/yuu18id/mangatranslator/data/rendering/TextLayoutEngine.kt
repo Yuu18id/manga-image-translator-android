@@ -32,7 +32,8 @@ class TextLayoutEngine @Inject constructor(
         language: Language?,
         config: RenderConfig,
         isVertical: Boolean,
-        fontStyle: CustomFontStyle = CustomFontStyle.NORMAL
+        fontStyle: CustomFontStyle = CustomFontStyle.NORMAL,
+        fontFamily: com.yuu18id.mangatranslator.domain.model.CustomFontFamily = com.yuu18id.mangatranslator.domain.model.CustomFontFamily.WILD_WORDS
     ): LayoutResult {
         val cleanText = TextPostProcessor.processText(text.trim())
         if (cleanText.isEmpty()) {
@@ -40,7 +41,7 @@ class TextLayoutEngine @Inject constructor(
         }
 
         val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.SUBPIXEL_TEXT_FLAG).apply {
-            typeface = fontManager.getTypefaceForLanguage(language ?: Language.ENG, fontStyle)
+            typeface = fontManager.getTypefaceForLanguage(language ?: Language.ENG, fontStyle, fontFamily)
         }
 
         val isCJK = language in listOf(Language.JPN, Language.CHS, Language.CHT, Language.KOR)
@@ -88,7 +89,8 @@ class TextLayoutEngine @Inject constructor(
         language: Language?,
         config: RenderConfig,
         isVertical: Boolean,
-        fontStyle: CustomFontStyle = CustomFontStyle.NORMAL
+        fontStyle: CustomFontStyle = CustomFontStyle.NORMAL,
+        fontFamily: com.yuu18id.mangatranslator.domain.model.CustomFontFamily = com.yuu18id.mangatranslator.domain.model.CustomFontFamily.WILD_WORDS
     ): LayoutResult {
         val cleanText = TextPostProcessor.processText(text.trim())
         if (cleanText.isEmpty()) {
@@ -96,7 +98,7 @@ class TextLayoutEngine @Inject constructor(
         }
 
         val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.SUBPIXEL_TEXT_FLAG).apply {
-            typeface = fontManager.getTypefaceForLanguage(language ?: Language.ENG, fontStyle)
+            typeface = fontManager.getTypefaceForLanguage(language ?: Language.ENG, fontStyle, fontFamily)
             textSize = fontSize
         }
 

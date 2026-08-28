@@ -100,6 +100,8 @@
     <string name="typeset_align_right">右揃え</string>
     <string name="typeset_style_bold">太字</string>
     <string name="typeset_style_italic">斜体</string>
+    <string name="typeset_font_wild_words">Wild Words (通常)</string>
+    <string name="typeset_font_badaboom">Badabb (叫び / アクション)</string>
     <string name="typeset_style_normal">標準</string>
     <string name="typeset_hint_idle">吹き出しをタップしてフォント、位置、テキストを調整</string>
     <string name="typeset_save_apply">保存して適用 (%1$d 個)</string>

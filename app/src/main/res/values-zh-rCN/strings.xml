@@ -100,6 +100,8 @@
     <string name="typeset_align_right">右对齐</string>
     <string name="typeset_style_bold">粗体</string>
     <string name="typeset_style_italic">斜体</string>
+    <string name="typeset_font_wild_words">Wild Words (常规)</string>
+    <string name="typeset_font_badaboom">Badabb (呐喊 / 动作)</string>
     <string name="typeset_style_normal">常规</string>
     <string name="typeset_hint_idle">点击文本气泡以调整字号、位置和译文内容。</string>
     <string name="typeset_save_apply">保存并应用排版 (%1$d 个气泡)</string>

@@ -18,6 +18,7 @@ data class TextBlock(
     val customFontSize: Float? = null,
     val customAlignment: TextAlignment? = null,
     val customFontStyle: CustomFontStyle? = null,
+    val customFontFamily: CustomFontFamily? = null,
     val isManualBounds: Boolean = false
 ) {
     fun mergedBoundingBox(): RectF {

@@ -1,4 +1,4 @@
-﻿package com.yuu18id.mangatranslator.ui.translate.editor
+package com.yuu18id.mangatranslator.ui.translate.editor
 
 import android.graphics.PointF
 import android.graphics.RectF
@@ -16,6 +16,7 @@ data class EditableRenderBlock(
     val customFontSize: Float? = null,
     val customAlignment: TextAlignment = TextAlignment.CENTER,
     val customFontStyle: CustomFontStyle = CustomFontStyle.NORMAL,
+    val customFontFamily: com.yuu18id.mangatranslator.domain.model.CustomFontFamily = com.yuu18id.mangatranslator.domain.model.CustomFontFamily.WILD_WORDS,
     val isVertical: Boolean = false,
     val language: Language? = null,
     val fgColor: IntArray = intArrayOf(0, 0, 0),
@@ -81,6 +82,7 @@ data class EditableRenderBlock(
             customFontSize = customFontSize,
             customAlignment = customAlignment,
             customFontStyle = customFontStyle,
+            customFontFamily = customFontFamily,
             isManualBounds = true
         )
     }
@@ -102,6 +104,7 @@ data class EditableRenderBlock(
                 customFontSize = block.customFontSize,
                 customAlignment = block.customAlignment ?: TextAlignment.CENTER,
                 customFontStyle = block.customFontStyle ?: CustomFontStyle.NORMAL,
+                customFontFamily = block.customFontFamily ?: com.yuu18id.mangatranslator.domain.model.CustomFontFamily.WILD_WORDS,
                 isVertical = block.isVertical,
                 language = block.language,
                 fgColor = block.fgColor,

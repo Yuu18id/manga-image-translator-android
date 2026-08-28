@@ -100,6 +100,8 @@
     <string name="typeset_align_right">Align Right</string>
     <string name="typeset_style_bold">Bold</string>
     <string name="typeset_style_italic">Italic</string>
+    <string name="typeset_font_wild_words">Wild Words (Default Dialog)</string>
+    <string name="typeset_font_badaboom">Badabb (Shout / Action)</string>
     <string name="typeset_style_normal">Normal</string>
     <string name="typeset_hint_idle">Tap a text bubble to adjust font, position, and text.</string>
     <string name="typeset_save_apply">Save Changes (%1$d Bubbles)</string>
