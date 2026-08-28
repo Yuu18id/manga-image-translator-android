@@ -140,8 +140,8 @@ graph TD
 
 ### 1. Clone Repository
 ```bash
-git clone https://github.com/yuu18id/manga-image-translator.git
-cd manga-image-translator/android-app
+git clone https://github.com/Yuu18id/manga-image-translator-android.git
+cd manga-image-translator-android
 ```
 
 ### 2. Model Assets Placement
@@ -150,7 +150,8 @@ Place required ONNX models, vocabularies, and dictionary files inside `app/src/m
 ```text
 app/src/main/assets/
 ├── fonts/
-│   └── cc-wild-words-roman.ttf
+│   ├── cc-wild-words-roman.ttf   # Standard dialogue font
+│   └── BADABB__.TTF              # Shouting / action comic font
 └── models/
     ├── alphabet-all-v5.txt       # CTC OCR dictionary
     ├── manga_ocr_vocab.txt       # Manga-OCR Japanese WordPiece vocabulary

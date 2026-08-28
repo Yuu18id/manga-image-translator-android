@@ -73,7 +73,7 @@ class OpenRouterTranslator @Inject constructor(
         val request = Request.Builder()
             .url("https://openrouter.ai/api/v1/chat/completions")
             .addHeader("Authorization", "Bearer $apiKey")
-            .addHeader("HTTP-Referer", "https://github.com/Yuu18id/manga-image-translator")
+            .addHeader("HTTP-Referer", "https://github.com/Yuu18id/manga-image-translator-android")
             .addHeader("X-Title", "Manga Image Translator Android")
             .post(body)
             .build()
