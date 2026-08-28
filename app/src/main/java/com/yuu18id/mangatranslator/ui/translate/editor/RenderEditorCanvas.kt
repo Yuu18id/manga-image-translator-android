@@ -1,10 +1,11 @@
-package com.yuu18id.mangatranslator.ui.translate.editor
+﻿package com.yuu18id.mangatranslator.ui.translate.editor
 
 import android.graphics.Paint
 import android.graphics.PointF
 import android.graphics.Rect
 import android.graphics.RectF
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.calculateCentroid
@@ -15,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
@@ -26,6 +28,8 @@ import com.yuu18id.mangatranslator.data.rendering.FontManager
 import com.yuu18id.mangatranslator.data.rendering.LayoutResult
 import com.yuu18id.mangatranslator.data.rendering.TextLayoutEngine
 import com.yuu18id.mangatranslator.data.textline.TextPostProcessor
+import com.yuu18id.mangatranslator.domain.model.CustomFontFamily
+import com.yuu18id.mangatranslator.domain.model.CustomFontStyle
 import com.yuu18id.mangatranslator.domain.model.Language
 import com.yuu18id.mangatranslator.domain.model.RenderConfig
 import com.yuu18id.mangatranslator.domain.model.TextAlignment
@@ -114,9 +118,19 @@ fun RenderEditorCanvas(
         }
     }
 
+    fun clampOffset(off: Offset, s: Float, viewW: Float, viewH: Float, fitW: Float, fitH: Float): Offset {
+        val maxOffsetX = max(0f, (fitW * s - viewW) / 2f)
+        val maxOffsetY = max(0f, (fitH * s - viewH) / 2f)
+        return Offset(
+            x = off.x.coerceIn(-maxOffsetX, maxOffsetX),
+            y = off.y.coerceIn(-maxOffsetY, maxOffsetY)
+        )
+    }
+
     Box(
         modifier = modifier
             .fillMaxSize()
+            .background(Color(0xFF181818))
             .pointerInput(imageWidth, imageHeight) {
                 awaitEachGesture {
                     val firstDown = awaitFirstDown(requireUnconsumed = false)
@@ -125,29 +139,29 @@ fun RenderEditorCanvas(
 
                     if (canvasW <= 0f || canvasH <= 0f || imageWidth <= 0f || imageHeight <= 0f) return@awaitEachGesture
 
-                    val scaleX = canvasW / imageWidth
-                    val scaleY = canvasH / imageHeight
-                    val baseScale = min(scaleX, scaleY)
-                    val currentDisplayScale = baseScale * scale
+                    val baseScale = min(canvasW / imageWidth, canvasH / imageHeight)
+                    val fitWidth = imageWidth * baseScale
+                    val fitHeight = imageHeight * baseScale
 
-                    val displayedW = imageWidth * currentDisplayScale
-                    val displayedH = imageHeight * currentDisplayScale
-                    val imgLeft = (canvasW - displayedW) / 2f + offset.x
-                    val imgTop = (canvasH - displayedH) / 2f + offset.y
-
-                    fun screenToImage(pos: Offset): PointF {
-                        val ix = (pos.x - imgLeft) / currentDisplayScale
-                        val iy = (pos.y - imgTop) / currentDisplayScale
-                        return PointF(ix, iy)
+                    fun screenToImage(pos: Offset, s: Float, off: Offset): PointF {
+                        val cX = canvasW / 2f + off.x
+                        val cY = canvasH / 2f + off.y
+                        val iLeft = cX - (fitWidth * s) / 2f
+                        val iTop = cY - (fitHeight * s) / 2f
+                        val dScale = baseScale * s
+                        val ix = (pos.x - iLeft) / dScale
+                        val iy = (pos.y - iTop) / dScale
+                        return PointF(ix.coerceIn(0f, imageWidth), iy.coerceIn(0f, imageHeight))
                     }
 
                     val startPos = firstDown.position
-                    val startImgPt = screenToImage(startPos)
-                    val hitRadiusImg = (22.dp.toPx()) / currentDisplayScale
+                    val startImgPt = screenToImage(startPos, scale, offset)
+                    val currentDisplayScale = baseScale * scale
+                    val hitRadiusImg = (26.dp.toPx()) / currentDisplayScale
 
                     var dragMode = CanvasDragMode.NONE
                     var activeBlock = currentBlocks.find { it.id == currentSelectedBlockId }
-                    var initialBlockState = activeBlock
+                    var initialBounds = activeBlock?.bounds
 
                     if (activeBlock != null) {
                         val b = activeBlock.bounds
@@ -180,14 +194,13 @@ fun RenderEditorCanvas(
                         if (clickedBlock != null) {
                             currentOnSelectBlock(clickedBlock.id)
                             activeBlock = clickedBlock
-                            initialBlockState = clickedBlock
+                            initialBounds = clickedBlock.bounds
                             dragMode = CanvasDragMode.MOVE_BOX
                         } else {
                             dragMode = CanvasDragMode.PAN
                         }
                     }
 
-                    var lastCentroid = startPos
                     var hasDragged = false
 
                     while (true) {
@@ -195,74 +208,102 @@ fun RenderEditorCanvas(
                         val downPointers = event.changes.filter { it.pressed }
                         if (downPointers.isEmpty()) break
 
-                        if (downPointers.size > 1) {
-                            val zoomChange = event.calculateZoom()
-                            val panChange = event.calculatePan()
-                            scale = (scale * zoomChange).coerceIn(0.5f, 6f)
-                            offset += panChange
-                            hasDragged = true
-                            event.changes.forEach { it.consume() }
-                        } else {
-                            val currentPos = downPointers.first().position
-                            val pan = currentPos - lastCentroid
-                            lastCentroid = currentPos
+                        if (downPointers.size >= 2) {
+                            // Two-finger gesture: Focal Centroid Zoom & Pan
+                            val centroid = event.calculateCentroid(useCurrent = false)
+                            val zoom = event.calculateZoom()
+                            val pan = event.calculatePan()
+                            val oldScale = scale
+                            val newScale = (scale * zoom).coerceIn(1.0f, 5.0f)
 
-                            if (pan.getDistance() > 1.5f) {
+                            val center = Offset(canvasW / 2f, canvasH / 2f)
+                            val centroidFromCenter = centroid - center
+                            val scaleFactor = newScale / oldScale
+                            val unClampedOffset = (offset - centroidFromCenter) * scaleFactor + centroidFromCenter + pan
+
+                            scale = newScale
+                            offset = clampOffset(unClampedOffset, newScale, canvasW, canvasH, fitWidth, fitHeight)
+
+                            event.changes.forEach { it.consume() }
+                            dragMode = CanvasDragMode.NONE
+                            hasDragged = true
+                        } else if (downPointers.size == 1) {
+                            val change = downPointers.first()
+                            val distFromDown = (change.position - startPos).getDistance()
+
+                            if (distFromDown > 4f) {
                                 hasDragged = true
                             }
 
-                            when (dragMode) {
-                                CanvasDragMode.PAN -> {
-                                    offset += pan
-                                    downPointers.first().consume()
-                                }
-                                CanvasDragMode.MOVE_BOX -> {
-                                    if (activeBlock != null) {
-                                        val dxImg = pan.x / currentDisplayScale
-                                        val dyImg = pan.y / currentDisplayScale
-                                        val updated = activeBlock.moveBy(dxImg, dyImg, imageWidth, imageHeight)
-                                        activeBlock = updated
-                                        currentOnUpdateBlock(updated)
-                                        downPointers.first().consume()
-                                    }
-                                }
-                                CanvasDragMode.RESIZE_CORNER_0,
-                                CanvasDragMode.RESIZE_CORNER_1,
-                                CanvasDragMode.RESIZE_CORNER_2,
-                                CanvasDragMode.RESIZE_CORNER_3 -> {
-                                    if (activeBlock != null) {
-                                        val cornerIdx = when (dragMode) {
-                                            CanvasDragMode.RESIZE_CORNER_0 -> 0
-                                            CanvasDragMode.RESIZE_CORNER_1 -> 1
-                                            CanvasDragMode.RESIZE_CORNER_2 -> 2
-                                            else -> 3
+                            if (hasDragged) {
+                                change.consume()
+                                val curImgPt = screenToImage(change.position, scale, offset)
+
+                                when (dragMode) {
+                                    CanvasDragMode.PAN -> {
+                                        if (scale > 1.0f) {
+                                            val unClamped = offset + (change.position - change.previousPosition)
+                                            offset = clampOffset(unClamped, scale, canvasW, canvasH, fitWidth, fitHeight)
                                         }
-                                        val curImgPt = screenToImage(currentPos)
-                                        val updated = activeBlock.resizeCornerAnchor(cornerIdx, curImgPt, imageWidth, imageHeight)
-                                        activeBlock = updated
-                                        currentOnUpdateBlock(updated)
-                                        downPointers.first().consume()
                                     }
+                                    CanvasDragMode.MOVE_BOX -> {
+                                        if (activeBlock != null && initialBounds != null) {
+                                            val totalDx = curImgPt.x - startImgPt.x
+                                            val totalDy = curImgPt.y - startImgPt.y
+                                            val w = initialBounds.width()
+                                            val h = initialBounds.height()
+                                            val newLeft = (initialBounds.left + totalDx).coerceIn(0f, imageWidth - w)
+                                            val newTop = (initialBounds.top + totalDy).coerceIn(0f, imageHeight - h)
+                                            val updated = activeBlock.copy(bounds = RectF(newLeft, newTop, newLeft + w, newTop + h))
+                                            activeBlock = updated
+                                            currentOnUpdateBlock(updated)
+                                        }
+                                    }
+                                    CanvasDragMode.RESIZE_CORNER_0,
+                                    CanvasDragMode.RESIZE_CORNER_1,
+                                    CanvasDragMode.RESIZE_CORNER_2,
+                                    CanvasDragMode.RESIZE_CORNER_3 -> {
+                                        if (activeBlock != null) {
+                                            val cornerIdx = when (dragMode) {
+                                                CanvasDragMode.RESIZE_CORNER_0 -> 0
+                                                CanvasDragMode.RESIZE_CORNER_1 -> 1
+                                                CanvasDragMode.RESIZE_CORNER_2 -> 2
+                                                else -> 3
+                                            }
+                                            val updated = activeBlock.resizeCornerAnchor(cornerIdx, curImgPt, imageWidth, imageHeight)
+                                            activeBlock = updated
+                                            currentOnUpdateBlock(updated)
+                                        }
+                                    }
+                                    CanvasDragMode.NONE -> {}
                                 }
-                                CanvasDragMode.NONE -> {}
                             }
                         }
                     }
 
                     // Tap / Click handling (single vs double tap)
                     if (!hasDragged) {
+                        val hitBlock = currentBlocks.findLast { it.bounds.contains(startImgPt.x, startImgPt.y) }
                         val now = System.currentTimeMillis()
-                        if (now - lastTapTime < 300 && (startPos - lastTapPos).getDistance() < 35f) {
-                            // Double tap: reset zoom & pan
-                            scale = 1f
-                            offset = Offset.Zero
+                        if (hitBlock == null && (now - lastTapTime) < 300L && (firstDown.position - lastTapPos).getDistance() < 40f) {
+                            // Double tap: toggle zoom 2.5x to focal point or reset to 1.0x
+                            if (scale > 1.05f) {
+                                scale = 1.0f
+                                offset = Offset.Zero
+                            } else {
+                                val targetScale = 2.5f
+                                val center = Offset(canvasW / 2f, canvasH / 2f)
+                                val tapFromCenter = firstDown.position - center
+                                val targetOffset = -tapFromCenter * (targetScale - 1f)
+                                scale = targetScale
+                                offset = clampOffset(targetOffset, targetScale, canvasW, canvasH, fitWidth, fitHeight)
+                            }
+                            lastTapTime = 0L
                         } else {
-                            // Single tap
-                            val clickedBlock = currentBlocks.findLast { it.bounds.contains(startImgPt.x, startImgPt.y) }
-                            currentOnSelectBlock(clickedBlock?.id)
+                            lastTapTime = now
+                            lastTapPos = firstDown.position
+                            currentOnSelectBlock(hitBlock?.id)
                         }
-                        lastTapTime = now
-                        lastTapPos = startPos
                     }
                 }
             }
@@ -272,15 +313,15 @@ fun RenderEditorCanvas(
             val canvasH = size.height
             if (canvasW <= 0f || canvasH <= 0f || imageWidth <= 0f || imageHeight <= 0f) return@Canvas
 
-            val scaleX = canvasW / imageWidth
-            val scaleY = canvasH / imageHeight
-            val baseScale = min(scaleX, scaleY)
+            val baseScale = min(canvasW / imageWidth, canvasH / imageHeight)
+            val fitWidth = imageWidth * baseScale
+            val fitHeight = imageHeight * baseScale
             val currentDisplayScale = baseScale * scale
 
-            val displayedW = imageWidth * currentDisplayScale
-            val displayedH = imageHeight * currentDisplayScale
-            val imgLeft = (canvasW - displayedW) / 2f + offset.x
-            val imgTop = (canvasH - displayedH) / 2f + offset.y
+            val centerX = canvasW / 2f + offset.x
+            val centerY = canvasH / 2f + offset.y
+            val imgLeft = centerX - (fitWidth * scale) / 2f
+            val imgTop = centerY - (fitHeight * scale) / 2f
 
             drawIntoCanvas { canvas ->
                 val nativeCanvas = canvas.nativeCanvas
