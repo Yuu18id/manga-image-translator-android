@@ -18,6 +18,62 @@ Optimized specifically for translating raw **Japanese Manga (`JA / JPN`)** into 
 
 ---
 
+## Showcase
+
+### Before & After Translation
+
+<div align="center">
+  <table>
+    <tr>
+      <th align="center" width="50%">Raw</th>
+      <th align="center" width="50%">Translated & Typeset</th>
+    </tr>
+    <tr>
+      <td align="center">
+        <!-- Place your raw manga sample image at docs/assets/before_translate.png -->
+        <img src="docs/assets/before_translate.png" alt="Original Raw Japanese Manga" width="100%" />
+      </td>
+      <td align="center">
+        <!-- Place your translated manga output image at docs/assets/after_translate.png -->
+        <img src="docs/assets/after_translate.png" alt="Translated Manga Page Output" width="100%" />
+      </td>
+    </tr>
+  </table>
+</div>
+
+### Interactive Features & Workflow
+
+<div align="center">
+  <table>
+    <tr>
+      <th align="center" width="33.3%">Review Text Bubbles</th>
+      <th align="center" width="33.3%">Edit Text & Bubbles</th>
+      <th align="center" width="33.3%">Batch Chapter Translation</th>
+    </tr>
+    <tr>
+      <td align="center">
+        <!-- Place your Review Text Bubbles screenshot at docs/assets/review_text_bubbles.png -->
+        <img src="docs/assets/review_text_bubbles.png" alt="Review Text Bubbles Editor" width="100%" />
+      </td>
+      <td align="center">
+        <!-- Place your Edit Text & Bubbles screenshot at docs/assets/edit_text_bubbles.png -->
+        <img src="docs/assets/edit_text_bubbles.png" alt="Edit Text & Bubbles Editor" width="100%" />
+      </td>
+      <td align="center">
+        <!-- Place your Batch Translation screenshot at docs/assets/batch_translate.png -->
+        <img src="docs/assets/batch_translate.png" alt="Batch Chapter Translation" width="100%" />
+      </td>
+    </tr>
+    <tr>
+      <td align="center"><sub>Adjust detection boundaries, add missed speech bubbles, or discard SFX boxes with pinch-zoom support.</sub></td>
+      <td align="center"><sub>Interactive text editing, font size stepper, alignment, bold/italic, and comic font selector (Wild Words / Badaboom BB).</sub></td>
+      <td align="center"><sub>Multi-page queue processing with automatic sorting, live stage indicators, and chapter album organization.</sub></td>
+    </tr>
+  </table>
+</div>
+
+---
+
 ## Key Features
 
 ### 1. On-Device AI Pipeline
@@ -27,17 +83,18 @@ Optimized specifically for translating raw **Japanese Manga (`JA / JPN`)** into 
   * **Manga-OCR (Full-Precision ViT + RoBERTa):** Vision Transformer encoder paired with an autoregressive RoBERTa decoder, delivering maximum accuracy on stylized Japanese manga typography, handwriting, and complex Kanji/Kana layouts.
 * **AOT-GAN Inpainting:** Neural image inpainting that removes original Japanese text strokes while preserving background artwork and screentones.
 
-### 2. Interactive Correction & Typeset Editing
-* **Detection Review Editor:**
-  * Interactive canvas with pinch-to-zoom, pan, and double-tap gestures.
+### 2. Interactive Bubble Review & Text Editing
+* **Review Text Bubbles (`Review & Translate`):**
+  * Interactive canvas with smooth pinch-to-zoom, pan, and double-tap gestures.
   * Add custom bounding boxes over missed dialogue bubbles.
   * Move and resize detection boundaries using corner drag handles.
   * Remove unwanted bounding boxes or ignore stylized sound effects (SFX).
-* **Typeset & Render Editor:**
+* **Edit Text & Bubbles (`Customize Comic Text`):**
   * Real-time text block inspector directly over the inpainted image.
   * Modify translated dialogue text manually.
+  * Select comic font family (**Wild Words** for standard dialogue, **Badaboom BB** for shouting/action).
   * Adjust font size with increment/decrement steppers.
-  * Adjust text alignment (Left, Center, Right).
+  * Adjust text styling (Bold, Italic) and text alignment (Left, Center, Right).
   * Reposition and resize text rendered areas with live canvas updates.
   * Save modifications directly back to the database and update stored image files.
 
@@ -45,7 +102,7 @@ Optimized specifically for translating raw **Japanese Manga (`JA / JPN`)** into 
 * Select multiple manga pages from device storage or gallery.
 * Automatic filename sorting for correct chapter page ordering.
 * Sequential pipeline processing with live stage progress indicators.
-* Page-level detection review and individual typeset editing for completed pages.
+* Page-level text bubble review and individual text editing for completed pages.
 * Chapter album grouping in the gallery database with multi-page reader support.
 
 ### 4. Translation Engines
