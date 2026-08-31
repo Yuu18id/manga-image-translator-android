@@ -1,5 +1,6 @@
 package com.yuu18id.mangatranslator.domain.model
 
+import android.graphics.Color
 import android.graphics.RectF
 import kotlin.math.max
 import kotlin.math.min
@@ -19,6 +20,7 @@ data class TextBlock(
     val customAlignment: TextAlignment? = null,
     val customFontStyle: CustomFontStyle? = null,
     val customFontFamily: CustomFontFamily? = null,
+    val customTextColor: Int? = null,
     val isManualBounds: Boolean = false
 ) {
     fun mergedBoundingBox(): RectF {
@@ -40,6 +42,14 @@ data class TextBlock(
         return RectF(minX, minY, maxX, maxY)
     }
 
+    fun getEffectiveTextColor(): Int {
+        return customTextColor ?: Color.BLACK
+    }
+
+    fun getEffectiveStrokeColor(textColor: Int = getEffectiveTextColor()): Int {
+        return Color.WHITE
+    }
+
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (javaClass != other?.javaClass) return false
@@ -59,6 +69,8 @@ data class TextBlock(
         if (customFontSize != other.customFontSize) return false
         if (customAlignment != other.customAlignment) return false
         if (customFontStyle != other.customFontStyle) return false
+        if (customFontFamily != other.customFontFamily) return false
+        if (customTextColor != other.customTextColor) return false
         if (isManualBounds != other.isManualBounds) return false
 
         return true
@@ -78,6 +90,8 @@ data class TextBlock(
         result = 31 * result + (customFontSize?.hashCode() ?: 0)
         result = 31 * result + (customAlignment?.hashCode() ?: 0)
         result = 31 * result + (customFontStyle?.hashCode() ?: 0)
+        result = 31 * result + (customFontFamily?.hashCode() ?: 0)
+        result = 31 * result + (customTextColor?.hashCode() ?: 0)
         result = 31 * result + isManualBounds.hashCode()
         return result
     }

@@ -101,7 +101,7 @@ fun TranslateScreen(
                             } else {
                                 stringResource(R.string.translate_title)
                             },
-                            style = MaterialTheme.typography.titleLarge,
+                            style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold
                         )
                     },
@@ -213,6 +213,7 @@ fun TranslateScreen(
         // Render / Typesetting Review and Manipulation Editor (Fullscreen overlay in the Activity window)
         if (uiState.isShowingRenderEditor && uiState.inpaintedImage != null) {
             com.yuu18id.mangatranslator.ui.translate.editor.RenderEditorDialog(
+                originalBitmap = uiState.originalImage,
                 inpaintedBitmap = uiState.inpaintedImage!!,
                 initialBlocks = uiState.currentTextBlocks,
                 onDismiss = viewModel::dismissRenderEditor,

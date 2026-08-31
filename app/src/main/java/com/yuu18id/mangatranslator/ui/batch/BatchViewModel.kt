@@ -200,6 +200,7 @@ class BatchViewModel @Inject constructor(
                 _uiState.update {
                     it.copy(
                         isShowingRenderEditor = true,
+                        renderEditorOriginalBitmap = record.originalBitmap?.asImageBitmap() ?: record.inpaintedBitmap.asImageBitmap(),
                         renderEditorInpaintedBitmap = record.inpaintedBitmap.asImageBitmap(),
                         renderEditorBlocks = record.textBlocks,
                         editingHistoryId = historyId,
@@ -214,6 +215,7 @@ class BatchViewModel @Inject constructor(
         _uiState.update {
             it.copy(
                 isShowingRenderEditor = false,
+                renderEditorOriginalBitmap = null,
                 renderEditorInpaintedBitmap = null,
                 renderEditorBlocks = emptyList(),
                 editingHistoryId = null,

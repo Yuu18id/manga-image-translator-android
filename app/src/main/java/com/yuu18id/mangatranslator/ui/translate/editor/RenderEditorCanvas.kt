@@ -1,4 +1,4 @@
-﻿package com.yuu18id.mangatranslator.ui.translate.editor
+package com.yuu18id.mangatranslator.ui.translate.editor
 
 import android.graphics.Paint
 import android.graphics.PointF
@@ -54,6 +54,10 @@ fun RenderEditorCanvas(
     selectedBlockId: Int?,
     onSelectBlock: (Int?) -> Unit,
     onUpdateBlock: (EditableRenderBlock) -> Unit,
+    originalBitmap: ImageBitmap? = null,
+    showOriginal: Boolean = false,
+    isEyedropperActive: Boolean = false,
+    onColorSampled: ((Int) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -72,6 +76,15 @@ fun RenderEditorCanvas(
     val currentSelectedBlockId by rememberUpdatedState(selectedBlockId)
     val currentOnSelectBlock by rememberUpdatedState(onSelectBlock)
     val currentOnUpdateBlock by rememberUpdatedState(onUpdateBlock)
+    val currentIsEyedropperActive by rememberUpdatedState(isEyedropperActive)
+    val currentOnColorSampled by rememberUpdatedState(onColorSampled)
+    val currentShowOriginal by rememberUpdatedState(showOriginal)
+
+    var eyedropperScreenPos by remember { mutableStateOf<Offset?>(null) }
+    var eyedropperImgPt by remember { mutableStateOf<PointF?>(null) }
+    var sampledColorInt by remember { mutableStateOf<Int?>(null) }
+
+    val sampleSourceBitmap = (originalBitmap ?: inpaintedBitmap).asAndroidBitmap()
 
     // Remembered Paint objects for zero-allocation 60 FPS rendering
     val fillPaint = remember {
@@ -131,7 +144,7 @@ fun RenderEditorCanvas(
         modifier = modifier
             .fillMaxSize()
             .background(Color(0xFF181818))
-            .pointerInput(imageWidth, imageHeight) {
+            .pointerInput(imageWidth, imageHeight, isEyedropperActive) {
                 awaitEachGesture {
                     val firstDown = awaitFirstDown(requireUnconsumed = false)
                     val canvasW = size.width.toFloat()
@@ -152,6 +165,54 @@ fun RenderEditorCanvas(
                         val ix = (pos.x - iLeft) / dScale
                         val iy = (pos.y - iTop) / dScale
                         return PointF(ix.coerceIn(0f, imageWidth), iy.coerceIn(0f, imageHeight))
+                    }
+
+                    if (currentIsEyedropperActive) {
+                        val startPos = firstDown.position
+                        val startImgPt = screenToImage(startPos, scale, offset)
+                        val px = startImgPt.x.toInt().coerceIn(0, sampleSourceBitmap.width - 1)
+                        val py = startImgPt.y.toInt().coerceIn(0, sampleSourceBitmap.height - 1)
+                        val col = sampleSourceBitmap.getPixel(px, py)
+                        eyedropperScreenPos = startPos
+                        eyedropperImgPt = PointF(px.toFloat(), py.toFloat())
+                        sampledColorInt = col
+                        currentOnColorSampled?.invoke(col)
+
+                        while (true) {
+                            val event = awaitPointerEvent()
+                            val downPointers = event.changes.filter { it.pressed }
+                            if (downPointers.isEmpty()) break
+
+                            if (downPointers.size >= 2) {
+                                val centroid = event.calculateCentroid(useCurrent = false)
+                                val zoom = event.calculateZoom()
+                                val pan = event.calculatePan()
+                                val oldScale = scale
+                                val newScale = (scale * zoom).coerceIn(1.0f, 5.0f)
+
+                                val center = Offset(canvasW / 2f, canvasH / 2f)
+                                val centroidFromCenter = centroid - center
+                                val scaleFactor = newScale / oldScale
+                                val unClampedOffset = (offset - centroidFromCenter) * scaleFactor + centroidFromCenter + pan
+
+                                scale = newScale
+                                offset = clampOffset(unClampedOffset, newScale, canvasW, canvasH, fitWidth, fitHeight)
+
+                                event.changes.forEach { it.consume() }
+                            } else if (downPointers.size == 1) {
+                                val curPos = downPointers[0].position
+                                val curImgPt = screenToImage(curPos, scale, offset)
+                                val curPx = curImgPt.x.toInt().coerceIn(0, sampleSourceBitmap.width - 1)
+                                val curPy = curImgPt.y.toInt().coerceIn(0, sampleSourceBitmap.height - 1)
+                                val curCol = sampleSourceBitmap.getPixel(curPx, curPy)
+                                eyedropperScreenPos = curPos
+                                eyedropperImgPt = PointF(curPx.toFloat(), curPy.toFloat())
+                                sampledColorInt = curCol
+                                currentOnColorSampled?.invoke(curCol)
+                                downPointers[0].consume()
+                            }
+                        }
+                        return@awaitEachGesture
                     }
 
                     val startPos = firstDown.position
@@ -331,24 +392,39 @@ fun RenderEditorCanvas(
                 nativeCanvas.translate(imgLeft, imgTop)
                 nativeCanvas.scale(currentDisplayScale, currentDisplayScale)
 
-                // 1. Draw Background Inpainted Bitmap
-                val nativeBitmap = inpaintedBitmap.asAndroidBitmap()
+                // 1. Draw Background Bitmap (Original when showOriginal or in eyedropper mode, otherwise Inpainted)
+                val sourceImageBitmap = if (currentShowOriginal || currentIsEyedropperActive) (originalBitmap ?: inpaintedBitmap) else inpaintedBitmap
+                val nativeBitmap = sourceImageBitmap.asAndroidBitmap()
                 nativeCanvas.drawBitmap(nativeBitmap, 0f, 0f, null)
 
                 // 2. Render Text Blocks using the Unified Layout Engine (100% WYSIWYG match to final render)
-                for (block in blocks) {
-                    val isSelected = block.id == selectedBlockId
-                    val b = block.bounds
-                    val textToRender = TextPostProcessor.processText(block.translatedText, block.originalText)
-                    if (textToRender.isBlank() || b.width() <= 0 || b.height() <= 0) continue
+                if (!currentShowOriginal || currentIsEyedropperActive) {
+                    for (block in blocks) {
+                        val isSelected = block.id == selectedBlockId
+                        val b = block.bounds
+                        val textToRender = TextPostProcessor.processText(block.translatedText, block.originalText)
+                        if (textToRender.isBlank() || b.width() <= 0 || b.height() <= 0) continue
 
-                    val blockTypeface = fontManager.getTypefaceForLanguage(
-                        language = block.language ?: Language.ENG,
-                        fontStyle = block.customFontStyle,
-                        fontFamily = block.customFontFamily
-                    )
-                    fillPaint.typeface = blockTypeface
-                    strokePaint.typeface = blockTypeface
+                        val blockTypeface = fontManager.getTypefaceForLanguage(
+                            language = block.language ?: Language.ENG,
+                            fontStyle = block.customFontStyle,
+                            fontFamily = block.customFontFamily
+                        )
+                        fillPaint.typeface = blockTypeface
+                        strokePaint.typeface = blockTypeface
+
+                        val blockTextColor = block.getEffectiveTextColor()
+                        val blockStrokeColor = block.getEffectiveStrokeColor(blockTextColor)
+                        fillPaint.color = blockTextColor
+                        strokePaint.color = blockStrokeColor
+
+                        if (currentIsEyedropperActive) {
+                            fillPaint.alpha = 45
+                            strokePaint.alpha = 45
+                        } else {
+                            fillPaint.alpha = 255
+                            strokePaint.alpha = 255
+                        }
 
                     val isCJK = block.language in listOf(Language.JPN, Language.CHS, Language.CHT, Language.KOR)
                     val isEffectiveVertical = isCJK && block.isVertical
@@ -422,8 +498,100 @@ fun RenderEditorCanvas(
                         }
                     }
                 }
+                }
 
                 nativeCanvas.restore()
+
+                // 4. Magnifier Loupe when Eyedropper mode is active
+                if (currentIsEyedropperActive && eyedropperScreenPos != null && eyedropperImgPt != null && sampledColorInt != null) {
+                    val scrPos = eyedropperScreenPos!!
+                    val imgPt = eyedropperImgPt!!
+                    val sampleCol = sampledColorInt!!
+
+                    val loupeRadius = 135f
+                    val loupeY = if (scrPos.y - 210f < loupeRadius + 30f) {
+                        scrPos.y + 210f
+                    } else {
+                        scrPos.y - 210f
+                    }
+                    val loupeCenter = Offset(scrPos.x.coerceIn(loupeRadius + 24f, canvasW - loupeRadius - 24f), loupeY)
+
+                    // Draw magnified image circular clip
+                    nativeCanvas.save()
+                    val clipPath = android.graphics.Path().apply {
+                        addCircle(loupeCenter.x, loupeCenter.y, loupeRadius, android.graphics.Path.Direction.CW)
+                    }
+                    nativeCanvas.clipPath(clipPath)
+
+                    val bgLoupePaint = Paint().apply {
+                        style = Paint.Style.FILL
+                        color = android.graphics.Color.DKGRAY
+                    }
+                    nativeCanvas.drawCircle(loupeCenter.x, loupeCenter.y, loupeRadius, bgLoupePaint)
+
+                    val zoomFactor = 6.0f
+                    nativeCanvas.translate(loupeCenter.x, loupeCenter.y)
+                    nativeCanvas.scale(zoomFactor, zoomFactor)
+                    nativeCanvas.translate(-imgPt.x, -imgPt.y)
+
+                    nativeCanvas.drawBitmap(sampleSourceBitmap, 0f, 0f, null)
+                    nativeCanvas.restore()
+
+                    // Draw outer color ring and borders
+                    val ringPaint = Paint().apply {
+                        style = Paint.Style.STROKE
+                        strokeWidth = 14f
+                        color = sampleCol
+                        isAntiAlias = true
+                    }
+                    val ringBorderPaint = Paint().apply {
+                        style = Paint.Style.STROKE
+                        strokeWidth = 3f
+                        color = android.graphics.Color.WHITE
+                        isAntiAlias = true
+                    }
+                    val ringShadowPaint = Paint().apply {
+                        style = Paint.Style.STROKE
+                        strokeWidth = 2f
+                        color = android.graphics.Color.BLACK
+                        isAntiAlias = true
+                    }
+
+                    nativeCanvas.drawCircle(loupeCenter.x, loupeCenter.y, loupeRadius, ringPaint)
+                    nativeCanvas.drawCircle(loupeCenter.x, loupeCenter.y, loupeRadius + 7f, ringBorderPaint)
+                    nativeCanvas.drawCircle(loupeCenter.x, loupeCenter.y, loupeRadius - 7f, ringBorderPaint)
+                    nativeCanvas.drawCircle(loupeCenter.x, loupeCenter.y, loupeRadius + 9f, ringShadowPaint)
+
+                    // Draw center crosshairs
+                    val crossPaint = Paint().apply {
+                        color = android.graphics.Color.RED
+                        strokeWidth = 3f
+                        style = Paint.Style.STROKE
+                        isAntiAlias = true
+                    }
+                    val chSize = 18f
+                    nativeCanvas.drawLine(loupeCenter.x - chSize, loupeCenter.y, loupeCenter.x + chSize, loupeCenter.y, crossPaint)
+                    nativeCanvas.drawLine(loupeCenter.x, loupeCenter.y - chSize, loupeCenter.x, loupeCenter.y + chSize, crossPaint)
+                    nativeCanvas.drawCircle(loupeCenter.x, loupeCenter.y, 4f, crossPaint)
+
+                    // Hex code badge below the loupe
+                    val hexStr = String.format("#%06X", (0xFFFFFF and sampleCol))
+                    val textBgPaint = Paint().apply {
+                        color = android.graphics.Color.argb(220, 0, 0, 0)
+                        style = Paint.Style.FILL
+                        isAntiAlias = true
+                    }
+                    val textPaint = Paint().apply {
+                        color = android.graphics.Color.WHITE
+                        textSize = 30f
+                        textAlign = Paint.Align.CENTER
+                        typeface = android.graphics.Typeface.DEFAULT_BOLD
+                        isAntiAlias = true
+                    }
+                    val tagRect = RectF(loupeCenter.x - 75f, loupeCenter.y + loupeRadius + 10f, loupeCenter.x + 75f, loupeCenter.y + loupeRadius + 52f)
+                    nativeCanvas.drawRoundRect(tagRect, 16f, 16f, textBgPaint)
+                    nativeCanvas.drawText(hexStr, loupeCenter.x, loupeCenter.y + loupeRadius + 41f, textPaint)
+                }
             }
         }
     }
@@ -437,25 +605,15 @@ private fun drawHorizontalTextOnCanvas(
     strokePaint: Paint,
     alignment: TextAlignment
 ) {
-    val effectiveAlignment = if (alignment == TextAlignment.AUTO) TextAlignment.CENTER else alignment
-    val fontMetrics = textPaint.fontMetrics
-    val textHeight = fontMetrics.descent - fontMetrics.ascent
-    val lineSpacing = layoutResult.fontSize * 1.18f
-    val totalBlockHeight = (layoutResult.lines.size - 1) * lineSpacing + textHeight
-    val firstLineBaseline = bounds.centerY() - totalBlockHeight / 2f - fontMetrics.ascent
-
-    for ((index, line) in layoutResult.lines.withIndex()) {
-        val lineWidth = textPaint.measureText(line)
-        val startX = when (effectiveAlignment) {
-            TextAlignment.LEFT -> bounds.left + 4f
-            TextAlignment.RIGHT -> bounds.right - lineWidth - 4f
-            else -> bounds.centerX() - lineWidth / 2f
-        }
-        val lineY = firstLineBaseline + index * lineSpacing
-
-        canvas.drawText(line, startX, lineY, strokePaint)
-        canvas.drawText(line, startX, lineY, textPaint)
-    }
+    com.yuu18id.mangatranslator.data.rendering.MangaTextDrawHelper.drawHorizontalText(
+        canvas = canvas,
+        layoutResult = layoutResult,
+        bounds = bounds,
+        textPaint = textPaint,
+        strokePaint = strokePaint,
+        alignment = alignment,
+        disableFontBorder = false
+    )
 }
 
 private fun drawVerticalTextOnCanvas(
@@ -465,38 +623,12 @@ private fun drawVerticalTextOnCanvas(
     textPaint: Paint,
     strokePaint: Paint
 ) {
-    var currentX = bounds.right - (bounds.width() - layoutResult.totalWidth) / 2f - (layoutResult.lineHeights.firstOrNull() ?: 0f) / 2f
-
-    for ((index, line) in layoutResult.lines.withIndex()) {
-        var currentY = bounds.top + (bounds.height() - calculateVerticalLineHeightOnCanvas(line, textPaint)) / 2f
-
-        for (char in line) {
-            val charStr = char.toString()
-            val charWidth = textPaint.measureText(charStr)
-            val boundsRect = Rect()
-            textPaint.getTextBounds(charStr, 0, 1, boundsRect)
-
-            val charX = currentX - charWidth / 2f
-            currentY += boundsRect.height()
-
-            canvas.drawText(charStr, charX, currentY, strokePaint)
-            canvas.drawText(charStr, charX, currentY, textPaint)
-
-            currentY += textPaint.fontMetrics.descent
-        }
-
-        if (index + 1 < layoutResult.lineHeights.size) {
-            currentX -= layoutResult.lineHeights[index + 1] * 1.2f
-        }
-    }
-}
-
-private fun calculateVerticalLineHeightOnCanvas(line: String, paint: Paint): Float {
-    var height = 0f
-    val bounds = Rect()
-    for (char in line) {
-        paint.getTextBounds(char.toString(), 0, 1, bounds)
-        height += bounds.height() + paint.fontMetrics.descent
-    }
-    return height
+    com.yuu18id.mangatranslator.data.rendering.MangaTextDrawHelper.drawVerticalText(
+        canvas = canvas,
+        layoutResult = layoutResult,
+        bounds = bounds,
+        textPaint = textPaint,
+        strokePaint = strokePaint,
+        disableFontBorder = false
+    )
 }

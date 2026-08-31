@@ -133,7 +133,7 @@ class TextLayoutEngine @Inject constructor(
             val lines = wrapHorizontalBalanced(cleanText, paint, maxAvailableWidth)
             val lineSpacing = fontSize * 1.18f
             val totalH = lines.size * lineSpacing
-            val totalW = lines.maxOfOrNull { paint.measureText(it) } ?: 0f
+            val totalW = lines.maxOfOrNull { MangaTextDrawHelper.measureLineWidth(it, paint) } ?: 0f
             val lineHeights = List(lines.size) { lineSpacing }
             LayoutResult(lines, fontSize, totalW, totalH, lineHeights)
         }
@@ -166,7 +166,7 @@ class TextLayoutEngine @Inject constructor(
             val wrapped = wrapHorizontalBalanced(text, paint, maxWidth)
             val lineSpacing = mid * 1.18f
             val totalH = wrapped.size * lineSpacing
-            val totalW = wrapped.maxOfOrNull { paint.measureText(it) } ?: 0f
+            val totalW = wrapped.maxOfOrNull { MangaTextDrawHelper.measureLineWidth(it, paint) } ?: 0f
 
             if (totalW <= allowedMaxWidth && totalH <= maxHeight) {
                 bestSize = mid
@@ -186,7 +186,7 @@ class TextLayoutEngine @Inject constructor(
             paint.textSize = minSize
             val wrappedAtMin = wrapHorizontalBalanced(text, paint, maxWidth)
             bestSize = minSize
-            bestTotalWidth = wrappedAtMin.maxOfOrNull { paint.measureText(it) } ?: 0f
+            bestTotalWidth = wrappedAtMin.maxOfOrNull { MangaTextDrawHelper.measureLineWidth(it, paint) } ?: 0f
             bestTotalHeight = wrappedAtMin.size * (minSize * 1.18f)
             wrappedAtMin
         }
@@ -208,12 +208,12 @@ class TextLayoutEngine @Inject constructor(
 
             for (word in words) {
                 val wordWithSpace = if (currentLine.isEmpty()) word else " $word"
-                val wordSpan = paint.measureText(wordWithSpace)
+                val wordSpan = MangaTextDrawHelper.measureLineWidth(wordWithSpace, paint)
 
                 if (currentSpan + wordSpan > maxSpan && currentLine.isNotEmpty()) {
                     lines.add(currentLine.toString())
                     currentLine = StringBuilder(word)
-                    currentSpan = paint.measureText(word)
+                    currentSpan = MangaTextDrawHelper.measureLineWidth(word, paint)
                 } else {
                     currentLine.append(wordWithSpace)
                     currentSpan += wordSpan

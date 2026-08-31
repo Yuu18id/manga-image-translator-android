@@ -52,6 +52,7 @@ data class BatchUiState(
 
     // Render Typeset Editor Dialog State (for editing a completed page)
     val isShowingRenderEditor: Boolean = false,
+    val renderEditorOriginalBitmap: ImageBitmap? = null,
     val renderEditorInpaintedBitmap: ImageBitmap? = null,
     val renderEditorBlocks: List<TextBlock> = emptyList(),
     val editingHistoryId: Long? = null,

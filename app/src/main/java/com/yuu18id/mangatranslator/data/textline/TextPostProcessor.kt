@@ -1,4 +1,4 @@
-﻿package com.yuu18id.mangatranslator.data.textline
+package com.yuu18id.mangatranslator.data.textline
 
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -7,12 +7,10 @@ import javax.inject.Singleton
 class TextPostProcessor @Inject constructor() {
 
     companion object {
-        // Unicode character for classic monochrome manga heart
-        const val MANGA_HEART = "♡" // U+2661: WHITE HEART SUIT (always renders monochrome in Android text stack)
+        // Unicode character for classic solid manga heart
+        const val MANGA_HEART = "♥" // U+2665: BLACK HEART SUIT
 
         // 1. Regex specifically matching all heart emojis, heart symbols, and compound heart sequences
-        // Note: \u2665 (BLACK HEART) and \u2764 (HEAVY BLACK HEART) on Android are rendered in RED by NotoColorEmoji.
-        // Therefore, ALL heart emojis and symbols are converted to \u2661 ('♡') for authentic manga typography.
         private val HEART_EMOJI_REGEX = Regex(
             "(?:[\u2764\u2665\u2763\u2765\u2766\u2767\u2619][\uFE0E\uFE0F]?(?:\u200D[^\u0000-\u007F]+)?)" +
             "|" +
@@ -26,18 +24,18 @@ class TextPostProcessor @Inject constructor() {
 
         /**
          * Static helper to process translated manga text:
-         * Replaces all colored/API heart emojis and symbols with the authentic monochrome manga heart '♡' (U+2661).
+         * Replaces all colored/API heart emojis and symbols with the canonical solid manga heart '♥' (U+2665).
          */
         fun processText(translatedText: String, originalText: String = ""): String {
             if (translatedText.isBlank()) return translatedText
 
             var result = translatedText
 
-            // Step 1: Replace all heart emojis/symbols with the monochrome manga heart '♡'
+            // Step 1: Replace all heart emojis/symbols with the solid manga heart '♥'
             result = HEART_EMOJI_REGEX.replace(result, MANGA_HEART)
 
-            // Step 2: Ensure any '♥' (U+2665) or '❤' (U+2764) remaining is converted to '♡' (U+2661)
-            result = result.replace("♥", MANGA_HEART).replace("❤", MANGA_HEART)
+            // Step 2: Ensure any '❤' (U+2764) remaining is converted to '♥' (U+2665)
+            result = result.replace("❤", MANGA_HEART)
 
             // Step 3: Strip stray invisible variation selectors
             result = INVISIBLE_CHARS_REGEX.replace(result, "")

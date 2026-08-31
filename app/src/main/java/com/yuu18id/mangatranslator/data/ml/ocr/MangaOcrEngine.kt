@@ -19,7 +19,8 @@ class MangaOcrEngine @Inject constructor(
     private val modelManager: OnnxModelManager,
     private val preProcessor: OcrPreProcessor,
     private val tokenizer: MangaOcrTokenizer,
-    private val ctcOcrEngine: CtcOcrEngine
+    private val ctcOcrEngine: CtcOcrEngine,
+    private val colorExtractor: ColorExtractor
 ) : OcrEngine {
 
     companion object {
@@ -158,15 +159,16 @@ class MangaOcrEngine @Inject constructor(
                     }
 
                     val recognizedText = tokenizer.decode(generatedTokenIds)
+                    val colors = colorExtractor.extractColorsFromBitmap(crop)
 
                     val updatedRegion = region.copy(
                         text = recognizedText,
                         prob = 0.95f,
-                        fgColor = intArrayOf(0, 0, 0),
-                        bgColor = intArrayOf(255, 255, 255)
+                        fgColor = colors.fg,
+                        bgColor = colors.bg
                     )
                     outRegions.add(updatedRegion)
-                    Log.d(TAG, "   [Manga-OCR] cropSize=${crop.width}x${crop.height} => \"$recognizedText\" (tokens=${generatedTokenIds.size})")
+                    Log.d(TAG, "   [Manga-OCR] cropSize=${crop.width}x${crop.height} => \"$recognizedText\" fg=(${colors.fg.joinToString()}) bg=(${colors.bg.joinToString()})")
 
                 } catch (e: Exception) {
                     Log.e(TAG, "❌ Manga-OCR failed on crop: ${e.message}", e)

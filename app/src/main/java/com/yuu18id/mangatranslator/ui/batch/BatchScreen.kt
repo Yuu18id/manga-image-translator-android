@@ -122,16 +122,11 @@ fun BatchScreen(
             topBar = {
                 TopAppBar(
                     title = {
-                        Column {
-                            Text(stringResource(R.string.batch_title), fontWeight = FontWeight.Bold)
-                            if (uiState.pages.isNotEmpty()) {
-                                Text(
-                                    text = stringResource(R.string.batch_page_count, uiState.pages.size),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
+                        Text(
+                            text = stringResource(R.string.batch_title),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
                     },
                     navigationIcon = {
                         IconButton(onClick = onNavigateBack) {
@@ -325,6 +320,7 @@ fun BatchScreen(
         // Render Typeset Editor Dialog (Pops up when user edits typeset of any completed page)
         if (uiState.isShowingRenderEditor && uiState.renderEditorInpaintedBitmap != null) {
             RenderEditorDialog(
+                originalBitmap = uiState.renderEditorOriginalBitmap,
                 inpaintedBitmap = uiState.renderEditorInpaintedBitmap!!,
                 initialBlocks = uiState.renderEditorBlocks,
                 onDismiss = viewModel::dismissRenderEditor,

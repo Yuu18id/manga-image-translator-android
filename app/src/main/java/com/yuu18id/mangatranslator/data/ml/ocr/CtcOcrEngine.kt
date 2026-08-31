@@ -141,16 +141,7 @@ class CtcOcrEngine @Inject constructor(
                         outputBuffer.get(flatLogits)
 
                         val decodeResult = decoder.decodePrefixBeamSearch(flatLogits, seqLen, vocabSize, beamWidth = 8)
-
-                        val colors = if (colorBuffer != null && colorSeqLen > 0 && colorDim > 0) {
-                            val colorItemFloats = colorSeqLen * colorDim
-                            val batchColorFlat = FloatArray(colorItemFloats)
-                            colorBuffer.position(i * colorItemFloats)
-                            colorBuffer.get(batchColorFlat)
-                            colorExtractor.extractColors(batchColorFlat, decodeResult.validTimesteps, decodeResult.chars)
-                        } else {
-                            TextColor(intArrayOf(0, 0, 0), intArrayOf(255, 255, 255))
-                        }
+                        val colors = colorExtractor.extractColorsFromBitmap(crops[i])
 
                         val updatedRegion = region.copy(
                             text = decodeResult.text,
@@ -159,7 +150,7 @@ class CtcOcrEngine @Inject constructor(
                             bgColor = colors.bg
                         )
                         outRegionsMap[origIdx] = updatedRegion
-                        Log.d(TAG, "   [OCR Crop $origIdx] cropSize=${crops[i].width}x${crops[i].height} => text=\"${decodeResult.text}\" prob=${decodeResult.prob}")
+                        Log.d(TAG, "   [OCR Crop $origIdx] cropSize=${crops[i].width}x${crops[i].height} => text=\"${decodeResult.text}\" fg=(${colors.fg.joinToString()}) bg=(${colors.bg.joinToString()})")
                     }
                 } finally {
                     inputTensor?.close()

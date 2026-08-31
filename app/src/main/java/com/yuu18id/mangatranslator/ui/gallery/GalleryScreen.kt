@@ -247,16 +247,11 @@ fun GalleryScreen(
             } else {
                 TopAppBar(
                     title = {
-                        Column {
-                            Text(stringResource(R.string.gallery_title), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                            if (items.isNotEmpty()) {
-                                Text(
-                                    stringResource(R.string.gallery_item_count, items.size),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
+                        Text(
+                            text = stringResource(R.string.gallery_title),
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold
+                        )
                     },
                     navigationIcon = {
                         if (onNavigateBack != null) {

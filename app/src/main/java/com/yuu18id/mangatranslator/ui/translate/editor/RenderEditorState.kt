@@ -1,7 +1,9 @@
 package com.yuu18id.mangatranslator.ui.translate.editor
 
+import android.graphics.Color
 import android.graphics.PointF
 import android.graphics.RectF
+import com.yuu18id.mangatranslator.domain.model.CustomFontFamily
 import com.yuu18id.mangatranslator.domain.model.CustomFontStyle
 import com.yuu18id.mangatranslator.domain.model.Language
 import com.yuu18id.mangatranslator.domain.model.Quadrilateral
@@ -16,7 +18,8 @@ data class EditableRenderBlock(
     val customFontSize: Float? = null,
     val customAlignment: TextAlignment = TextAlignment.CENTER,
     val customFontStyle: CustomFontStyle = CustomFontStyle.NORMAL,
-    val customFontFamily: com.yuu18id.mangatranslator.domain.model.CustomFontFamily = com.yuu18id.mangatranslator.domain.model.CustomFontFamily.WILD_WORDS,
+    val customFontFamily: CustomFontFamily = CustomFontFamily.WILD_WORDS,
+    val customTextColor: Int? = null,
     val isVertical: Boolean = false,
     val language: Language? = null,
     val fgColor: IntArray = intArrayOf(0, 0, 0),
@@ -60,6 +63,14 @@ data class EditableRenderBlock(
         return copy(bounds = RectF(l, t, r, b), customFontSize = null)
     }
 
+    fun getEffectiveTextColor(): Int {
+        return customTextColor ?: Color.BLACK
+    }
+
+    fun getEffectiveStrokeColor(textColor: Int = getEffectiveTextColor()): Int {
+        return Color.WHITE
+    }
+
     fun toTextBlock(): TextBlock {
         val corners = listOf(
             PointF(bounds.left, bounds.top),
@@ -83,6 +94,7 @@ data class EditableRenderBlock(
             customAlignment = customAlignment,
             customFontStyle = customFontStyle,
             customFontFamily = customFontFamily,
+            customTextColor = customTextColor,
             isManualBounds = true
         )
     }
@@ -104,7 +116,8 @@ data class EditableRenderBlock(
                 customFontSize = block.customFontSize,
                 customAlignment = block.customAlignment ?: TextAlignment.CENTER,
                 customFontStyle = block.customFontStyle ?: CustomFontStyle.NORMAL,
-                customFontFamily = block.customFontFamily ?: com.yuu18id.mangatranslator.domain.model.CustomFontFamily.WILD_WORDS,
+                customFontFamily = block.customFontFamily ?: CustomFontFamily.WILD_WORDS,
+                customTextColor = block.customTextColor,
                 isVertical = block.isVertical,
                 language = block.language,
                 fgColor = block.fgColor,

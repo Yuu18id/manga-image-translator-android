@@ -358,8 +358,33 @@ class TextlineMerger @Inject constructor() {
         }
 
         val text = sortedCluster.joinToString(if (isVertical) "" else " ") { it.text.trim() }.trim()
-        val avgFg = cluster.first().fgColor
-        val avgBg = cluster.first().bgColor
+        val avgFg = if (cluster.size == 1) {
+            cluster.first().fgColor
+        } else {
+            val validFg = cluster.map { it.fgColor }.filter { it.size == 3 }
+            if (validFg.isNotEmpty()) {
+                val r = validFg.map { it[0] }.average().toInt()
+                val g = validFg.map { it[1] }.average().toInt()
+                val b = validFg.map { it[2] }.average().toInt()
+                intArrayOf(r, g, b)
+            } else {
+                intArrayOf(0, 0, 0)
+            }
+        }
+
+        val avgBg = if (cluster.size == 1) {
+            cluster.first().bgColor
+        } else {
+            val validBg = cluster.map { it.bgColor }.filter { it.size == 3 }
+            if (validBg.isNotEmpty()) {
+                val r = validBg.map { it[0] }.average().toInt()
+                val g = validBg.map { it[1] }.average().toInt()
+                val b = validBg.map { it[2] }.average().toInt()
+                intArrayOf(r, g, b)
+            } else {
+                intArrayOf(255, 255, 255)
+            }
+        }
         val avgAngle = cluster.map { it.angle }.average().toFloat()
 
         return TextBlock(

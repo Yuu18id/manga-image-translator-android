@@ -187,15 +187,18 @@ class CanvasTextRenderer @Inject constructor(
                 Log.d(TAG, "         Line $lineIdx: \"$lineStr\"")
             }
 
-            // Setup Fill Paint (Sharp Black text)
+            val effectiveTextColor = block.getEffectiveTextColor()
+            val effectiveStrokeColor = block.getEffectiveStrokeColor(effectiveTextColor)
+
+            // Setup Fill Paint (Sharp dynamic text color)
             val textPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.SUBPIXEL_TEXT_FLAG).apply {
                 typeface = targetTypeface
                 textSize = layoutResult.fontSize
                 style = Paint.Style.FILL
-                color = Color.BLACK
+                color = effectiveTextColor
             }
 
-            // Setup Outline Paint (Bold White stroke for strong contrast against backgrounds)
+            // Setup Outline Paint (Bold contrasting stroke for strong readability)
             val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.SUBPIXEL_TEXT_FLAG).apply {
                 typeface = targetTypeface
                 textSize = layoutResult.fontSize
@@ -203,7 +206,7 @@ class CanvasTextRenderer @Inject constructor(
                 strokeJoin = Paint.Join.ROUND
                 strokeCap = Paint.Cap.ROUND
                 strokeWidth = max(5.0f, layoutResult.fontSize * 0.28f)
-                color = Color.WHITE
+                color = effectiveStrokeColor
             }
 
             canvas.save()
@@ -399,31 +402,15 @@ class CanvasTextRenderer @Inject constructor(
         strokePaint: Paint,
         config: RenderConfig
     ) {
-        val alignment = if (config.alignment == TextAlignment.AUTO) TextAlignment.CENTER else config.alignment
-        
-        val fontMetrics = textPaint.fontMetrics
-        val textHeight = fontMetrics.descent - fontMetrics.ascent
-        val lineSpacing = layoutResult.fontSize * 1.18f
-        val totalBlockHeight = (layoutResult.lines.size - 1) * lineSpacing + textHeight
-        
-        // Exact baseline of first line so that the entire text block is perfectly centered vertically
-        val firstLineBaseline = bounds.centerY() - totalBlockHeight / 2f - fontMetrics.ascent
-
-        for ((index, line) in layoutResult.lines.withIndex()) {
-            val lineWidth = textPaint.measureText(line)
-            val startX = when (alignment) {
-                TextAlignment.LEFT -> bounds.left + 4f
-                TextAlignment.RIGHT -> bounds.right - lineWidth - 4f
-                else -> bounds.centerX() - lineWidth / 2f
-            }
-
-            val lineY = firstLineBaseline + index * lineSpacing
-
-            if (!config.disableFontBorder) {
-                canvas.drawText(line, startX, lineY, strokePaint)
-            }
-            canvas.drawText(line, startX, lineY, textPaint)
-        }
+        MangaTextDrawHelper.drawHorizontalText(
+            canvas = canvas,
+            layoutResult = layoutResult,
+            bounds = bounds,
+            textPaint = textPaint,
+            strokePaint = strokePaint,
+            alignment = config.alignment,
+            disableFontBorder = config.disableFontBorder
+        )
     }
 
     private fun drawVerticalText(
@@ -434,41 +421,13 @@ class CanvasTextRenderer @Inject constructor(
         strokePaint: Paint,
         config: RenderConfig
     ) {
-        var currentX = bounds.right - (bounds.width() - layoutResult.totalWidth) / 2f - (layoutResult.lineHeights.firstOrNull() ?: 0f) / 2f
-
-        for ((index, line) in layoutResult.lines.withIndex()) {
-            var currentY = bounds.top + (bounds.height() - calculateVerticalLineHeight(line, textPaint)) / 2f
-
-            for (char in line) {
-                val charStr = char.toString()
-                val charWidth = textPaint.measureText(charStr)
-                val boundsRect = Rect()
-                textPaint.getTextBounds(charStr, 0, 1, boundsRect)
-                
-                val charX = currentX - charWidth / 2f
-                currentY += boundsRect.height()
-
-                if (!config.disableFontBorder) {
-                    canvas.drawText(charStr, charX, currentY, strokePaint)
-                }
-                canvas.drawText(charStr, charX, currentY, textPaint)
-                
-                currentY += textPaint.fontMetrics.descent
-            }
-            
-            if (index + 1 < layoutResult.lineHeights.size) {
-                currentX -= layoutResult.lineHeights[index + 1] * 1.2f
-            }
-        }
-    }
-    
-    private fun calculateVerticalLineHeight(line: String, paint: Paint): Float {
-        var height = 0f
-        val bounds = Rect()
-        for (char in line) {
-            paint.getTextBounds(char.toString(), 0, 1, bounds)
-            height += bounds.height() + paint.fontMetrics.descent
-        }
-        return height
+        MangaTextDrawHelper.drawVerticalText(
+            canvas = canvas,
+            layoutResult = layoutResult,
+            bounds = bounds,
+            textPaint = textPaint,
+            strokePaint = strokePaint,
+            disableFontBorder = config.disableFontBorder
+        )
     }
 }
