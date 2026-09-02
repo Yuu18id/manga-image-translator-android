@@ -99,12 +99,17 @@ class DbNetDetector @Inject constructor(
         }
 
         val finalLines = textlines.map { pair ->
+            val clampedPts = DetectionPostProcessor.expandQuadrilateral(
+                points = pair.first,
+                imageWidth = originalW,
+                imageHeight = originalH
+            )
             Quadrilateral(
                 pts = listOf(
-                    PointF(pair.first[0].x.toFloat(), pair.first[0].y.toFloat()),
-                    PointF(pair.first[1].x.toFloat(), pair.first[1].y.toFloat()),
-                    PointF(pair.first[2].x.toFloat(), pair.first[2].y.toFloat()),
-                    PointF(pair.first[3].x.toFloat(), pair.first[3].y.toFloat())
+                    PointF(clampedPts[0].x.toFloat(), clampedPts[0].y.toFloat()),
+                    PointF(clampedPts[1].x.toFloat(), clampedPts[1].y.toFloat()),
+                    PointF(clampedPts[2].x.toFloat(), clampedPts[2].y.toFloat()),
+                    PointF(clampedPts[3].x.toFloat(), clampedPts[3].y.toFloat())
                 ),
                 prob = pair.second
             )

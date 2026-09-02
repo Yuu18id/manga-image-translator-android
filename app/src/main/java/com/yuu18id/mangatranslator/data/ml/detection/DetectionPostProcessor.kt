@@ -66,12 +66,13 @@ object DetectionPostProcessor {
             return sortPoints(pts.map { it!! })
         }
         
-        // distance = area * unclipRatio / perimeter (exact formula from Python CTD db_utils.py)
+        // distance = area * unclipRatio / perimeter (exact formula matching DBNet / CTD SegDetectorRepresenter)
         val shortSide = min(rect.size.width, rect.size.height)
-        val maxDistance = max(shortSide * 0.5, 4.0)
-        val distance = (area * unclipRatio / perimeter).toDouble().coerceIn(1.0, maxDistance)
+        val maxDistance = max(shortSide * 0.55, 8.0)
+        val effectiveUnclipRatio = if (unclipRatio > 0f) unclipRatio else 1.65f
+        val distance = (area * effectiveUnclipRatio / perimeter).toDouble().coerceIn(4.5, maxDistance)
         
-        // Expand the rotated rectangle by distance on both width and height
+        // Expand the rotated rectangle uniformly by distance on both dimensions
         rect.size.width += 2.0 * distance
         rect.size.height += 2.0 * distance
         
@@ -79,6 +80,23 @@ object DetectionPostProcessor {
         rect.points(newPoints)
         
         return sortPoints(newPoints.map { it!! })
+    }
+
+    /**
+     * Post-processing step for CTD / DBNet text detection:
+     * Clamps quadrilateral points strictly within image boundaries.
+     */
+    fun expandQuadrilateral(
+        points: List<Point>,
+        imageWidth: Int,
+        imageHeight: Int
+    ): List<Point> {
+        if (points.size != 4) return points
+        val maxW = (imageWidth - 1).toDouble().coerceAtLeast(0.0)
+        val maxH = (imageHeight - 1).toDouble().coerceAtLeast(0.0)
+        return points.map { pt ->
+            Point(pt.x.coerceIn(0.0, maxW), pt.y.coerceIn(0.0, maxH))
+        }
     }
 
     fun getMiniBoxes(contour: MatOfPoint): Pair<List<Point>, Float> {

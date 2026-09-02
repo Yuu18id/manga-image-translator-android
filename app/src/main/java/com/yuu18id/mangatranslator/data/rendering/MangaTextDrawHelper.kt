@@ -154,17 +154,8 @@ object MangaTextDrawHelper {
                             canvas.drawPath(heartPath, strokePaint)
                         }
 
-                        if (c == '♥') {
-                            // Solid heart: filled with font color
-                            canvas.drawPath(heartPath, textPaint)
-                        } else {
-                            // Hollow heart: outlined with font color
-                            val hollowPaint = Paint(textPaint).apply {
-                                style = Paint.Style.STROKE
-                                strokeWidth = max(2.5f, fontSize * 0.12f)
-                            }
-                            canvas.drawPath(heartPath, hollowPaint)
-                        }
+                        // Solid heart: filled with font color
+                        canvas.drawPath(heartPath, textPaint)
                         curX += heartW
                     } else {
                         if (textStartIndex == -1) {
@@ -214,15 +205,8 @@ object MangaTextDrawHelper {
                     if (!disableFontBorder && strokePaint != null) {
                         canvas.drawPath(heartPath, strokePaint)
                     }
-                    if (char == '♥') {
-                        canvas.drawPath(heartPath, textPaint)
-                    } else {
-                        val hollowPaint = Paint(textPaint).apply {
-                            style = Paint.Style.STROKE
-                            strokeWidth = max(2.5f, fontSize * 0.12f)
-                        }
-                        canvas.drawPath(heartPath, hollowPaint)
-                    }
+                    // Solid heart: filled with font color
+                    canvas.drawPath(heartPath, textPaint)
                     currentY += heartH + textPaint.fontMetrics.descent
                 } else {
                     val charStr = char.toString()

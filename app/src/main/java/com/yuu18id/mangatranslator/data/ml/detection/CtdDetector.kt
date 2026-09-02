@@ -161,7 +161,12 @@ class CtdDetector @Inject constructor(
 
             val nmsBoxes = DetectionPostProcessor.nonMaxSuppression(textlines, 0.3f)
             val quadrilaterals = nmsBoxes.map { (pts, score) ->
-                val pointFs = pts.map { android.graphics.PointF(it.x.toFloat(), it.y.toFloat()) }
+                val clampedPts = DetectionPostProcessor.expandQuadrilateral(
+                    points = pts,
+                    imageWidth = originalW,
+                    imageHeight = originalH
+                )
+                val pointFs = clampedPts.map { android.graphics.PointF(it.x.toFloat(), it.y.toFloat()) }
                 Quadrilateral.fromPoints(pointFs, text = "", prob = score)
             }
 

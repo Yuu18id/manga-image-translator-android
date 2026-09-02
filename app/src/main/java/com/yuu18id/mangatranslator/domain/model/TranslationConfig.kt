@@ -17,7 +17,7 @@ data class DetectorConfig(
     val detectionSize: Int = 1024,
     val textThreshold: Float = 0.30f,
     val boxThreshold: Float = 0.60f,
-    val unclipRatio: Float = 1.50f
+    val unclipRatio: Float = 1.65f
 )
 
 data class OcrConfig(
