@@ -141,7 +141,7 @@ class TextlineMerger @Inject constructor() {
 
         // If the largest edge is significantly larger than internal line spacing or standard deviation is high,
         // it indicates a bridge between two separate speech bubbles!
-        val shouldKeepTogether = (maxD <= meanD + stdD * sigma || maxD <= avgFontSize * 2.2f) && (stdD < stdThreshold || maxD <= avgFontSize * 2.0f)
+        val shouldKeepTogether = (maxD <= meanD + stdD * sigma || maxD <= avgFontSize * 1.8f) && (stdD < stdThreshold || maxD <= avgFontSize * 1.5f)
 
         if (shouldKeepTogether) {
             return listOf(nodeIndices)
@@ -186,16 +186,38 @@ class TextlineMerger @Inject constructor() {
     }
 
     private fun calculateDistance(q1: Quadrilateral, q2: Quadrilateral): Float {
-        val r1 = q1.boundingRect()
-        val r2 = q2.boundingRect()
-        val c1 = q1.center()
-        val c2 = q2.center()
+        val minX1 = q1.boundsMinX()
+        val maxX1 = q1.boundsMaxX()
+        val minY1 = q1.boundsMinY()
+        val maxY1 = q1.boundsMaxY()
+
+        val minX2 = q2.boundsMinX()
+        val maxX2 = q2.boundsMaxX()
+        val minY2 = q2.boundsMinY()
+        val maxY2 = q2.boundsMaxY()
+
+        val c1x = q1.centerX()
+        val c1y = q1.centerY()
+        val c2x = q2.centerX()
+        val c2y = q2.centerY()
+
         val fs = max(getFontSize(q1), getFontSize(q2))
 
-        val ar1 = max(r1.width(), r1.height()) / max(min(r1.width(), r1.height()), 1f)
-        val ar2 = max(r2.width(), r2.height()) / max(min(r2.width(), r2.height()), 1f)
-        val isSingleChar1 = ar1 <= 1.35f
-        val isSingleChar2 = ar2 <= 1.35f
+        val w1 = q1.width()
+        val h1 = q1.height()
+        val w2 = q2.width()
+        val h2 = q2.height()
+
+        val isMb1 = isMultiColumnBlock(q1)
+        val isMb2 = isMultiColumnBlock(q2)
+        if (isMb1 && isMb2) {
+            return abs(c1x - c2x) + abs(c1y - c2y) + 20.0f * fs
+        }
+
+        val ar1 = max(w1, h1) / max(min(w1, h1), 1f)
+        val ar2 = max(w2, h2) / max(min(w2, h2), 1f)
+        val isSingleChar1 = ar1 <= 1.35f && !isMb1
+        val isSingleChar2 = ar2 <= 1.35f && !isMb2
 
         val isVertical = when {
             !isSingleChar1 && !isSingleChar2 -> q1.isVertical
@@ -205,57 +227,101 @@ class TextlineMerger @Inject constructor() {
         }
 
         return if (isVertical) {
-            val dx = abs(c1.x - c2.x)
-            val vOverlap = max(0f, min(r1.bottom, r2.bottom) - max(r1.top, r2.top))
-            val minHeight = min(r1.height(), r2.height())
+            val dx = abs(c1x - c2x)
+            val dy = abs(c1y - c2y)
+            val vOverlap = max(0f, min(maxY1, maxY2) - max(minY1, minY2))
+            val minHeight = min(h1, h2)
             val overlapRatio = if (minHeight > 0f) vOverlap / minHeight else 0f
-            val alignY = minOf(abs(c1.y - c2.y), abs(r1.top - r2.top), abs(r1.bottom - r2.bottom))
-            val yGap = if (r1.bottom < r2.top) r2.top - r1.bottom else if (r2.bottom < r1.top) r1.top - r2.bottom else 0f
+            val yGap = if (maxY1 < minY2) minY2 - maxY1 else if (maxY2 < minY1) minY1 - maxY2 else 0f
 
-            val isCollinear = dx <= fs * 0.55f
-            if (isCollinear) {
-                hypot(dx, yGap)
-            } else if (overlapRatio >= 0.50f || (vOverlap > 0f && alignY <= fs * 1.2f)) {
-                dx
+            val topDiff = abs(minY1 - minY2)
+            val botDiff = abs(maxY1 - maxY2)
+            val minAlignDiff = min(topDiff, botDiff)
+
+            val hasBaselineAlign = minAlignDiff <= fs * 0.85f
+            val hasHighOverlap = overlapRatio >= 0.70f && dy <= fs * 1.5f
+
+            if (vOverlap <= 0f || (!hasBaselineAlign && !hasHighOverlap) || overlapRatio < 0.35f) {
+                dx + yGap + 10.0f * fs
             } else {
-                hypot(dx, yGap + alignY * 1.5f)
+                dx + (1.0f - overlapRatio) * fs * 0.5f
             }
         } else {
-            val dy = abs(c1.y - c2.y)
-            val hOverlap = max(0f, min(r1.right, r2.right) - max(r1.left, r2.left))
-            val minWidth = min(r1.width(), r2.width())
+            val dx = abs(c1x - c2x)
+            val dy = abs(c1y - c2y)
+            val hOverlap = max(0f, min(maxX1, maxX2) - max(minX1, minX2))
+            val minWidth = min(w1, w2)
             val overlapRatio = if (minWidth > 0f) hOverlap / minWidth else 0f
-            val alignX = minOf(abs(c1.x - c2.x), abs(r1.left - r2.left), abs(r1.right - r2.right))
-            val xGap = if (r1.right < r2.left) r2.left - r1.right else if (r2.right < r1.left) r1.left - r2.right else 0f
+            val xGap = if (maxX1 < minX2) minX2 - maxX1 else if (maxX2 < minX1) minX1 - maxX2 else 0f
 
-            val isInline = dy <= fs * 0.55f
-            if (isInline) {
-                hypot(xGap, dy)
-            } else if (overlapRatio >= 0.50f || (hOverlap > 0f && alignX <= fs * 1.2f)) {
-                dy
+            val leftDiff = abs(minX1 - minX2)
+            val rightDiff = abs(maxX1 - maxX2)
+            val minAlignDiff = min(leftDiff, rightDiff)
+
+            val hasBaselineAlign = minAlignDiff <= fs * 0.85f
+            val hasHighOverlap = overlapRatio >= 0.70f && dx <= fs * 1.5f
+
+            if (hOverlap <= 0f || (!hasBaselineAlign && !hasHighOverlap) || overlapRatio < 0.35f) {
+                dy + xGap + 10.0f * fs
             } else {
-                hypot(xGap + alignX * 1.5f, dy)
+                dy + (1.0f - overlapRatio) * fs * 0.5f
             }
+        }
+    }
+
+    fun isMultiColumnBlock(q: Quadrilateral): Boolean {
+        val w = q.width()
+        val h = q.height()
+        return if (q.isVertical) {
+            (w >= h * 0.70f && w >= 120.0f)
+        } else {
+            (h >= w * 0.70f && h >= 120.0f)
         }
     }
 
     private fun getFontSize(q: Quadrilateral): Float {
-        val rect = q.boundingRect()
-        val ar = max(rect.width(), rect.height()) / max(min(rect.width(), rect.height()), 1f)
-        return if (ar <= 1.35f) {
-            min(rect.width(), rect.height())
+        val w = q.width()
+        val h = q.height()
+        val ar = max(w, h) / max(min(w, h), 1f)
+        if (isMultiColumnBlock(q)) {
+            val estCols = if (q.isVertical) {
+                max(2.0f, kotlin.math.round(w / 70.0f))
+            } else {
+                max(2.0f, kotlin.math.round(h / 70.0f))
+            }
+            return if (q.isVertical) (w / estCols) else (h / estCols)
+        }
+        return if (ar <= 1.35f && min(w, h) <= 100.0f) {
+            min(w, h)
         } else if (q.isVertical) {
-            rect.width()
+            w
         } else {
-            rect.height()
+            h
         }
     }
 
     fun canMerge(q1: Quadrilateral, q2: Quadrilateral): Boolean {
-        val r1 = q1.boundingRect()
-        val r2 = q2.boundingRect()
-        val c1 = q1.center()
-        val c2 = q2.center()
+        val isMb1 = isMultiColumnBlock(q1)
+        val isMb2 = isMultiColumnBlock(q2)
+
+        // RULE 1: Two multi-column/multi-line blocks must NEVER merge!
+        // In comic typography, two distinct blocks represent separate speech bubbles or panels.
+        if (isMb1 && isMb2) return false
+
+        val minX1 = q1.boundsMinX()
+        val maxX1 = q1.boundsMaxX()
+        val minY1 = q1.boundsMinY()
+        val maxY1 = q1.boundsMaxY()
+
+        val minX2 = q2.boundsMinX()
+        val maxX2 = q2.boundsMaxX()
+        val minY2 = q2.boundsMinY()
+        val maxY2 = q2.boundsMaxY()
+
+        val c1x = q1.centerX()
+        val c1y = q1.centerY()
+        val c2x = q2.centerX()
+        val c2y = q2.centerY()
 
         val fs1 = getFontSize(q1)
         val fs2 = getFontSize(q2)
@@ -265,11 +331,16 @@ class TextlineMerger @Inject constructor() {
         // Font size ratio check (tolerant up to 2.2x for comic emphasis/furigana)
         if (max(fs1, fs2) / charSize > 2.2f) return false
 
+        val w1 = q1.width()
+        val h1 = q1.height()
+        val w2 = q2.width()
+        val h2 = q2.height()
+
         // Check if either box is a single square character (aspect ratio ~1.0)
-        val ar1 = max(r1.width(), r1.height()) / max(min(r1.width(), r1.height()), 1f)
-        val ar2 = max(r2.width(), r2.height()) / max(min(r2.width(), r2.height()), 1f)
-        val isSingleChar1 = ar1 <= 1.35f
-        val isSingleChar2 = ar2 <= 1.35f
+        val ar1 = max(w1, h1) / max(min(w1, h1), 1f)
+        val ar2 = max(w2, h2) / max(min(w2, h2), 1f)
+        val isSingleChar1 = ar1 <= 1.35f && !isMb1
+        val isSingleChar2 = ar2 <= 1.35f && !isMb2
 
         // Orientation direction: if one box is a single square character, its orientation aligns with the multi-char line
         val effectiveVertical = when {
@@ -286,33 +357,65 @@ class TextlineMerger @Inject constructor() {
         if (abs(q1.angle - q2.angle) > 25.0f) return false
 
         return if (effectiveVertical) {
-            val dx = abs(c1.x - c2.x)
-            val vOverlap = max(0f, min(r1.bottom, r2.bottom) - max(r1.top, r2.top))
-            val minHeight = min(r1.height(), r2.height())
+            val dx = abs(c1x - c2x)
+            val dy = abs(c1y - c2y)
+            val xGap = if (maxX1 < minX2) minX2 - maxX1 else if (maxX2 < minX1) minX1 - maxX2 else 0f
+            val vOverlap = max(0f, min(maxY1, maxY2) - max(minY1, minY2))
+            val minHeight = min(h1, h2)
             val overlapRatio = if (minHeight > 0f) vOverlap / minHeight else 0f
-            val alignY = minOf(abs(c1.y - c2.y), abs(r1.top - r2.top), abs(r1.bottom - r2.bottom))
-            val yGap = if (r1.bottom < r2.top) r2.top - r1.bottom else if (r2.bottom < r1.top) r1.top - r2.bottom else 0f
 
-            // 1. Parallel adjacent columns in the same speech bubble (requires substantial overlap or vertical alignment)
-            val isParallelColumn = (dx <= charSize * 2.2f) && (overlapRatio >= 0.35f || alignY <= charSize * 1.8f) && (yGap <= charSize * 1.5f)
-            // 2. Collinear stacked segments in the same vertical column
-            val isStackedSegment = (dx <= charSize * 0.55f) && (yGap <= charSize * 2.5f)
+            val topDiff = abs(minY1 - minY2)
+            val botDiff = abs(maxY1 - maxY2)
+            val minAlignDiff = min(topDiff, botDiff)
 
-            isParallelColumn || isStackedSegment
+            val isHorizontallyAdjacent = if (!isMb1 && !isMb2) {
+                dx <= charSize * 2.2f || xGap <= charSize * 1.5f
+            } else {
+                xGap <= charSize * 0.5f
+            }
+
+            val hasVerticalOverlap = if (isSingleChar1 || isSingleChar2) {
+                vOverlap >= charSize * 0.5f
+            } else {
+                val hasBaselineAlign = minAlignDiff <= charSize * 0.85f
+                val hasHighOverlap = overlapRatio >= 0.70f && dy <= charSize * 1.5f
+                val isAlignedWell = hasBaselineAlign || hasHighOverlap
+                val hasEnoughOverlap = overlapRatio >= 0.35f
+
+                vOverlap > 0f && isAlignedWell && hasEnoughOverlap
+            }
+
+            isHorizontallyAdjacent && hasVerticalOverlap
         } else {
-            val dy = abs(c1.y - c2.y)
-            val hOverlap = max(0f, min(r1.right, r2.right) - max(r1.left, r2.left))
-            val minWidth = min(r1.width(), r2.width())
+            val dx = abs(c1x - c2x)
+            val dy = abs(c1y - c2y)
+            val yGap = if (maxY1 < minY2) minY2 - maxY1 else if (maxY2 < minY1) minY1 - maxY2 else 0f
+            val hOverlap = max(0f, min(maxX1, maxX2) - max(minX1, minX2))
+            val minWidth = min(w1, w2)
             val overlapRatio = if (minWidth > 0f) hOverlap / minWidth else 0f
-            val alignX = minOf(abs(c1.x - c2.x), abs(r1.left - r2.left), abs(r1.right - r2.right))
-            val xGap = if (r1.right < r2.left) r2.left - r1.right else if (r2.right < r1.left) r1.left - r2.right else 0f
 
-            // 1. Parallel adjacent rows in the same speech bubble (requires substantial overlap or horizontal alignment)
-            val isParallelRow = (dy <= charSize * 2.2f) && (overlapRatio >= 0.35f || alignX <= charSize * 1.8f) && (xGap <= charSize * 1.5f)
-            // 2. Collinear inline segments in the same horizontal row
-            val isInlineSegment = (dy <= charSize * 0.55f) && (xGap <= charSize * 2.5f)
+            val leftDiff = abs(minX1 - minX2)
+            val rightDiff = abs(maxX1 - maxX2)
+            val minAlignDiff = min(leftDiff, rightDiff)
 
-            isParallelRow || isInlineSegment
+            val isVerticallyAdjacent = if (!isMb1 && !isMb2) {
+                dy <= charSize * 2.2f || yGap <= charSize * 1.5f
+            } else {
+                yGap <= charSize * 0.5f
+            }
+
+            val hasHorizontalOverlap = if (isSingleChar1 || isSingleChar2) {
+                hOverlap >= charSize * 0.5f
+            } else {
+                val hasBaselineAlign = minAlignDiff <= charSize * 0.85f
+                val hasHighOverlap = overlapRatio >= 0.70f && dx <= charSize * 1.5f
+                val isAlignedWell = hasBaselineAlign || hasHighOverlap
+                val hasEnoughOverlap = overlapRatio >= 0.35f
+
+                hOverlap > 0f && isAlignedWell && hasEnoughOverlap
+            }
+
+            isVerticallyAdjacent && hasHorizontalOverlap
         }
     }
 
@@ -323,18 +426,18 @@ class TextlineMerger @Inject constructor() {
         var maxY = Float.MIN_VALUE
 
         for (quad in cluster) {
-            val rect = quad.boundingRect()
-            minX = min(minX, rect.left)
-            minY = min(minY, rect.top)
-            maxX = max(maxX, rect.right)
-            maxY = max(maxY, rect.bottom)
+            minX = min(minX, quad.boundsMinX())
+            minY = min(minY, quad.boundsMinY())
+            maxX = max(maxX, quad.boundsMaxX())
+            maxY = max(maxY, quad.boundsMaxY())
         }
 
         val boundingBox = RectF(minX, minY, maxX, maxY)
         var verticalScore = 0
         for (q in cluster) {
-            val r = q.boundingRect()
-            val ar = max(r.width(), r.height()) / max(min(r.width(), r.height()), 1f)
+            val w = q.width()
+            val h = q.height()
+            val ar = max(w, h) / max(min(w, h), 1f)
             if (ar > 1.35f) {
                 verticalScore += if (q.isVertical) 3 else -3
             } else {
@@ -346,14 +449,14 @@ class TextlineMerger @Inject constructor() {
         val sortedCluster = if (isVertical) {
             // Right-to-left for vertical columns in Japanese manga, then top-to-bottom
             cluster.sortedWith { a, b ->
-                val dx = b.center().x.compareTo(a.center().x)
-                if (dx != 0) dx else a.center().y.compareTo(b.center().y)
+                val dx = b.centerX().compareTo(a.centerX())
+                if (dx != 0) dx else a.centerY().compareTo(b.centerY())
             }
         } else {
             // Top-to-bottom for horizontal lines, then left-to-right
             cluster.sortedWith { a, b ->
-                val dy = a.center().y.compareTo(b.center().y)
-                if (dy != 0) dy else a.center().x.compareTo(b.center().x)
+                val dy = a.centerY().compareTo(b.centerY())
+                if (dy != 0) dy else a.centerX().compareTo(b.centerX())
             }
         }
 

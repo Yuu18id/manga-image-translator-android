@@ -68,7 +68,8 @@ object DetectionPostProcessor {
         
         // distance = area * unclipRatio / perimeter (exact formula matching DBNet / CTD SegDetectorRepresenter)
         val shortSide = min(rect.size.width, rect.size.height)
-        val maxDistance = max(shortSide * 0.55, 8.0)
+        // Cap unclip expansion distance to prevent runaway expansion across speech bubble borders
+        val maxDistance = max(min(shortSide * 0.4, 22.0), 6.0)
         val effectiveUnclipRatio = if (unclipRatio > 0f) unclipRatio else 1.65f
         val distance = (area * effectiveUnclipRatio / perimeter).toDouble().coerceIn(4.5, maxDistance)
         

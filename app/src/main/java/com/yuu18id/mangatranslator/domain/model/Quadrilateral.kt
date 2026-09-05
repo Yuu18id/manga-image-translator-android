@@ -67,35 +67,28 @@ data class Quadrilateral(
         }
     }
 
+    fun boundsMinX(): Float = pts.minOf { it.x }
+    fun boundsMaxX(): Float = pts.maxOf { it.x }
+    fun boundsMinY(): Float = pts.minOf { it.y }
+    fun boundsMaxY(): Float = pts.maxOf { it.y }
+
+    fun centerX(): Float = (boundsMinX() + boundsMaxX()) / 2f
+    fun centerY(): Float = (boundsMinY() + boundsMaxY()) / 2f
+
     fun boundingRect(): RectF {
-        var minX = Float.MAX_VALUE
-        var minY = Float.MAX_VALUE
-        var maxX = Float.MIN_VALUE
-        var maxY = Float.MIN_VALUE
-
-        for (pt in pts) {
-            minX = min(minX, pt.x)
-            minY = min(minY, pt.y)
-            maxX = max(maxX, pt.x)
-            maxY = max(maxY, pt.y)
-        }
-
-        return RectF(minX, minY, maxX, maxY)
+        return RectF(boundsMinX(), boundsMinY(), boundsMaxX(), boundsMaxY())
     }
 
     fun center(): PointF {
-        val rect = boundingRect()
-        return PointF(rect.centerX(), rect.centerY())
+        return PointF(centerX(), centerY())
     }
 
     fun width(): Float {
-        val rect = boundingRect()
-        return rect.width()
+        return max(0f, boundsMaxX() - boundsMinX())
     }
 
     fun height(): Float {
-        val rect = boundingRect()
-        return rect.height()
+        return max(0f, boundsMaxY() - boundsMinY())
     }
 
     fun area(): Float {
