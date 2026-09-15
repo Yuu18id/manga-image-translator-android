@@ -151,13 +151,18 @@ class CanvasTextRenderer @Inject constructor(
                 val currentSize = c.layoutResult.fontSize
                 // Only harmonize upwards if within 4.0pt of median, NEVER downscale
                 if (currentSize < medianFontSize && (medianFontSize - currentSize) <= 4.0f) {
+                    val candidateConfig = if (c.block.customAlignment != null) {
+                        config.copy(alignment = c.block.customAlignment)
+                    } else {
+                        config
+                    }
                     val harmonized = layoutEngine.layoutWithFontSize(
                         text = c.textToRender,
                         targetWidth = c.bounds.width(),
                         targetHeight = c.bounds.height(),
                         fontSize = medianFontSize,
                         language = c.block.language,
-                        config = config,
+                        config = candidateConfig,
                         isVertical = c.isVertical,
                         fontStyle = c.block.customFontStyle ?: CustomFontStyle.NORMAL,
                         fontFamily = c.block.customFontFamily ?: com.yuu18id.mangatranslator.domain.model.CustomFontFamily.WILD_WORDS
@@ -215,10 +220,11 @@ class CanvasTextRenderer @Inject constructor(
                 canvas.rotate(block.angle, bounds.centerX(), bounds.centerY())
             }
 
+            val effectiveAlignment = block.customAlignment ?: config.alignment
             if (isVertical) {
                 drawVerticalText(canvas, layoutResult, bounds, textPaint, strokePaint, config)
             } else {
-                drawHorizontalText(canvas, layoutResult, bounds, textPaint, strokePaint, config)
+                drawHorizontalText(canvas, layoutResult, bounds, textPaint, strokePaint, effectiveAlignment, config.disableFontBorder)
             }
 
             canvas.restore()
@@ -233,6 +239,8 @@ class CanvasTextRenderer @Inject constructor(
                     customFontSize = matchingCandidate.layoutResult.fontSize,
                     customAlignment = matchingCandidate.block.customAlignment ?: config.alignment,
                     customFontStyle = matchingCandidate.block.customFontStyle ?: CustomFontStyle.NORMAL,
+                    customFontFamily = matchingCandidate.block.customFontFamily ?: com.yuu18id.mangatranslator.domain.model.CustomFontFamily.WILD_WORDS,
+                    customTextColor = matchingCandidate.block.customTextColor,
                     isManualBounds = true
                 )
             } else {
@@ -400,7 +408,8 @@ class CanvasTextRenderer @Inject constructor(
         bounds: RectF,
         textPaint: Paint,
         strokePaint: Paint,
-        config: RenderConfig
+        alignment: TextAlignment,
+        disableFontBorder: Boolean = false
     ) {
         MangaTextDrawHelper.drawHorizontalText(
             canvas = canvas,
@@ -408,8 +417,8 @@ class CanvasTextRenderer @Inject constructor(
             bounds = bounds,
             textPaint = textPaint,
             strokePaint = strokePaint,
-            alignment = config.alignment,
-            disableFontBorder = config.disableFontBorder
+            alignment = alignment,
+            disableFontBorder = disableFontBorder
         )
     }
 
