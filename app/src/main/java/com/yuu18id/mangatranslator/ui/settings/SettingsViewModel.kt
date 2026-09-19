@@ -1,10 +1,11 @@
-﻿package com.yuu18id.mangatranslator.ui.settings
+package com.yuu18id.mangatranslator.ui.settings
 
 import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.yuu18id.mangatranslator.data.translation.model.AiModelInfo
 import com.yuu18id.mangatranslator.data.translation.model.ModelFetcherService
+import com.yuu18id.mangatranslator.data.translation.prompt.LlmPromptConfig
 import com.yuu18id.mangatranslator.domain.model.Language
 import com.yuu18id.mangatranslator.domain.model.TranslationConfig
 import com.yuu18id.mangatranslator.domain.model.TranslatorType
@@ -126,6 +127,30 @@ class SettingsViewModel @Inject constructor(
             settingsRepository.saveTranslationConfig(updatedConfig)
             _uiState.update { it.copy(config = updatedConfig) }
         }
+    }
+
+    fun setUseCustomSystemPrompt(enabled: Boolean) {
+        viewModelScope.launch {
+            val updatedConfig = _uiState.value.config.copy(
+                translator = _uiState.value.config.translator.copy(useCustomSystemPrompt = enabled)
+            )
+            settingsRepository.saveTranslationConfig(updatedConfig)
+            _uiState.update { it.copy(config = updatedConfig) }
+        }
+    }
+
+    fun updateCustomSystemPrompt(prompt: String) {
+        viewModelScope.launch {
+            val updatedConfig = _uiState.value.config.copy(
+                translator = _uiState.value.config.translator.copy(systemPrompt = prompt)
+            )
+            settingsRepository.saveTranslationConfig(updatedConfig)
+            _uiState.update { it.copy(config = updatedConfig) }
+        }
+    }
+
+    fun resetCustomSystemPrompt() {
+        updateCustomSystemPrompt(LlmPromptConfig.getDefaultTemplate())
     }
 
     fun saveApiKey(translatorType: TranslatorType, key: String) {

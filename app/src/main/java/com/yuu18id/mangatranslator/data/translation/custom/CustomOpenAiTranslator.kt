@@ -60,12 +60,70 @@ class CustomOpenAiTranslator @Inject constructor(
         val selectedModel = settingsRepository.getModel(TranslatorType.CUSTOM).firstOrNull()?.takeIf { it.isNotBlank() }
             ?: "default"
 
-        val requestBody = ChatRequest(
+        val content = executeChatRequest(
+            chatUrl = chatUrl,
+            apiKey = apiKey,
             model = selectedModel,
+            prompt = prompt,
+            targetLang = targetLang,
+            customPrompt = config.activeCustomPrompt
+        )
+
+        val initialResults = com.yuu18id.mangatranslator.data.translation.prompt.LlmResponseParser.applyToBlocks(content, textBlocks)
+
+        // Check if any blocks are missing translations (e.g. model merged multi-part bubbles)
+        val missingIndices = initialResults.indices.filter { initialResults[it].translatedText.isBlank() }
+        if (missingIndices.isNotEmpty() && textBlocks.size > 1) {
+            android.util.Log.w(
+                "CustomOpenAi",
+                "Batch translation missing ${missingIndices.size}/${textBlocks.size} blocks. Triggering single-line fallback for indices: $missingIndices"
+            )
+            val updatedResults = initialResults.toMutableList()
+            for (idx in missingIndices) {
+                val block = textBlocks[idx]
+                if (block.text.isBlank()) continue
+                try {
+                    val singlePrompt = com.yuu18id.mangatranslator.data.translation.prompt.LlmPromptConfig.buildSingleUserPrompt(
+                        sourceLang,
+                        targetLang,
+                        block.text
+                    )
+                    val singleContent = executeChatRequest(
+                        chatUrl = chatUrl,
+                        apiKey = apiKey,
+                        model = selectedModel,
+                        prompt = singlePrompt,
+                        targetLang = targetLang,
+                        customPrompt = config.activeCustomPrompt
+                    )
+                    val singleCleaned = com.yuu18id.mangatranslator.data.translation.prompt.LlmResponseParser.cleanDialogueText(singleContent)
+                    if (singleCleaned.isNotBlank() && !com.yuu18id.mangatranslator.data.translation.prompt.LlmResponseParser.isPromptLeakage(singleCleaned)) {
+                        updatedResults[idx] = block.copy(translatedText = singleCleaned)
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.e("CustomOpenAi", "Single-line fallback failed for block $idx: ${e.message}")
+                }
+            }
+            return updatedResults
+        }
+
+        return initialResults
+    }
+
+    private fun executeChatRequest(
+        chatUrl: String,
+        apiKey: String,
+        model: String,
+        prompt: String,
+        targetLang: String,
+        customPrompt: String?
+    ): String {
+        val requestBody = ChatRequest(
+            model = model,
             messages = listOf(
                 Message(
                     role = "system",
-                    content = com.yuu18id.mangatranslator.data.translation.prompt.LlmPromptConfig.getSystemPrompt(targetLang)
+                    content = com.yuu18id.mangatranslator.data.translation.prompt.LlmPromptConfig.getSystemPrompt(targetLang, customPrompt)
                 ),
                 Message(role = "user", content = prompt)
             )
@@ -88,23 +146,7 @@ class CustomOpenAiTranslator @Inject constructor(
 
         val responseBody = response.body?.string() ?: throw Exception("Empty response body")
         val chatResponse = json.decodeFromString<ChatResponse>(responseBody)
-        val content = chatResponse.choices.firstOrNull()?.message?.content ?: ""
-
-        val translatedLines = content.lines()
-        val resultBlocks = textBlocks.map { it.copy() }.toMutableList()
-
-        for (line in translatedLines) {
-            val match = Regex("""^(\d+)[\s.:\-]+(?:\[(.*?)\]|(.*))""").find(line.trim())
-            if (match != null) {
-                val index = match.groupValues[1].toIntOrNull()?.minus(1)
-                val text = match.groupValues[2].takeIf { it.isNotEmpty() } ?: match.groupValues[3]
-                if (index != null && index in resultBlocks.indices && !text.isNullOrBlank()) {
-                    resultBlocks[index] = resultBlocks[index].copy(translatedText = text.trim())
-                }
-            }
-        }
-
-        return resultBlocks
+        return chatResponse.choices.firstOrNull()?.message?.content ?: ""
     }
 
     override fun isAvailable(): Boolean = true

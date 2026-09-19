@@ -53,7 +53,12 @@ class CanvasTextRenderer @Inject constructor(
         val candidates = mutableListOf<RenderCandidate>()
 
         for ((i, block) in textBlocks.withIndex()) {
-            val rawText = if (block.translatedText.isNotBlank()) block.translatedText.trim() else block.text.trim()
+            val rawText = if (block.translatedText.isNotBlank()) {
+                block.translatedText.trim()
+            } else {
+                val isCJK = block.language in listOf(Language.JPN, Language.CHS, Language.CHT, Language.KOR)
+                if (!isCJK && block.lines.any { it.isVertical }) "" else block.text.trim()
+            }
             val textToRender = textPostProcessor.process(rawText, originalText = block.text)
             if (textToRender.isBlank()) {
                 Log.w(TAG, "   Block $i SKIPPED: text is blank (orig=\"${block.text}\", trans=\"${block.translatedText}\")")

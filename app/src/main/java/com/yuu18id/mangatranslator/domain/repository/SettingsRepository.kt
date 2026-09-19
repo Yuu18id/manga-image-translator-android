@@ -1,4 +1,4 @@
-﻿package com.yuu18id.mangatranslator.domain.repository
+package com.yuu18id.mangatranslator.domain.repository
 
 import com.yuu18id.mangatranslator.data.translation.model.AiModelInfo
 import com.yuu18id.mangatranslator.domain.model.TranslationConfig
@@ -23,4 +23,10 @@ interface SettingsRepository {
 
     fun getOpenRouterModel(): Flow<String>
     suspend fun saveOpenRouterModel(modelId: String)
+
+    fun getCustomSystemPrompt(): Flow<String>
+    suspend fun saveCustomSystemPrompt(prompt: String)
+
+    fun getUseCustomSystemPrompt(): Flow<Boolean>
+    suspend fun saveUseCustomSystemPrompt(enabled: Boolean)
 }

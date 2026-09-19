@@ -1,4 +1,4 @@
-﻿package com.yuu18id.mangatranslator.data.repository
+package com.yuu18id.mangatranslator.data.repository
 
 import com.yuu18id.mangatranslator.data.local.SettingsDataStore
 import com.yuu18id.mangatranslator.data.translation.model.AiModelInfo
@@ -32,6 +32,8 @@ class SettingsRepositoryImpl @Inject constructor(
         private const val KEY_INPAINTING_SIZE = "inpainting_size"
         private const val KEY_FONT_SIZE_OFFSET = "font_size_offset"
         private const val KEY_CUSTOM_BASE_URL = "custom_base_url"
+        private const val KEY_CUSTOM_SYSTEM_PROMPT = "custom_system_prompt"
+        private const val KEY_USE_CUSTOM_SYSTEM_PROMPT = "use_custom_system_prompt"
     }
 
     override fun getTranslationConfig(): Flow<TranslationConfig> {
@@ -43,6 +45,9 @@ class SettingsRepositoryImpl @Inject constructor(
             val detectionSize = prefs[androidx.datastore.preferences.core.intPreferencesKey(KEY_DETECTION_SIZE)] ?: 1024
             val inpaintingSize = prefs[androidx.datastore.preferences.core.intPreferencesKey(KEY_INPAINTING_SIZE)] ?: 512
             val fontSizeOffset = prefs[androidx.datastore.preferences.core.intPreferencesKey(KEY_FONT_SIZE_OFFSET)] ?: 0
+            val systemPrompt = prefs[androidx.datastore.preferences.core.stringPreferencesKey(KEY_CUSTOM_SYSTEM_PROMPT)] ?: ""
+            val useCustomPrompt = prefs[androidx.datastore.preferences.core.booleanPreferencesKey(KEY_USE_CUSTOM_SYSTEM_PROMPT)]
+                ?: (systemPrompt.isNotBlank())
 
             val translatorType = runCatching { TranslatorType.valueOf(translatorTypeName) }.getOrDefault(TranslatorType.NONE)
             val ocrType = runCatching { com.yuu18id.mangatranslator.domain.model.OcrType.valueOf(ocrTypeName) }.getOrDefault(com.yuu18id.mangatranslator.domain.model.OcrType.OCR_48PX_CTC)
@@ -61,7 +66,9 @@ class SettingsRepositoryImpl @Inject constructor(
                 translator = TranslatorConfig(
                     translatorType = translatorType,
                     sourceLang = sourceLang,
-                    targetLang = targetLang
+                    targetLang = targetLang,
+                    useCustomSystemPrompt = useCustomPrompt,
+                    systemPrompt = systemPrompt
                 ),
                 inpainter = InpaintConfig(
                     inpaintingSize = inpaintingSize
@@ -78,6 +85,8 @@ class SettingsRepositoryImpl @Inject constructor(
         settingsDataStore.saveConfigString(KEY_OCR_TYPE, config.ocr.ocrType.name)
         settingsDataStore.saveConfigString(KEY_SOURCE_LANG, config.translator.sourceLang?.name ?: "")
         settingsDataStore.saveConfigString(KEY_TARGET_LANG, config.translator.targetLang.name)
+        settingsDataStore.saveConfigBoolean(KEY_USE_CUSTOM_SYSTEM_PROMPT, config.translator.useCustomSystemPrompt)
+        settingsDataStore.saveConfigString(KEY_CUSTOM_SYSTEM_PROMPT, config.translator.systemPrompt)
         settingsDataStore.saveConfigInt(KEY_DETECTION_SIZE, config.detector.detectionSize)
         settingsDataStore.saveConfigInt(KEY_INPAINTING_SIZE, config.inpainter.inpaintingSize)
         settingsDataStore.saveConfigInt(KEY_FONT_SIZE_OFFSET, config.render.fontSizeOffset)
@@ -101,14 +110,19 @@ class SettingsRepositoryImpl @Inject constructor(
     }
 
     override fun getCachedModels(translatorType: TranslatorType): Flow<List<AiModelInfo>> {
-        val defaultList = ModelFetcherService.FALLBACK_PRESETS[translatorType] ?: emptyList()
         return settingsDataStore.getConfigString("cached_models_${translatorType.name}", "").map { jsonStr ->
             if (jsonStr.isBlank()) {
-                defaultList
+                emptyList()
             } else {
                 runCatching {
-                    json.decodeFromString<List<AiModelInfo>>(jsonStr)
-                }.getOrDefault(defaultList)
+                    val decoded = json.decodeFromString<List<AiModelInfo>>(jsonStr)
+                    // Sanitize old presets with claims
+                    if (decoded.any { it.displayName.contains("Recommended", ignoreCase = true) }) {
+                        emptyList()
+                    } else {
+                        decoded
+                    }
+                }.getOrDefault(emptyList())
             }
         }
     }
@@ -132,5 +146,21 @@ class SettingsRepositoryImpl @Inject constructor(
 
     override suspend fun saveOpenRouterModel(modelId: String) {
         saveModel(TranslatorType.OPENROUTER, modelId)
+    }
+
+    override fun getCustomSystemPrompt(): Flow<String> {
+        return settingsDataStore.getConfigString(KEY_CUSTOM_SYSTEM_PROMPT, "")
+    }
+
+    override suspend fun saveCustomSystemPrompt(prompt: String) {
+        settingsDataStore.saveConfigString(KEY_CUSTOM_SYSTEM_PROMPT, prompt)
+    }
+
+    override fun getUseCustomSystemPrompt(): Flow<Boolean> {
+        return settingsDataStore.getConfigBoolean(KEY_USE_CUSTOM_SYSTEM_PROMPT, false)
+    }
+
+    override suspend fun saveUseCustomSystemPrompt(enabled: Boolean) {
+        settingsDataStore.saveConfigBoolean(KEY_USE_CUSTOM_SYSTEM_PROMPT, enabled)
     }
 }

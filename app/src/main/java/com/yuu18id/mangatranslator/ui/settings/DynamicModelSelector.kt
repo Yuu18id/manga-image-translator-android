@@ -1,11 +1,10 @@
-﻿package com.yuu18id.mangatranslator.ui.settings
+package com.yuu18id.mangatranslator.ui.settings
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -36,186 +35,96 @@ fun DynamicModelSelector(
 ) {
     var showModelPickerDialog by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
-    var manualModelInput by remember(currentModel) { mutableStateOf(currentModel) }
-    var isManualInputExpanded by remember { mutableStateOf(false) }
+    var localModelInput by remember(currentModel) { mutableStateOf(currentModel.ifBlank { providerType.defaultModel }) }
 
     val effectiveCurrentModel = currentModel.ifBlank { providerType.defaultModel }
 
     Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 6.dp),
+        modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        // Model Selection Header & Active Model Card
-        Surface(
-            shape = RoundedCornerShape(12.dp),
-            color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.6f),
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
-            modifier = Modifier.fillMaxWidth()
+        // Row: Active Model ID TextField + Fetch Models Button
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedTextField(
+                value = localModelInput,
+                onValueChange = {
+                    localModelInput = it
+                    onModelSelected(it.trim())
+                },
+                label = { Text(stringResource(R.string.settings_active_model_label)) },
+                placeholder = { Text(providerType.defaultModel) },
+                singleLine = true,
+                modifier = Modifier.weight(1f)
+            )
+
+            FilledTonalButton(
+                onClick = onFetchModels,
+                enabled = !isFetching,
+                shape = RoundedCornerShape(10.dp),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                modifier = Modifier.height(56.dp)
+            ) {
+                if (isFetching) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(16.dp),
+                        strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                } else {
+                    Icon(Icons.Default.Sync, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(stringResource(R.string.settings_fetch_models_btn), style = MaterialTheme.typography.labelMedium)
+                }
+            }
+        }
+
+        // Dropdown picker button: ONLY VISIBLE WHEN USER HAS FETCHED MODELS
+        if (availableModels.isNotEmpty()) {
+            OutlinedButton(
+                onClick = { showModelPickerDialog = true },
+                shape = RoundedCornerShape(10.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(Icons.Default.SmartToy, contentDescription = null, modifier = Modifier.size(16.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = stringResource(R.string.settings_choose_from_models, availableModels.size),
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Spacer(modifier = Modifier.weight(1f))
+                Icon(Icons.Default.ArrowDropDown, contentDescription = null)
+            }
+        }
+
+        // Fetch Error / Notice Banner
+        if (!fetchError.isNullOrBlank()) {
+            Surface(
+                shape = RoundedCornerShape(8.dp),
+                color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f),
+                modifier = Modifier.fillMaxWidth()
+            ) {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = stringResource(R.string.settings_active_model_label),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Text(
-                            text = effectiveCurrentModel,
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-
-                    // Fetch / Refresh Button with Loading Indicator
-                    FilledTonalButton(
-                        onClick = onFetchModels,
-                        enabled = !isFetching,
-                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
-                        shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier.height(34.dp)
-                    ) {
-                        if (isFetching) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(14.dp),
-                                strokeWidth = 2.dp,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(stringResource(R.string.settings_fetching_models), style = MaterialTheme.typography.labelSmall)
-                        } else {
-                            Icon(Icons.Default.Sync, contentDescription = null, modifier = Modifier.size(14.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(stringResource(R.string.settings_fetch_models_btn), style = MaterialTheme.typography.labelSmall)
-                        }
-                    }
-                }
-
-                // Choose Model Dropdown trigger
-                OutlinedButton(
-                    onClick = { showModelPickerDialog = true },
-                    shape = RoundedCornerShape(10.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Icon(Icons.Default.SmartToy, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Icon(Icons.Default.Info, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(14.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = stringResource(R.string.settings_choose_from_models, availableModels.size),
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.SemiBold
+                        text = fetchError,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onErrorContainer
                     )
-                    Spacer(modifier = Modifier.weight(1f))
-                    Icon(Icons.Default.ArrowDropDown, contentDescription = null)
-                }
-
-                // Error / Info feedback if fetch failed or key missing
-                if (!fetchError.isNullOrBlank()) {
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(Icons.Default.Info, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(14.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = fetchError,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onErrorContainer
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
-        // Quick Preset Chips (Top 5 models)
-        val topPresets = remember(availableModels) { availableModels.take(5) }
-        if (topPresets.isNotEmpty()) {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(
-                    text = stringResource(R.string.settings_preset_models),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    items(topPresets, key = { it.id }) { modelInfo ->
-                        val isSelected = effectiveCurrentModel == modelInfo.id
-                        FilterChip(
-                            selected = isSelected,
-                            onClick = { onModelSelected(modelInfo.id) },
-                            label = {
-                                Text(
-                                    text = modelInfo.id.substringAfter("/"),
-                                    style = MaterialTheme.typography.labelSmall
-                                )
-                            },
-                            leadingIcon = if (isSelected) {
-                                { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(14.dp)) }
-                            } else null
-                        )
-                    }
-                }
-            }
-        }
-
-        // Manual Model ID Input (Collapsible)
-        TextButton(
-            onClick = { isManualInputExpanded = !isManualInputExpanded },
-            contentPadding = PaddingValues(0.dp),
-            modifier = Modifier.height(28.dp)
-        ) {
-            Icon(
-                imageVector = if (isManualInputExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                contentDescription = null,
-                modifier = Modifier.size(16.dp)
-            )
-            Spacer(modifier = Modifier.width(4.dp))
-            Text(stringResource(R.string.settings_custom_model_id), style = MaterialTheme.typography.labelSmall)
-        }
-
-        AnimatedVisibility(visible = isManualInputExpanded) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                OutlinedTextField(
-                    value = manualModelInput,
-                    onValueChange = { manualModelInput = it },
-                    label = { Text("Model ID") },
-                    placeholder = { Text("e.g. gpt-4o or gemini-2.0-flash") },
-                    singleLine = true,
-                    shape = RoundedCornerShape(10.dp),
-                    modifier = Modifier.weight(1f)
-                )
-                Button(
-                    onClick = { onModelSelected(manualModelInput.trim()) },
-                    shape = RoundedCornerShape(10.dp),
-                    enabled = manualModelInput.isNotBlank() && manualModelInput != effectiveCurrentModel
-                ) {
-                    Text(stringResource(R.string.action_apply))
                 }
             }
         }
     }
 
-    // Searchable Model Picker Dialog
+    // Searchable Model Picker Dialog (Only contains real fetched models)
     if (showModelPickerDialog) {
         val filteredModels = remember(searchQuery, availableModels) {
             if (searchQuery.isBlank()) {
@@ -223,8 +132,7 @@ fun DynamicModelSelector(
             } else {
                 availableModels.filter {
                     it.id.contains(searchQuery, ignoreCase = true) ||
-                    it.displayName.contains(searchQuery, ignoreCase = true) ||
-                    it.description.contains(searchQuery, ignoreCase = true)
+                    it.displayName.contains(searchQuery, ignoreCase = true)
                 }
             }
         }
@@ -286,6 +194,7 @@ fun DynamicModelSelector(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .clickable {
+                                            localModelInput = modelInfo.id
                                             onModelSelected(modelInfo.id)
                                             showModelPickerDialog = false
                                             searchQuery = ""
@@ -300,14 +209,14 @@ fun DynamicModelSelector(
                                     ) {
                                         Column(modifier = Modifier.weight(1f)) {
                                             Text(
-                                                text = modelInfo.displayName,
+                                                text = modelInfo.id,
                                                 style = MaterialTheme.typography.bodyMedium,
                                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                                                 color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
                                             )
-                                            if (modelInfo.displayName != modelInfo.id || modelInfo.description.isNotBlank()) {
+                                            if (modelInfo.displayName != modelInfo.id && modelInfo.displayName.isNotBlank()) {
                                                 Text(
-                                                    text = if (modelInfo.description.isNotBlank()) "${modelInfo.id} • ${modelInfo.description}" else modelInfo.id,
+                                                    text = modelInfo.displayName,
                                                     style = MaterialTheme.typography.labelSmall,
                                                     color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurfaceVariant,
                                                     maxLines = 1,

@@ -198,6 +198,18 @@
     <string name="settings_custom_base_url_hint">e.g. http://localhost:11434/v1</string>
     <string name="settings_hide_key">Hide key</string>
     <string name="settings_show_key">Show key</string>
+
+    <!-- Custom System Prompt Settings -->
+    <string name="settings_prompt_section_title">LLM System Prompt</string>
+    <string name="settings_prompt_section_desc">Configure persona, style, and tone for AI models.</string>
+    <string name="settings_prompt_switch_label">Custom System Prompt</string>
+    <string name="settings_prompt_switch_inactive_desc">Disabled (using built-in default prompt)</string>
+    <string name="settings_prompt_switch_active_desc">Enabled (using custom prompt below)</string>
+    <string name="settings_prompt_input_label">Custom System Prompt</string>
+    <string name="settings_prompt_input_placeholder">e.g. Translate with natural conversational tone into {target_lang}...</string>
+    <string name="settings_prompt_load_template">Reset to Default Template</string>
+    <string name="settings_prompt_placeholder_hint">Tip: Use {target_lang} as a dynamic variable for the selected target language.</string>
+
     <string name="settings_storage">Storage</string>
     <string name="settings_storage_subtitle">Delete saved translation images &amp; cache</string>
     <string name="settings_clear_history_btn">Clear Translation History</string>

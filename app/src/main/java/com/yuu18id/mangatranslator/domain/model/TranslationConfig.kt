@@ -28,8 +28,13 @@ data class OcrConfig(
 data class TranslatorConfig(
     val translatorType: TranslatorType = TranslatorType.NONE,
     val targetLang: Language = Language.ENG,
-    val sourceLang: Language? = Language.JPN
-)
+    val sourceLang: Language? = Language.JPN,
+    val useCustomSystemPrompt: Boolean = false,
+    val systemPrompt: String = ""
+) {
+    val activeCustomPrompt: String?
+        get() = if (useCustomSystemPrompt && systemPrompt.isNotBlank()) systemPrompt else null
+}
 
 data class InpaintConfig(
     val inpainterType: InpainterType = InpainterType.AOT,

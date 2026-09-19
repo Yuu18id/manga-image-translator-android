@@ -65,7 +65,7 @@ class GeminiTranslator @Inject constructor(
 
         val requestBody = GeminiRequest(
             systemInstruction = GeminiRequest.Content(
-                parts = listOf(GeminiRequest.Part(text = com.yuu18id.mangatranslator.data.translation.prompt.LlmPromptConfig.getSystemPrompt(targetLang)))
+                parts = listOf(GeminiRequest.Part(text = com.yuu18id.mangatranslator.data.translation.prompt.LlmPromptConfig.getSystemPrompt(targetLang, config.activeCustomPrompt)))
             ),
             contents = listOf(
                 GeminiRequest.Content(
@@ -92,21 +92,7 @@ class GeminiTranslator @Inject constructor(
         val geminiResponse = json.decodeFromString<GeminiResponse>(responseBody)
         val content = geminiResponse.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text ?: ""
 
-        val translatedLines = content.lines()
-        val resultBlocks = textBlocks.map { it.copy() }.toMutableList()
-
-        for (line in translatedLines) {
-            val match = Regex("""^(\d+)[\s.:\-]+(?:\[(.*?)\]|(.*))""").find(line.trim())
-            if (match != null) {
-                val index = match.groupValues[1].toIntOrNull()?.minus(1)
-                val text = match.groupValues[2].takeIf { it.isNotEmpty() } ?: match.groupValues[3]
-                if (index != null && index in resultBlocks.indices && !text.isNullOrBlank()) {
-                    resultBlocks[index] = resultBlocks[index].copy(translatedText = text.trim())
-                }
-            }
-        }
-
-        return resultBlocks
+        return com.yuu18id.mangatranslator.data.translation.prompt.LlmResponseParser.applyToBlocks(content, textBlocks)
     }
 
     override fun isAvailable(): Boolean = true

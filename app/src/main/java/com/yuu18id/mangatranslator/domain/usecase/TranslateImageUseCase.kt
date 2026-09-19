@@ -198,23 +198,34 @@ class TranslateImageUseCase @Inject constructor(
             Log.i(TAG, "✓ [4/7 TRANSLATION] API finished in ${System.currentTimeMillis() - transStart}ms")
 
             translatedBlocks = translatedBlocks.mapIndexed { index, block ->
-                val targetText = if (block.translatedText.isNotBlank()) block.translatedText else block.text
-                val postProcessedText = textPostProcessor.process(targetText, originalText = block.text)
-                val verification = postTranslationVerifier.verify(block.text, postProcessedText, config.translator.targetLang)
-                val finalTranslatedText = if (verification.isValid) {
-                    dictionaryFilter.applyRules(postProcessedText, emptyMap())
+                if (block.translatedText.isNotBlank()) {
+                    val postProcessedText = textPostProcessor.process(block.translatedText, originalText = block.text)
+                    val verification = postTranslationVerifier.verify(block.text, postProcessedText, config.translator.targetLang)
+                    if (verification.isValid) {
+                        val finalTranslatedText = dictionaryFilter.applyRules(postProcessedText, emptyMap())
+                        Log.i(TAG, "   Block $index Result:")
+                        Log.i(TAG, "      Original:   \"${block.text}\"")
+                        Log.i(TAG, "      Translated: \"$finalTranslatedText\"")
+                        Log.i(TAG, "      Valid:      true")
+
+                        block.copy(
+                            translatedText = finalTranslatedText,
+                            language = config.translator.targetLang
+                        )
+                    } else {
+                        Log.w(TAG, "   Block $index: Translation rejected (reason=${verification.reason}), text was \"$postProcessedText\"")
+                        block.copy(
+                            translatedText = "",
+                            language = config.translator.sourceLang
+                        )
+                    }
                 } else {
-                    postProcessedText
+                    Log.w(TAG, "   Block $index: Translator returned blank text, leaving untranslated")
+                    block.copy(
+                        translatedText = "",
+                        language = config.translator.sourceLang
+                    )
                 }
-                Log.i(TAG, "   Block $index Result:")
-                Log.i(TAG, "      Original:   \"${block.text}\"")
-                Log.i(TAG, "      Translated: \"$finalTranslatedText\"")
-                Log.i(TAG, "      Valid:      ${verification.isValid} (reason=${verification.reason})")
-                
-                block.copy(
-                    translatedText = finalTranslatedText,
-                    language = config.translator.targetLang
-                )
             }
 
             // Await or execute inpainting completion

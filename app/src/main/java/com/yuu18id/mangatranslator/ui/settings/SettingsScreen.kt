@@ -4,8 +4,10 @@ import android.content.Intent
 import android.net.Uri
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -33,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.yuu18id.mangatranslator.R
+import com.yuu18id.mangatranslator.data.translation.prompt.LlmPromptConfig
 import com.yuu18id.mangatranslator.domain.model.Language
 import com.yuu18id.mangatranslator.domain.model.TranslatorType
 
@@ -139,7 +142,10 @@ fun SettingsScreen(
             // 2. AI Translation Engines & Dynamic API Models
             ApiKeysSettingsSection(viewModel = viewModel, uiState = uiState)
 
-            // 3. Storage Management
+            // 3. LLM Custom System Prompt
+            CustomSystemPromptSection(viewModel = viewModel, uiState = uiState)
+
+            // 4. Storage Management
             SettingsSection(
                 title = stringResource(R.string.settings_storage),
                 icon = Icons.Default.Storage
@@ -265,14 +271,14 @@ fun ApiKeysSettingsSection(
             // Providers list
             val providers = remember {
                 listOf(
-                    Triple(TranslatorType.GROQ, "Groq (Ultra Fast - Free Tier)", "https://console.groq.com/keys"),
+                    Triple(TranslatorType.GROQ, "Groq", "https://console.groq.com/keys"),
                     Triple(TranslatorType.GEMINI, "Google Gemini", "https://aistudio.google.com/app/apikey"),
-                    Triple(TranslatorType.OPENROUTER, "OpenRouter (All LLMs)", "https://openrouter.ai/keys"),
+                    Triple(TranslatorType.OPENROUTER, "OpenRouter", "https://openrouter.ai/keys"),
                     Triple(TranslatorType.CLAUDE, "Anthropic Claude", "https://console.anthropic.com/settings/keys"),
                     Triple(TranslatorType.DEEPSEEK, "DeepSeek", "https://platform.deepseek.com/api_keys"),
                     Triple(TranslatorType.GLM, "Zhipu AI (GLM)", "https://open.bigmodel.cn/usercenter/apikeys"),
-                    Triple(TranslatorType.OPENAI, "OpenAI (GPT-4o)", "https://platform.openai.com/api-keys"),
-                    Triple(TranslatorType.CUSTOM, "Custom OpenAI-Compatible (Ollama, LM Studio)", ""),
+                    Triple(TranslatorType.OPENAI, "OpenAI", "https://platform.openai.com/api-keys"),
+                    Triple(TranslatorType.CUSTOM, "Custom (OpenAI-Compatible)", ""),
                     Triple(TranslatorType.DEEPL, "DeepL", "https://www.deepl.com/pro-api"),
                     Triple(TranslatorType.PAPAGO, "Naver Papago", "https://developers.naver.com/main/")
                 )
@@ -300,18 +306,14 @@ fun ApiKeysSettingsSection(
                                 var localUrl by remember(uiState.customBaseUrl) { mutableStateOf(uiState.customBaseUrl) }
                                 OutlinedTextField(
                                     value = localUrl,
-                                    onValueChange = { localUrl = it },
+                                    onValueChange = {
+                                        localUrl = it
+                                        viewModel.saveCustomBaseUrl(it)
+                                    },
                                     label = { Text(stringResource(R.string.settings_custom_base_url)) },
                                     placeholder = { Text(stringResource(R.string.settings_custom_base_url_hint)) },
                                     singleLine = true,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(bottom = 6.dp)
-                                        .onFocusChanged { focus ->
-                                            if (!focus.isFocused && localUrl != uiState.customBaseUrl) {
-                                                viewModel.saveCustomBaseUrl(localUrl)
-                                            }
-                                        }
+                                    modifier = Modifier.fillMaxWidth()
                                 )
                             }
 
@@ -453,7 +455,7 @@ fun ProviderApiKeyCard(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     ApiKeyInputField(
-                        label = if (providerType == TranslatorType.CUSTOM) "API Key (Optional for local Ollama)" else "$title API Key",
+                        label = if (providerType == TranslatorType.CUSTOM) "API Key (Optional)" else "$title API Key",
                         value = currentKey,
                         onValueChange = onKeySaved
                     )
@@ -672,6 +674,134 @@ fun AboutAppSection() {
                         modifier = Modifier.size(16.dp),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun CustomSystemPromptSection(
+    viewModel: SettingsViewModel,
+    uiState: SettingsUiState
+) {
+    val isCustomActive = uiState.config.translator.useCustomSystemPrompt
+    val currentSavedPrompt = uiState.config.translator.systemPrompt
+
+    var localCustomText by remember(isCustomActive) {
+        mutableStateOf(
+            if (currentSavedPrompt.isNotBlank()) {
+                currentSavedPrompt
+            } else if (isCustomActive) {
+                LlmPromptConfig.getDefaultTemplate()
+            } else {
+                ""
+            }
+        )
+    }
+
+    SettingsSection(
+        title = stringResource(R.string.settings_prompt_section_title),
+        icon = Icons.Default.Psychology
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            // Row with Title, Subtitle, and Switch
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = stringResource(R.string.settings_prompt_switch_label),
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = stringResource(
+                            if (isCustomActive) R.string.settings_prompt_switch_active_desc
+                            else R.string.settings_prompt_switch_inactive_desc
+                        ),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+                Switch(
+                    checked = isCustomActive,
+                    onCheckedChange = { isChecked ->
+                        viewModel.setUseCustomSystemPrompt(isChecked)
+                        if (isChecked && currentSavedPrompt.isBlank()) {
+                            val template = LlmPromptConfig.getDefaultTemplate()
+                            localCustomText = template
+                            viewModel.updateCustomSystemPrompt(template)
+                        }
+                    }
+                )
+            }
+
+            // Custom Prompt Editor (Smoothly expands when Switch is ON)
+            AnimatedVisibility(
+                visible = isCustomActive,
+                enter = fadeIn() + expandVertically(),
+                exit = fadeOut() + shrinkVertically()
+            ) {
+                Column(
+                    modifier = Modifier.padding(top = 4.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    HorizontalDivider(
+                        modifier = Modifier.padding(bottom = 6.dp),
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                    )
+
+                    OutlinedTextField(
+                        value = localCustomText,
+                        onValueChange = {
+                            localCustomText = it
+                            viewModel.updateCustomSystemPrompt(it)
+                        },
+                        label = { Text(stringResource(R.string.settings_prompt_input_label)) },
+                        placeholder = { Text(stringResource(R.string.settings_prompt_input_placeholder)) },
+                        minLines = 4,
+                        maxLines = 10,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Text(
+                        text = stringResource(R.string.settings_prompt_placeholder_hint),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        TextButton(
+                            onClick = {
+                                val template = LlmPromptConfig.getDefaultTemplate()
+                                localCustomText = template
+                                viewModel.updateCustomSystemPrompt(template)
+                            },
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Refresh,
+                                contentDescription = null,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = stringResource(R.string.settings_prompt_load_template),
+                                style = MaterialTheme.typography.labelSmall
+                            )
+                        }
+                    }
                 }
             }
         }

@@ -198,6 +198,18 @@
     <string name="settings_custom_base_url_hint">cth: http://localhost:11434/v1</string>
     <string name="settings_hide_key">Sembunyikan kunci</string>
     <string name="settings_show_key">Tampilkan kunci</string>
+
+    <!-- Pengaturan Prompt Sistem Kustom -->
+    <string name="settings_prompt_section_title">Prompt Sistem LLM</string>
+    <string name="settings_prompt_section_desc">Konfigurasi persona, gaya bahasa, dan nada bicara model AI.</string>
+    <string name="settings_prompt_switch_label">Prompt Sistem Kustom</string>
+    <string name="settings_prompt_switch_inactive_desc">Nonaktif (menggunakan prompt default bawaan)</string>
+    <string name="settings_prompt_switch_active_desc">Aktif (menggunakan prompt kustom di bawah)</string>
+    <string name="settings_prompt_input_label">Prompt Sistem Kustom</string>
+    <string name="settings_prompt_input_placeholder">cth: Terjemahkan dengan gaya bahasa santai dan gaul ke {target_lang}...</string>
+    <string name="settings_prompt_load_template">Kembalikan ke Template Default</string>
+    <string name="settings_prompt_placeholder_hint">Tips: Gunakan {target_lang} sebagai variabel dinamis bahasa tujuan.</string>
+
     <string name="settings_storage">Penyimpanan</string>
     <string name="settings_storage_subtitle">Hapus file gambar riwayat &amp; cache</string>
     <string name="settings_clear_history_btn">Hapus Semua Riwayat Terjemahan</string>

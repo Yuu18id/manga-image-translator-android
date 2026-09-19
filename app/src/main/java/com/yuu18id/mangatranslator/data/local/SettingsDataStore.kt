@@ -2,6 +2,7 @@ package com.yuu18id.mangatranslator.data.local
 
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
@@ -39,6 +40,20 @@ class SettingsDataStore @Inject constructor(
 
     fun getConfigInt(keyName: String, defaultValue: Int): Flow<Int> {
         val key = intPreferencesKey(keyName)
+        return dataStore.data.map { preferences ->
+            preferences[key] ?: defaultValue
+        }
+    }
+
+    suspend fun saveConfigBoolean(keyName: String, value: Boolean) {
+        val key = booleanPreferencesKey(keyName)
+        dataStore.edit { preferences ->
+            preferences[key] = value
+        }
+    }
+
+    fun getConfigBoolean(keyName: String, defaultValue: Boolean): Flow<Boolean> {
+        val key = booleanPreferencesKey(keyName)
         return dataStore.data.map { preferences ->
             preferences[key] ?: defaultValue
         }

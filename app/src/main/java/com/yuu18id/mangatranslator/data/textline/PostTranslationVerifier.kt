@@ -14,6 +14,10 @@ class PostTranslationVerifier @Inject constructor() {
             return VerificationResult(false, "Translated text is empty")
         }
 
+        if (com.yuu18id.mangatranslator.data.translation.prompt.LlmResponseParser.isPromptLeakage(translatedText)) {
+            return VerificationResult(false, "Translated text contains prompt instruction leakage")
+        }
+
         if (hasRepetitiveLoops(translatedText)) {
             return VerificationResult(false, "Translated text contains excessive repetitive loops")
         }
