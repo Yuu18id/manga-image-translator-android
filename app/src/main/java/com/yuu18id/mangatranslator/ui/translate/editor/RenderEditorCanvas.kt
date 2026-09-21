@@ -37,6 +37,33 @@ import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.min
 
+import dagger.hilt.EntryPoint
+import dagger.hilt.InstallIn
+import dagger.hilt.android.EntryPointAccessors
+import dagger.hilt.components.SingletonComponent
+
+@EntryPoint
+@InstallIn(SingletonComponent::class)
+interface EditorDependenciesEntryPoint {
+    fun fontManager(): FontManager
+    fun textLayoutEngine(): TextLayoutEngine
+}
+
+private data class LayoutCacheKey(
+    val blockId: Int,
+    val text: String,
+    val left: Float,
+    val top: Float,
+    val right: Float,
+    val bottom: Float,
+    val language: Language?,
+    val isVertical: Boolean,
+    val customFontSize: Float?,
+    val customAlignment: TextAlignment,
+    val customFontStyle: CustomFontStyle,
+    val customFontFamily: CustomFontFamily
+)
+
 private enum class CanvasDragMode {
     NONE,
     PAN,
@@ -61,8 +88,14 @@ fun RenderEditorCanvas(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    val fontManager = remember { FontManager(context.applicationContext) }
-    val layoutEngine = remember { TextLayoutEngine(fontManager) }
+    val (fontManager, layoutEngine) = remember(context) {
+        val entryPoint = EntryPointAccessors.fromApplication(
+            context.applicationContext,
+            EditorDependenciesEntryPoint::class.java
+        )
+        Pair(entryPoint.fontManager(), entryPoint.textLayoutEngine())
+    }
+    val layoutCache = remember { mutableMapOf<Int, Pair<LayoutCacheKey, LayoutResult>>() }
 
     var scale by remember { mutableFloatStateOf(1f) }
     var offset by remember { mutableStateOf(Offset.Zero) }
@@ -399,6 +432,10 @@ fun RenderEditorCanvas(
 
                 // 2. Render Text Blocks using the Unified Layout Engine (100% WYSIWYG match to final render)
                 if (!currentShowOriginal || currentIsEyedropperActive) {
+                    if (layoutCache.size > blocks.size * 2) {
+                        val currentIds = blocks.map { it.id }.toSet()
+                        layoutCache.keys.retainAll(currentIds)
+                    }
                     for (block in blocks) {
                         val isSelected = block.id == selectedBlockId
                         val b = block.bounds
@@ -429,35 +466,56 @@ fun RenderEditorCanvas(
                     val isCJK = block.language in listOf(Language.JPN, Language.CHS, Language.CHT, Language.KOR)
                     val isEffectiveVertical = isCJK && block.isVertical
 
-                    val renderConfig = RenderConfig(
-                        alignment = block.customAlignment,
-                        direction = if (isEffectiveVertical) com.yuu18id.mangatranslator.domain.model.TextDirection.VERTICAL else com.yuu18id.mangatranslator.domain.model.TextDirection.HORIZONTAL
+                    val cacheKey = LayoutCacheKey(
+                        blockId = block.id,
+                        text = textToRender,
+                        left = b.left,
+                        top = b.top,
+                        right = b.right,
+                        bottom = b.bottom,
+                        language = block.language,
+                        isVertical = isEffectiveVertical,
+                        customFontSize = block.customFontSize,
+                        customAlignment = block.customAlignment,
+                        customFontStyle = block.customFontStyle,
+                        customFontFamily = block.customFontFamily
                     )
 
-                    val layoutResult: LayoutResult = if (block.customFontSize != null) {
-                        layoutEngine.layoutWithFontSize(
-                            text = textToRender,
-                            targetWidth = b.width(),
-                            targetHeight = b.height(),
-                            fontSize = block.customFontSize,
-                            language = block.language,
-                            config = renderConfig,
-                            isVertical = isEffectiveVertical,
-                            fontStyle = block.customFontStyle,
-                            fontFamily = block.customFontFamily
-                        )
+                    val cached = layoutCache[block.id]
+                    val layoutResult: LayoutResult = if (cached != null && cached.first == cacheKey) {
+                        cached.second
                     } else {
-                        layoutEngine.calculateLayout(
-                            text = textToRender,
-                            targetWidth = b.width(),
-                            targetHeight = b.height(),
-                            estimatedOriginalFontSize = b.height() / 3f,
-                            language = block.language,
-                            config = renderConfig,
-                            isVertical = isEffectiveVertical,
-                            fontStyle = block.customFontStyle,
-                            fontFamily = block.customFontFamily
+                        val renderConfig = RenderConfig(
+                            alignment = block.customAlignment,
+                            direction = if (isEffectiveVertical) com.yuu18id.mangatranslator.domain.model.TextDirection.VERTICAL else com.yuu18id.mangatranslator.domain.model.TextDirection.HORIZONTAL
                         )
+                        val computed = if (block.customFontSize != null) {
+                            layoutEngine.layoutWithFontSize(
+                                text = textToRender,
+                                targetWidth = b.width(),
+                                targetHeight = b.height(),
+                                fontSize = block.customFontSize,
+                                language = block.language,
+                                config = renderConfig,
+                                isVertical = isEffectiveVertical,
+                                fontStyle = block.customFontStyle,
+                                fontFamily = block.customFontFamily
+                            )
+                        } else {
+                            layoutEngine.calculateLayout(
+                                text = textToRender,
+                                targetWidth = b.width(),
+                                targetHeight = b.height(),
+                                estimatedOriginalFontSize = b.height() / 3f,
+                                language = block.language,
+                                config = renderConfig,
+                                isVertical = isEffectiveVertical,
+                                fontStyle = block.customFontStyle,
+                                fontFamily = block.customFontFamily
+                            )
+                        }
+                        layoutCache[block.id] = Pair(cacheKey, computed)
+                        computed
                     }
 
                     if (layoutResult.lines.isEmpty()) continue

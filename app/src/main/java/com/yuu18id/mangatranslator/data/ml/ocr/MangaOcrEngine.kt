@@ -103,59 +103,62 @@ class MangaOcrEngine @Inject constructor(
                     val generatedTokenIds = mutableListOf<Long>()
                     val inputIdsList = mutableListOf<Long>(MangaOcrTokenizer.CLS_TOKEN_ID) // BOS = 2L
 
-                    for (step in 0 until MAX_GENERATION_LENGTH) {
-                        val seqLen = inputIdsList.size
-                        val inputIdsArray = arrayOf(inputIdsList.toLongArray())
-                        val inputIdsTensor = OnnxTensor.createTensor(
-                            env,
-                            inputIdsArray
-                        )
-                        val hiddenStateTensor = OnnxTensor.createTensor(
-                            env,
-                            hiddenArray3D
-                        )
+                    val hiddenStateTensor = OnnxTensor.createTensor(
+                        env,
+                        hiddenArray3D
+                    )
+                    try {
+                        for (step in 0 until MAX_GENERATION_LENGTH) {
+                            val seqLen = inputIdsList.size
+                            val inputIdsArray = arrayOf(inputIdsList.toLongArray())
+                            val inputIdsTensor = OnnxTensor.createTensor(
+                                env,
+                                inputIdsArray
+                            )
 
-                        val decoderInputs = mapOf(
-                            "input_ids" to inputIdsTensor,
-                            "encoder_hidden_states" to hiddenStateTensor
-                        )
+                            val decoderInputs = mapOf(
+                                "input_ids" to inputIdsTensor,
+                                "encoder_hidden_states" to hiddenStateTensor
+                            )
 
-                        var decoderResult: ai.onnxruntime.OrtSession.Result? = null
-                        try {
-                            decoderResult = decoderSession.run(decoderInputs)
-                            val logitsTensor = decoderResult.get(0) as OnnxTensor
-                            val logitsBuffer = logitsTensor.floatBuffer
-                            val vocabSize = logitsTensor.info.shape[2].toInt()
+                            var decoderResult: ai.onnxruntime.OrtSession.Result? = null
+                            try {
+                                decoderResult = decoderSession.run(decoderInputs)
+                                val logitsTensor = decoderResult.get(0) as OnnxTensor
+                                val logitsBuffer = logitsTensor.floatBuffer
+                                val vocabSize = logitsTensor.info.shape[2].toInt()
 
-                            // Extract argmax for the last timestep (seqLen - 1)
-                            logitsBuffer.position((seqLen - 1) * vocabSize)
-                            var maxLogit = Float.NEGATIVE_INFINITY
-                            var bestTokenId = 0L
-                            for (v in 0 until vocabSize) {
-                                val logit = logitsBuffer.get()
-                                if (logit > maxLogit) {
-                                    maxLogit = logit
-                                    bestTokenId = v.toLong()
+                                // Extract argmax for the last timestep (seqLen - 1)
+                                logitsBuffer.position((seqLen - 1) * vocabSize)
+                                var maxLogit = Float.NEGATIVE_INFINITY
+                                var bestTokenId = 0L
+                                for (v in 0 until vocabSize) {
+                                    val logit = logitsBuffer.get()
+                                    if (logit > maxLogit) {
+                                        maxLogit = logit
+                                        bestTokenId = v.toLong()
+                                    }
                                 }
-                            }
 
-                            if (bestTokenId == MangaOcrTokenizer.SEP_TOKEN_ID) {
-                                break // EOS reached
-                            }
+                                if (bestTokenId == MangaOcrTokenizer.SEP_TOKEN_ID) {
+                                    break // EOS reached
+                                }
 
-                            // Avoid infinite single-token loops
-                            if (generatedTokenIds.size >= 2 &&
-                                generatedTokenIds.takeLast(2).all { it == bestTokenId }) {
-                                break
-                            }
+                                // Avoid infinite single-token loops
+                                if (generatedTokenIds.size >= 2 &&
+                                    generatedTokenIds.takeLast(2).all { it == bestTokenId }) {
+                                    break
+                                }
 
-                            generatedTokenIds.add(bestTokenId)
-                            inputIdsList.add(bestTokenId)
-                        } finally {
-                            inputIdsTensor.close()
-                            hiddenStateTensor.close()
-                            decoderResult?.close()
+                                generatedTokenIds.add(bestTokenId)
+                                inputIdsList.add(bestTokenId)
+                            } finally {
+                                inputIdsTensor.close()
+                                decoderResult?.close()
+                            }
                         }
+                    } finally {
+                        hiddenStateTensor.close()
                     }
 
                     val recognizedText = tokenizer.decode(generatedTokenIds)

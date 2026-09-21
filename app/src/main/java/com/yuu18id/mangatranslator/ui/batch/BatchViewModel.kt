@@ -540,6 +540,7 @@ class BatchViewModel @Inject constructor(
         super.onCleared()
         BatchTranslationService.onCancelRequested = null
         if (_uiState.value.isProcessing) {
+            batchJob?.cancel()
             BatchTranslationService.stop(context, isSuccess = false, completed = 0, total = 0)
         }
     }

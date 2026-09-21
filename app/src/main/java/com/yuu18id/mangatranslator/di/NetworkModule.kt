@@ -1,5 +1,6 @@
 package com.yuu18id.mangatranslator.di
 
+import com.yuu18id.mangatranslator.BuildConfig
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -7,9 +8,7 @@ import dagger.hilt.components.SingletonComponent
 import kotlinx.serialization.json.Json
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
-import retrofit2.Retrofit
 import javax.inject.Singleton
-
 import java.util.concurrent.TimeUnit
 
 @Module
@@ -30,7 +29,11 @@ object NetworkModule {
     @Singleton
     fun provideOkHttpClient(): OkHttpClient {
         val loggingInterceptor = HttpLoggingInterceptor().apply {
-            level = HttpLoggingInterceptor.Level.BODY
+            level = if (BuildConfig.DEBUG) {
+                HttpLoggingInterceptor.Level.BODY
+            } else {
+                HttpLoggingInterceptor.Level.NONE
+            }
         }
         return OkHttpClient.Builder()
             .connectTimeout(60, TimeUnit.SECONDS)
@@ -39,16 +42,6 @@ object NetworkModule {
             .callTimeout(180, TimeUnit.SECONDS)
             .retryOnConnectionFailure(true)
             .addInterceptor(loggingInterceptor)
-            .build()
-    }
-
-    @Provides
-    @Singleton
-    fun provideRetrofit(okHttpClient: OkHttpClient, json: Json): Retrofit {
-        return Retrofit.Builder()
-            .baseUrl("https://api.placeholder.com/") // Replace with actual URL
-            .client(okHttpClient)
-            // .addConverterFactory(json.asConverterFactory("application/json".toMediaType())) // Assumes retrofit2 kotlinx serialization converter
             .build()
     }
 }

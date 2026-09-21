@@ -92,7 +92,7 @@ class CtdDetector @Inject constructor(
         val linesMat = Mat(targetSize, targetSize, CvType.CV_32FC1)
         var maskCropped: Mat? = null
         var linesCropped: Mat? = null
-        val maskResized = Mat()
+        val maskCropped8u = Mat()
         val linesResized = Mat()
         var binaryLines: Mat? = null
         val hierarchy = Mat()
@@ -126,7 +126,9 @@ class CtdDetector @Inject constructor(
             maskCropped = maskMat.submat(0, newH, 0, newW)
             linesCropped = linesMat.submat(0, newH, 0, newW)
 
-            Imgproc.resize(maskCropped, maskResized, Size(originalW.toDouble(), originalH.toDouble()))
+            // Convert mask to 8-bit before upscaling to save 75% memory on high-resolution scans
+            maskCropped.convertTo(maskCropped8u, CvType.CV_8UC1, 255.0)
+            Imgproc.resize(maskCropped8u, mask8u, Size(originalW.toDouble(), originalH.toDouble()), 0.0, 0.0, Imgproc.INTER_LINEAR)
             Imgproc.resize(linesCropped, linesResized, Size(originalW.toDouble(), originalH.toDouble()))
 
             // Binarize using textThreshold, then evaluate contours with boxThreshold
@@ -171,7 +173,6 @@ class CtdDetector @Inject constructor(
             }
 
             // Convert mask to 8-bit bitmap [0, 255]
-            maskResized.convertTo(mask8u, CvType.CV_8UC1, 255.0)
             val maskBitmap = Bitmap.createBitmap(originalW, originalH, Bitmap.Config.ARGB_8888)
             Utils.matToBitmap(mask8u, maskBitmap)
 
@@ -189,7 +190,7 @@ class CtdDetector @Inject constructor(
             linesMat.release()
             maskCropped?.release()
             linesCropped?.release()
-            maskResized.release()
+            maskCropped8u.release()
             linesResized.release()
             binaryLines?.release()
             hierarchy.release()

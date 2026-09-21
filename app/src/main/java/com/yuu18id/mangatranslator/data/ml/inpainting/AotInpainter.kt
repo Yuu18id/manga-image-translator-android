@@ -1,6 +1,7 @@
 package com.yuu18id.mangatranslator.data.ml.inpainting
 
 import android.graphics.Bitmap
+import android.graphics.Canvas
 import android.graphics.Color
 import ai.onnxruntime.OnnxTensor
 import ai.onnxruntime.OrtEnvironment
@@ -28,14 +29,33 @@ class AotInpainter @Inject constructor(
         val targetH = targetSize
         val targetW = targetSize
 
-        val resizedImage = Bitmap.createScaledBitmap(image, targetW, targetH, true)
-        val resizedMask = Bitmap.createScaledBitmap(mask, targetW, targetH, true)
+        val origW = image.width
+        val origH = image.height
+
+        // Calculate aspect-ratio preserving dimensions (letterbox) to avoid squishing
+        val scale = minOf(targetW.toFloat() / origW, targetH.toFloat() / origH)
+        val scaledW = (origW * scale).toInt().coerceIn(1, targetW)
+        val scaledH = (origH * scale).toInt().coerceIn(1, targetH)
+
+        val scaledImage = Bitmap.createScaledBitmap(image, scaledW, scaledH, true)
+        val scaledMask = Bitmap.createScaledBitmap(mask, scaledW, scaledH, true)
+
+        val paddedImage = Bitmap.createBitmap(targetW, targetH, Bitmap.Config.ARGB_8888)
+        val paddedMask = Bitmap.createBitmap(targetW, targetH, Bitmap.Config.ARGB_8888)
+
+        val canvasImage = Canvas(paddedImage)
+        canvasImage.drawBitmap(scaledImage, 0f, 0f, null)
+
+        val canvasMask = Canvas(paddedMask)
+        canvasMask.drawBitmap(scaledMask, 0f, 0f, null)
 
         var inputTensor: OnnxTensor? = null
         var result: ai.onnxruntime.OrtSession.Result? = null
+        var inpaintedCropped: Bitmap? = null
+        var inpaintedOriginalSize: Bitmap? = null
 
         try {
-            inputTensor = prepareInputTensor(resizedImage, resizedMask, env)
+            inputTensor = prepareInputTensor(paddedImage, paddedMask, env)
             val inputName = session.inputNames.iterator().next()
             result = session.run(mapOf(inputName to inputTensor))
 
@@ -45,16 +65,22 @@ class AotInpainter @Inject constructor(
             floatBuffer.get(outputFloatArray)
 
             val inpaintedResized = denormalizeOutput(outputFloatArray, targetW, targetH)
-            val inpaintedOriginalSize = Bitmap.createScaledBitmap(inpaintedResized, image.width, image.height, true)
-            val finalResult = blendBitmaps(image, inpaintedOriginalSize, mask)
 
-            if (inpaintedResized != inpaintedOriginalSize) inpaintedResized.recycle()
-            if (inpaintedOriginalSize != finalResult) inpaintedOriginalSize.recycle()
+            // Crop the valid scaled region, eliminating letterbox padding
+            inpaintedCropped = Bitmap.createBitmap(inpaintedResized, 0, 0, scaledW, scaledH)
+            if (inpaintedResized != inpaintedCropped) inpaintedResized.recycle()
+
+            inpaintedOriginalSize = Bitmap.createScaledBitmap(inpaintedCropped, origW, origH, true)
+            val finalResult = blendBitmaps(image, inpaintedOriginalSize, mask)
 
             return@withContext finalResult
         } finally {
-            if (resizedImage != image) resizedImage.recycle()
-            if (resizedMask != mask) resizedMask.recycle()
+            if (scaledImage != image) scaledImage.recycle()
+            if (scaledMask != mask) scaledMask.recycle()
+            paddedImage.recycle()
+            paddedMask.recycle()
+            inpaintedCropped?.recycle()
+            inpaintedOriginalSize?.recycle()
             inputTensor?.close()
             result?.close()
         }
