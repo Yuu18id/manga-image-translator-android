@@ -17,7 +17,9 @@ import com.yuu18id.mangatranslator.data.translation.TranslatorFactory
 import com.yuu18id.mangatranslator.domain.model.PipelineStage
 import com.yuu18id.mangatranslator.domain.model.PipelineState
 import com.yuu18id.mangatranslator.domain.model.Quadrilateral
+import com.yuu18id.mangatranslator.domain.model.TextBlock
 import com.yuu18id.mangatranslator.domain.model.TranslationConfig
+
 import com.yuu18id.mangatranslator.domain.model.TranslationResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -161,20 +163,40 @@ class TranslateImageUseCase @Inject constructor(
                 }
             } else null
 
-            // 2. OCR
-            var currentStage = PipelineStage.OCR
-            emit(PipelineState.Progress(currentStage, 0.3f, "Reading text (OCR)..."))
-            val ocrStart = System.currentTimeMillis()
-            val ocrResults = ocrEngine.recognize(image, textlines, config.ocr)
-            Log.i(TAG, "✓ [2/7 OCR] Recognized ${ocrResults.size} textlines in ${System.currentTimeMillis() - ocrStart}ms")
-            ocrResults.forEachIndexed { i, q ->
-                Log.i(TAG, "   OCR Line $i: \"${q.text}\" (prob=${q.prob})")
+            // 2. OCR & Merge Stages
+            var currentStage: PipelineStage
+            var mergedBlocks: List<TextBlock>
+
+            if (isMangaOcr) {
+                // Dedicated Manga-OCR Bubble Pipeline:
+                // Cluster textlines into speech bubbles FIRST
+                currentStage = PipelineStage.TEXTLINE_MERGE
+                emit(PipelineState.Progress(currentStage, 0.25f, "Clustering text bubbles..."))
+                val initialBlocks = textlineMerger.merge(textlines)
+                Log.i(TAG, "✓ [PRE-OCR MERGE] Clustered ${textlines.size} textlines into ${initialBlocks.size} speech bubbles")
+
+                // Recognize whole bubbles directly with Manga-OCR
+                currentStage = PipelineStage.OCR
+                emit(PipelineState.Progress(currentStage, 0.35f, "Reading speech bubbles (Manga-OCR)..."))
+                val ocrStart = System.currentTimeMillis()
+                mergedBlocks = ocrEngine.recognizeBlocks(image, initialBlocks, config.ocr)
+                Log.i(TAG, "✓ [2/7 OCR] Manga-OCR recognized ${mergedBlocks.size} speech bubbles in ${System.currentTimeMillis() - ocrStart}ms")
+            } else {
+                // Standard Fast CTC OCR Pipeline:
+                currentStage = PipelineStage.OCR
+                emit(PipelineState.Progress(currentStage, 0.3f, "Reading text (CTC OCR)..."))
+                val ocrStart = System.currentTimeMillis()
+                val ocrResults = ocrEngine.recognize(image, textlines, config.ocr)
+                Log.i(TAG, "✓ [2/7 OCR] Recognized ${ocrResults.size} textlines in ${System.currentTimeMillis() - ocrStart}ms")
+                ocrResults.forEachIndexed { i, q ->
+                    Log.i(TAG, "   OCR Line $i: \"${q.text}\" (prob=${q.prob})")
+                }
+
+                currentStage = PipelineStage.TEXTLINE_MERGE
+                emit(PipelineState.Progress(currentStage, 0.45f, "Merging and ordering text..."))
+                mergedBlocks = textlineMerger.merge(ocrResults)
             }
 
-            // 3. Textline Merge & Order
-            currentStage = PipelineStage.TEXTLINE_MERGE
-            emit(PipelineState.Progress(currentStage, 0.45f, "Merging and ordering text..."))
-            var mergedBlocks = textlineMerger.merge(ocrResults)
             mergedBlocks = readingOrderSorter.sort(mergedBlocks, isRtl = true)
             val balancedBlocks = mergedBlocks.map { block ->
                 val balancedText = bracketBalancer.balance(block.text)

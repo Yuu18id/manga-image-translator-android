@@ -7,8 +7,10 @@ import com.yuu18id.mangatranslator.data.ml.OcrEngine
 import com.yuu18id.mangatranslator.data.ml.OnnxModelManager
 import com.yuu18id.mangatranslator.domain.model.OcrConfig
 import com.yuu18id.mangatranslator.domain.model.Quadrilateral
+import com.yuu18id.mangatranslator.domain.model.TextBlock
 import com.yuu18id.mangatranslator.domain.model.TextColor
 import kotlinx.coroutines.Dispatchers
+
 import kotlinx.coroutines.withContext
 import java.nio.FloatBuffer
 import javax.inject.Inject
@@ -167,4 +169,38 @@ class CtcOcrEngine @Inject constructor(
 
         outRegionsMap.filterNotNull()
     }
+
+    override suspend fun recognizeBlocks(
+        image: Bitmap,
+        blocks: List<TextBlock>,
+        config: OcrConfig
+    ): List<TextBlock> = withContext(Dispatchers.Default) {
+        if (blocks.isEmpty()) return@withContext emptyList()
+
+        blocks.map { block ->
+            if (block.lines.isEmpty()) {
+                block
+            } else {
+                val recognizedLines = recognize(image, block.lines, config)
+                val isVertical = block.isVertical
+                val sortedLines = if (isVertical) {
+                    recognizedLines.sortedWith { a, b ->
+                        val dx = b.centerX().compareTo(a.centerX())
+                        if (dx != 0) dx else a.centerY().compareTo(b.centerY())
+                    }
+                } else {
+                    recognizedLines.sortedWith { a, b ->
+                        val dy = a.centerY().compareTo(b.centerY())
+                        if (dy != 0) dy else a.centerX().compareTo(b.centerX())
+                    }
+                }
+                val text = sortedLines.joinToString(if (isVertical) "" else " ") { it.text.trim() }.trim()
+                block.copy(
+                    lines = sortedLines,
+                    text = text
+                )
+            }
+        }
+    }
 }
+

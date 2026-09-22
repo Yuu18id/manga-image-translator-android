@@ -6,6 +6,7 @@ import com.yuu18id.mangatranslator.data.ml.OcrEngine
 import com.yuu18id.mangatranslator.domain.model.OcrConfig
 import com.yuu18id.mangatranslator.domain.model.OcrType
 import com.yuu18id.mangatranslator.domain.model.Quadrilateral
+import com.yuu18id.mangatranslator.domain.model.TextBlock
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -32,6 +33,23 @@ class CompositeOcrEngine @Inject constructor(
             else -> {
                 Log.i(TAG, "▶ Running CTC OCR (48px ConvNeXt)...")
                 ctcOcrEngine.recognize(image, textRegions, config)
+            }
+        }
+    }
+
+    override suspend fun recognizeBlocks(
+        image: Bitmap,
+        blocks: List<TextBlock>,
+        config: OcrConfig
+    ): List<TextBlock> {
+        return when (config.ocrType) {
+            OcrType.MANGA_OCR -> {
+                Log.i(TAG, "▶ Running Manga-OCR on Speech Bubbles (Full FP32 ViT)...")
+                mangaOcrEngine.recognizeBlocks(image, blocks, config)
+            }
+            else -> {
+                Log.i(TAG, "▶ Running CTC OCR on Speech Bubbles...")
+                ctcOcrEngine.recognizeBlocks(image, blocks, config)
             }
         }
     }

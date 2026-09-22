@@ -1,7 +1,10 @@
 package com.yuu18id.mangatranslator.data.ml.ocr
 
 import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Color
 import com.yuu18id.mangatranslator.domain.model.Quadrilateral
+import com.yuu18id.mangatranslator.domain.model.TextBlock
 import org.opencv.android.Utils
 import org.opencv.core.Core
 import org.opencv.core.CvType
@@ -21,25 +24,72 @@ import kotlin.math.roundToInt
 @Singleton
 class OcrPreProcessor @Inject constructor() {
 
-    fun cropForMangaOcr(image: Bitmap, quad: Quadrilateral): Bitmap {
-        val pts = quad.pts
-        val minX = max(0, pts.minOf { it.x }.toInt() - 4)
-        val minY = max(0, pts.minOf { it.y }.toInt() - 4)
-        val maxX = min(image.width, pts.maxOf { it.x }.toInt() + 5)
-        val maxY = min(image.height, pts.maxOf { it.y }.toInt() + 5)
+    fun cropBlockForMangaOcr(image: Bitmap, block: TextBlock): Bitmap {
+        val rect = block.mergedBoundingBox()
+        val estFontSize = if (block.lines.isNotEmpty()) {
+            block.lines.map { min(it.boundingRect().width(), it.boundingRect().height()) }.average().toFloat()
+        } else {
+            min(rect.width(), rect.height()) / max(1, block.lines.size)
+        }
+
+        // Bounded font-aware padding:
+        // - For standard/wide bubbles: generous padding (12-18px or ~35% font size) to prevent edge clipping.
+        // - For narrow/small bubbles: bound padding to at most 30% of dimension so text doesn't shrink into a hairline in 224x224.
+        val targetPadX = max(6f, max(estFontSize * 0.35f, rect.width() * 0.12f))
+        val targetPadY = max(8f, max(estFontSize * 0.35f, rect.height() * 0.10f))
+        val padX = min(targetPadX, max(4f, rect.width() * 0.30f)).toInt()
+        val padY = min(targetPadY, max(6f, rect.height() * 0.25f)).toInt()
+
+        val minX = max(0, rect.left.toInt() - padX)
+        val minY = max(0, rect.top.toInt() - padY)
+        val maxX = min(image.width, rect.right.toInt() + padX)
+        val maxY = min(image.height, rect.bottom.toInt() + padY)
 
         val cropW = maxX - minX
         val cropH = maxY - minY
         if (cropW <= 2 || cropH <= 2) {
-            return Bitmap.createBitmap(224, 224, Bitmap.Config.ARGB_8888)
+            val emptyBmp = Bitmap.createBitmap(224, 224, Bitmap.Config.ARGB_8888)
+            Canvas(emptyBmp).drawColor(Color.WHITE)
+            return emptyBmp
         }
 
-        val rawCrop = Bitmap.createBitmap(image, minX, minY, cropW, cropH)
-        val resized = Bitmap.createScaledBitmap(rawCrop, 224, 224, true)
-        if (resized != rawCrop) {
-            rawCrop.recycle()
+        return Bitmap.createBitmap(image, minX, minY, cropW, cropH)
+    }
+
+    fun cropForMangaOcr(image: Bitmap, quad: Quadrilateral): Bitmap {
+        val rect = quad.boundingRect()
+        val isVertical = quad.isVertical || (rect.height() > rect.width())
+        val fontSize = min(rect.width(), rect.height())
+
+        // Direction-aware padding:
+        // - Along text flow (Y for vertical, X for horizontal): generous padding (at least 16px or 35% font size)
+        //   so edge characters and punctuation marks are never clipped.
+        // - Perpendicular to flow (X for vertical, Y for horizontal): tight padding (2-4px max)
+        //   so adjacent columns or lines are NEVER captured into the crop.
+        val padX: Int
+        val padY: Int
+        if (isVertical) {
+            padX = max(2, min(4, (fontSize * 0.08f).toInt()))
+            padY = max(16, (fontSize * 0.35f).toInt())
+        } else {
+            padX = max(16, (fontSize * 0.35f).toInt())
+            padY = max(2, min(4, (fontSize * 0.08f).toInt()))
         }
-        return resized
+
+        val minX = max(0, rect.left.toInt() - padX)
+        val minY = max(0, rect.top.toInt() - padY)
+        val maxX = min(image.width, rect.right.toInt() + padX)
+        val maxY = min(image.height, rect.bottom.toInt() + padY)
+
+        val cropW = maxX - minX
+        val cropH = maxY - minY
+        if (cropW <= 2 || cropH <= 2) {
+            val emptyBmp = Bitmap.createBitmap(224, 224, Bitmap.Config.ARGB_8888)
+            Canvas(emptyBmp).drawColor(Color.WHITE)
+            return emptyBmp
+        }
+
+        return Bitmap.createBitmap(image, minX, minY, cropW, cropH)
     }
 
     fun cropTextRegion(image: Bitmap, quad: Quadrilateral, textHeight: Int = 48, forceVertical: Boolean? = null): Bitmap {
