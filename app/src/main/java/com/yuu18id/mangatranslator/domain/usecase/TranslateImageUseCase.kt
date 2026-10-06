@@ -215,8 +215,40 @@ class TranslateImageUseCase @Inject constructor(
             }
             val transStart = System.currentTimeMillis()
             val translator = translatorFactory.getTranslator(config.translator.translatorType)
-            Log.i(TAG, "   Sending ${preFilteredBlocks.size} blocks to ${config.translator.translatorType}...")
-            var translatedBlocks = translator.translate(preFilteredBlocks, config.translator)
+            // Short-circuit dots-only OCR results (e.g. "....." from leading "……" columns):
+            // don't waste 20s LLM call, mark blank so renderer leaves inpaint clean.
+            val dotsOnlyIndices = mutableSetOf<Int>()
+            val translatableBlocks = mutableListOf<TextBlock>()
+            val translatableOrigIndices = mutableListOf<Int>()
+            preFilteredBlocks.forEachIndexed { idx, b ->
+                if (TextPostProcessor.isDotsOnlyOrEmpty(b.text)) {
+                    Log.w(TAG, "   Block $idx SKIPPED dots-only (\"${b.text}\"), not sending to LLM")
+                    dotsOnlyIndices.add(idx)
+                } else {
+                    translatableOrigIndices.add(idx)
+                    translatableBlocks.add(b)
+                }
+            }
+            Log.i(TAG, "   Sending ${translatableBlocks.size}/${preFilteredBlocks.size} blocks to ${config.translator.translatorType}... (skipped dots-only=${dotsOnlyIndices.size})")
+            val translatedTranslatable = if (translatableBlocks.isNotEmpty()) {
+                translator.translate(translatableBlocks, config.translator)
+            } else {
+                emptyList()
+            }
+            // Merge back preserving original order; dots-only blocks stay blank.
+            val translatedByOrigIdx = mutableMapOf<Int, TextBlock>()
+            translatableOrigIndices.forEachIndexed { pos, origIdx ->
+                if (pos < translatedTranslatable.size) {
+                    translatedByOrigIdx[origIdx] = translatedTranslatable[pos]
+                }
+            }
+            var translatedBlocks: List<TextBlock> = preFilteredBlocks.mapIndexed { idx, orig ->
+                if (idx in dotsOnlyIndices) {
+                    orig.copy(translatedText = "", language = config.translator.sourceLang)
+                } else {
+                    translatedByOrigIdx[idx] ?: orig.copy(translatedText = "", language = config.translator.sourceLang)
+                }
+            }
             Log.i(TAG, "✓ [4/7 TRANSLATION] API finished in ${System.currentTimeMillis() - transStart}ms")
 
             translatedBlocks = translatedBlocks.mapIndexed { index, block ->

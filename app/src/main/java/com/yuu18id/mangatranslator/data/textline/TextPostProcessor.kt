@@ -19,6 +19,40 @@ class TextPostProcessor @Inject constructor() {
         private val INVISIBLE_CHARS_REGEX = Regex("[\\uFE0E\\uFE0F\\u200B-\\u200D\\uFEFF\\u00AD]")
 
         /**
+         * Returns true if text is empty OR contains only vertical-dots / ellipsis fillers
+         * (e.g. ".....", "……", "… …", "・・・", "...", "。。。").
+         *
+         * Used to:
+         * - skip LLM translation for dots-only OCR results (saves API time),
+         * - skip canvas rendering fallback so failed bubbles stay cleanly inpainted
+         *   instead of rendering giant vertical ".....".
+         *
+         * Strict on purpose: "!!!", "???", "♥" are NOT dots-only and are kept.
+         * Any letter/digit (latin, hiragana, katakana, kanji, hangul) -> NOT dots-only.
+         */
+        fun isDotsOnlyOrEmpty(text: String): Boolean {
+            val t = text.trim()
+            if (t.isEmpty()) return true
+            var hasDot = false
+            for (c in t) {
+                when (c) {
+                    '…', '・', '.', '･', '°', '。', '·' -> {
+                        hasDot = true
+                    }
+                    '、', ',' -> {
+                        // comma filler sometimes accompanies dots, still dots-only
+                        continue
+                    }
+                    else -> {
+                        if (c.isWhitespace()) continue
+                        return false
+                    }
+                }
+            }
+            return hasDot
+        }
+
+        /**
          * Static helper to process translated manga text:
          * Replaces all colored/API heart emojis and symbols (including ♡ U+2661, ❤ U+2764, etc.)
          * with the canonical solid manga heart '♥' (U+2665).
@@ -74,5 +108,9 @@ class TextPostProcessor @Inject constructor() {
      */
     fun process(translatedText: String, originalText: String = ""): String {
         return processText(translatedText, originalText)
+    }
+
+    fun isDotsOnlyOrEmpty(text: String): Boolean {
+        return processText(text).let { Companion.isDotsOnlyOrEmpty(it) }
     }
 }

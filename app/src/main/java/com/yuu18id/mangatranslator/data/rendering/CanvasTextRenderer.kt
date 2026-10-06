@@ -53,6 +53,17 @@ class CanvasTextRenderer @Inject constructor(
         val candidates = mutableListOf<RenderCandidate>()
 
         for ((i, block) in textBlocks.withIndex()) {
+            // Dots-only guard: failed OCR (e.g. ".....") with blank translation must NOT
+            // fallback to vertical Japanese dots. Leave inpaint clean instead of giant
+            // vertical "....." at 40pt (was: Block 2/6 RENDERING text="....." isVertical=true).
+            if (block.translatedText.isBlank() && TextPostProcessor.isDotsOnlyOrEmpty(block.text)) {
+                Log.w(TAG, "   Block $i SKIPPED: dots-only original (\"${block.text}\"), leaving inpaint clean")
+                continue
+            }
+            if (block.translatedText.isNotBlank() && TextPostProcessor.isDotsOnlyOrEmpty(block.translatedText)) {
+                Log.w(TAG, "   Block $i SKIPPED: dots-only translation (\"${block.translatedText}\")")
+                continue
+            }
             val rawText = if (block.translatedText.isNotBlank()) {
                 block.translatedText.trim()
             } else {

@@ -81,4 +81,34 @@ class MangaOcrTokenizer @Inject constructor(
         }
         return sb.toString().trim()
     }
+
+    fun tokenText(id: Long): String? {
+        ensureLoaded()
+        return idToToken[id.toInt()]
+    }
+
+    /**
+     * True if this token is punctuation/ellipsis filler (…, ・, ., ･, °, 。, !, ?, :, ;).
+     * Used by MangaOcrEngine to avoid early loop-break on leading "……" columns:
+     * dots may repeat 6-10x as prefix before kanji appears, so they get a higher
+     * repeat threshold than content tokens.
+     */
+    fun isPunctuationToken(id: Long): Boolean {
+        if (id == PAD_TOKEN_ID || id == CLS_TOKEN_ID || id == SEP_TOKEN_ID || id == MASK_TOKEN_ID) {
+            return true
+        }
+        val raw = tokenText(id) ?: return false
+        if (raw.startsWith("<unused") || raw == "[UNK]") return true
+        val clean = if (raw.startsWith("##")) raw.substring(2) else raw
+        if (clean.isEmpty()) return true
+        for (c in clean) {
+            when (c) {
+                '…', '・', '.', '･', '°', '。', '·', '、', ',', '!', '！', '?', '？',
+                ':', '：', ';', '；', '-', '—', '–', '~', '～', '「', '」', '『', '』',
+                '（', '）', '(', ')', '[', ']', '/', '|', ' ' -> continue
+                else -> return false
+            }
+        }
+        return true
+    }
 }

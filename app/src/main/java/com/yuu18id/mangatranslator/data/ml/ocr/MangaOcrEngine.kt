@@ -2,9 +2,12 @@ package com.yuu18id.mangatranslator.data.ml.ocr
 
 import ai.onnxruntime.OnnxTensor
 import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Color
 import android.util.Log
 import com.yuu18id.mangatranslator.data.ml.OcrEngine
 import com.yuu18id.mangatranslator.data.ml.OnnxModelManager
+import com.yuu18id.mangatranslator.data.textline.TextPostProcessor
 import com.yuu18id.mangatranslator.domain.model.OcrConfig
 import com.yuu18id.mangatranslator.domain.model.Quadrilateral
 import com.yuu18id.mangatranslator.domain.model.TextBlock
@@ -44,6 +47,13 @@ class MangaOcrEngine @Inject constructor(
             if (block.lines.size >= 4) return true
             if (block.lines.size <= 1) return false
 
+            // Vertical bubbles with a narrow dots-only column (e.g. leading "……"
+            // must go line-by-line: single-crop ViT stretch collapses kanji and
+            // the decoder loops on "…" then early-breaks into dots-only output.
+            if (block.isVertical && block.lines.size in 2..3 && hasNarrowDotsColumn(block)) {
+                return true
+            }
+
             val maxLineLength = block.lines.maxOfOrNull { line ->
                 val r = line.boundingRect()
                 if (block.isVertical) r.height() else r.width()
@@ -68,6 +78,38 @@ class MangaOcrEngine @Inject constructor(
             }
 
             return false
+        }
+
+        /**
+         * Detects a narrow dots-column candidate inside a vertical block
+         * (e.g. leading "…… / ………ッ" stacked vertically).
+         *
+         * Heuristic: narrowest line <= 14px absolute or < 45% of median line
+         * thickness, and tall (major/minor >= 3.0) so small furigana is not
+         * misclassified.
+         */
+        internal fun hasNarrowDotsColumn(block: TextBlock): Boolean {
+            if (block.lines.size < 2) return false
+            val thicknesses = block.lines.map { line ->
+                val r = line.boundingRect()
+                if (block.isVertical) r.width() else r.height()
+            }
+            if (thicknesses.isEmpty()) return false
+            val sorted = thicknesses.sorted()
+            val median = sorted[sorted.size / 2]
+            val minW = sorted.first()
+            if (!(minW <= 14f || (median > 0f && minW / median < 0.45f))) {
+                return false
+            }
+            val narrowLine = block.lines.minByOrNull { line ->
+                val r = line.boundingRect()
+                if (block.isVertical) r.width() else r.height()
+            } ?: return false
+            val r = narrowLine.boundingRect()
+            val major = if (block.isVertical) r.height() else r.width()
+            val minor = max(1f, if (block.isVertical) r.width() else r.height())
+            // Require tall column (>= 60px) so small furigana (e.g. 10x30) is not misclassified.
+            return major / minor >= 3.0f && major >= 60f
         }
 
         /**
@@ -235,7 +277,7 @@ class MangaOcrEngine @Inject constructor(
                     }
 
                     try {
-                        val (recognizedText, colors) = decodeCrop(
+                        var (recognizedText, colors) = decodeCrop(
                             crop = crop,
                             env = env,
                             encoderSession = encoderSession,
@@ -243,6 +285,77 @@ class MangaOcrEngine @Inject constructor(
                             vitInputArray = vitInputArray,
                             hiddenArray3D = hiddenArray3D
                         )
+                        val aspect = crop.width.toFloat() / max(1, crop.height)
+                        Log.i(TAG, "   [Manga-OCR Bubble] size=${crop.width}x${crop.height} aspect=%.2f, lines=${block.lines.size} => \"$recognizedText\"".format(aspect))
+
+                        // Dots-only fallback: single-crop ViT often collapses on leading
+                        // "……" vertical columns (e.g. 119x168 => "....."). Retry line-by-line
+                        // with tight perpendicular padding, keep kanji lines, drop dots lines.
+                        // If nothing meaningful remains, return "" so downstream skips
+                        // LLM + render instead of giant vertical ".....".
+                        if (TextPostProcessor.isDotsOnlyOrEmpty(recognizedText) && block.lines.size >= 2) {
+                            Log.w(TAG, "   [Manga-OCR Bubble] dots-only \"$recognizedText\" -> retry line-by-line (lines=${block.lines.size})")
+                            if (!crop.isRecycled) crop.recycle()
+                            val retryLines = mutableListOf<Quadrilateral>()
+                            val retryTexts = mutableListOf<String>()
+                            var retryColors: TextColor? = null
+                            for (line in block.lines) {
+                                val lineCrop = preProcessor.cropForMangaOcr(image, line)
+                                if (lineCrop.width < 8 || lineCrop.height < 8) {
+                                    retryLines.add(line.copy(text = "", prob = 0f))
+                                    if (!lineCrop.isRecycled) lineCrop.recycle()
+                                    continue
+                                }
+                                try {
+                                    val (lineText, lineColors) = decodeCrop(
+                                        crop = lineCrop,
+                                        env = env,
+                                        encoderSession = encoderSession,
+                                        decoderSession = decoderSession,
+                                        vitInputArray = vitInputArray,
+                                        hiddenArray3D = hiddenArray3D
+                                    )
+                                    if (retryColors == null) retryColors = lineColors
+                                    retryLines.add(
+                                        line.copy(
+                                            text = lineText,
+                                            prob = 0.95f,
+                                            fgColor = lineColors.fg,
+                                            bgColor = lineColors.bg
+                                        )
+                                    )
+                                    if (lineText.isNotBlank() && !TextPostProcessor.isDotsOnlyOrEmpty(lineText)) {
+                                        retryTexts.add(lineText.trim())
+                                    }
+                                    Log.i(TAG, "      [Manga-OCR Retry Line] size=${lineCrop.width}x${lineCrop.height} => \"$lineText\"")
+                                } catch (e: Exception) {
+                                    Log.e(TAG, "❌ Manga-OCR retry failed on line: ${e.message}", e)
+                                    retryLines.add(line.copy(text = "", prob = 0f))
+                                } finally {
+                                    if (!lineCrop.isRecycled) lineCrop.recycle()
+                                }
+                            }
+                            val joinedRetry = mergeOverlappingLines(retryTexts, block.isVertical)
+                            if (joinedRetry.isNotBlank() && !TextPostProcessor.isDotsOnlyOrEmpty(joinedRetry)) {
+                                val finalColors = retryColors ?: colors
+                                val retryUpdatedLines = retryLines.map { l ->
+                                    l.copy(fgColor = finalColors.fg, bgColor = finalColors.bg)
+                                }
+                                outBlocks.add(
+                                    block.copy(
+                                        text = joinedRetry,
+                                        fgColor = finalColors.fg,
+                                        bgColor = finalColors.bg,
+                                        lines = retryUpdatedLines
+                                    )
+                                )
+                                Log.i(TAG, "   [Manga-OCR Bubble Retry OK] lines=${block.lines.size} => \"$joinedRetry\"")
+                            } else {
+                                outBlocks.add(block.copy(text = ""))
+                                Log.w(TAG, "   [Manga-OCR Bubble Retry] still dots-only/empty, marking blank to skip LLM+render")
+                            }
+                            continue
+                        }
 
                         val updatedLines = block.lines.map { line ->
                             line.copy(fgColor = colors.fg, bgColor = colors.bg)
@@ -255,7 +368,6 @@ class MangaOcrEngine @Inject constructor(
                             lines = updatedLines
                         )
                         outBlocks.add(updatedBlock)
-                        Log.i(TAG, "   [Manga-OCR Bubble] size=${crop.width}x${crop.height}, lines=${block.lines.size} => \"$recognizedText\"")
 
                     } catch (e: Exception) {
                         Log.e(TAG, "❌ Manga-OCR failed on bubble crop: ${e.message}", e)
@@ -295,8 +407,10 @@ class MangaOcrEngine @Inject constructor(
                                 fgColor = colors.fg,
                                 bgColor = colors.bg
                             ))
-                            if (lineText.isNotBlank()) {
+                            if (lineText.isNotBlank() && !TextPostProcessor.isDotsOnlyOrEmpty(lineText)) {
                                 lineTexts.add(lineText.trim())
+                            } else if (TextPostProcessor.isDotsOnlyOrEmpty(lineText) && lineText.isNotBlank()) {
+                                Log.w(TAG, "      [Manga-OCR Line] dots-only \"$lineText\" dropped, keeping kanji lines")
                             }
                             Log.i(TAG, "      [Manga-OCR Line] size=${crop.width}x${crop.height} => \"$lineText\"")
                         } catch (e: Exception) {
@@ -412,9 +526,19 @@ class MangaOcrEngine @Inject constructor(
                             break // EOS reached
                         }
 
-                        // Avoid infinite single-token loops (break only if 5 identical tokens in a row)
-                        if (generatedTokenIds.size >= 5 &&
-                            generatedTokenIds.takeLast(5).all { it == bestTokenId }) {
+                        // Avoid infinite single-token loops.
+                        // Punctuation/ellipsis (…, ・, ., 。) may legitimately repeat
+                        // 6-10x as leading "……" prefix before kanji appears, so they
+                        // get threshold 12. Content tokens keep threshold 5 to stop
+                        // hallucination loops early (e.g. 119x168 => "....." case).
+                        val isPunct = try {
+                            tokenizer.isPunctuationToken(bestTokenId)
+                        } catch (_: Exception) {
+                            false
+                        }
+                        val repeatThreshold = if (isPunct) 12 else 5
+                        if (generatedTokenIds.size >= repeatThreshold &&
+                            generatedTokenIds.takeLast(repeatThreshold).all { it == bestTokenId }) {
                             break
                         }
 
@@ -442,11 +566,33 @@ class MangaOcrEngine @Inject constructor(
         crop: Bitmap,
         outArray: Array<Array<Array<FloatArray>>>
     ) {
-        val resized = if (crop.width == TARGET_IMAGE_SIZE && crop.height == TARGET_IMAGE_SIZE) {
-            crop
+        // Aspect-preserving letterbox (was: direct 224x224 stretch).
+        // Direct stretch squashes tall vertical bubbles (e.g. 119x168, 121x206)
+        // into squares: kanji strokes collapse while "……" dots survive as blobs,
+        // causing dots-only "....." hallucinations. Letterbox keeps stroke geometry
+        // by scaling longest side to 224 and padding with white (paper).
+        val canvasBmp: Bitmap
+        var scaled: Bitmap? = null
+        var toRecycle: Bitmap? = null
+        if (crop.width == TARGET_IMAGE_SIZE && crop.height == TARGET_IMAGE_SIZE) {
+            canvasBmp = crop
         } else {
-            Bitmap.createScaledBitmap(crop, TARGET_IMAGE_SIZE, TARGET_IMAGE_SIZE, true)
+            val scale = min(
+                TARGET_IMAGE_SIZE.toFloat() / crop.width,
+                TARGET_IMAGE_SIZE.toFloat() / crop.height
+            )
+            val newW = max(1, (crop.width * scale).toInt())
+            val newH = max(1, (crop.height * scale).toInt())
+            scaled = Bitmap.createScaledBitmap(crop, newW, newH, true)
+            canvasBmp = Bitmap.createBitmap(TARGET_IMAGE_SIZE, TARGET_IMAGE_SIZE, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(canvasBmp)
+            canvas.drawColor(Color.WHITE)
+            val left = (TARGET_IMAGE_SIZE - newW) / 2f
+            val top = (TARGET_IMAGE_SIZE - newH) / 2f
+            canvas.drawBitmap(scaled, left, top, null)
+            toRecycle = scaled
         }
+        val resized = canvasBmp
 
         val totalPixels = TARGET_IMAGE_SIZE * TARGET_IMAGE_SIZE
         val pixels = IntArray(totalPixels)
@@ -484,6 +630,9 @@ class MangaOcrEngine @Inject constructor(
 
         if (resized !== crop && !resized.isRecycled) {
             resized.recycle()
+        }
+        if (toRecycle != null && toRecycle !== resized && !toRecycle.isRecycled) {
+            toRecycle.recycle()
         }
     }
 }
