@@ -75,22 +75,24 @@ class GeminiTranslator @Inject constructor(
         )
 
         val cleanModel = selectedModel.removePrefix("models/")
-        val url = "https://generativelanguage.googleapis.com/v1beta/models/$cleanModel:generateContent?key=$apiKey"
+        val url = "https://generativelanguage.googleapis.com/v1beta/models/$cleanModel:generateContent"
         val body = json.encodeToString(requestBody).toRequestBody("application/json".toMediaType())
         val request = Request.Builder()
             .url(url)
+            .addHeader("x-goog-api-key", apiKey)
             .post(body)
             .build()
 
-        val response = client.newCall(request).execute()
-        if (!response.isSuccessful) {
-            val errBody = response.body?.string() ?: ""
-            throw Exception("Gemini translation failed (${response.code}): $errBody")
-        }
+        val content = client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) {
+                val errBody = response.body?.string() ?: ""
+                throw Exception("Gemini translation failed (${response.code}): $errBody")
+            }
 
-        val responseBody = response.body?.string() ?: throw Exception("Empty response body from Gemini")
-        val geminiResponse = json.decodeFromString<GeminiResponse>(responseBody)
-        val content = geminiResponse.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text ?: ""
+            val responseBody = response.body?.string() ?: throw Exception("Empty response body from Gemini")
+            val geminiResponse = json.decodeFromString<GeminiResponse>(responseBody)
+            geminiResponse.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text ?: ""
+        }
 
         return com.yuu18id.mangatranslator.data.translation.prompt.LlmResponseParser.applyToBlocks(content, textBlocks)
     }

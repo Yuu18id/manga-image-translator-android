@@ -59,6 +59,14 @@ fun AppNavigation(initialImageUri: android.net.Uri? = null) {
         Screen.Home.route
     }
 
+    androidx.compose.runtime.LaunchedEffect(initialImageUri) {
+        if (initialImageUri != null) {
+            navController.navigate(Screen.Translate.createRoute(initialImageUri.toString())) {
+                launchSingleTop = true
+            }
+        }
+    }
+
     Scaffold(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         bottomBar = {

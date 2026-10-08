@@ -138,15 +138,16 @@ class CustomOpenAiTranslator @Inject constructor(
             requestBuilder.addHeader("Authorization", "Bearer $apiKey")
         }
 
-        val response = client.newCall(requestBuilder.build()).execute()
-        if (!response.isSuccessful) {
-            val errBody = response.body?.string() ?: ""
-            throw Exception("Custom OpenAI translation failed (${response.code}): $errBody")
-        }
+        return client.newCall(requestBuilder.build()).execute().use { response ->
+            if (!response.isSuccessful) {
+                val errBody = response.body?.string() ?: ""
+                throw Exception("Custom OpenAI translation failed (${response.code}): $errBody")
+            }
 
-        val responseBody = response.body?.string() ?: throw Exception("Empty response body")
-        val chatResponse = json.decodeFromString<ChatResponse>(responseBody)
-        return chatResponse.choices.firstOrNull()?.message?.content ?: ""
+            val responseBody = response.body?.string() ?: throw Exception("Empty response body")
+            val chatResponse = json.decodeFromString<ChatResponse>(responseBody)
+            chatResponse.choices.firstOrNull()?.message?.content ?: ""
+        }
     }
 
     override fun isAvailable(): Boolean = true

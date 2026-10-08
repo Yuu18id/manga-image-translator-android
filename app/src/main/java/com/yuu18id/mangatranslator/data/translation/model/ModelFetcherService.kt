@@ -67,19 +67,20 @@ class ModelFetcherService @Inject constructor(
             requestBuilder.addHeader("Authorization", "Bearer $apiKey")
         }
 
-        val response = fetchClient.newCall(requestBuilder.build()).execute()
-        if (!response.isSuccessful) throw Exception("HTTP ${response.code}: ${response.message}")
+        return fetchClient.newCall(requestBuilder.build()).execute().use { response ->
+            if (!response.isSuccessful) throw Exception("HTTP ${response.code}: ${response.message}")
 
-        val body = response.body?.string() ?: return emptyList()
-        val root = json.parseToJsonElement(body).jsonObject
-        val dataArray = root["data"]?.jsonArray ?: return emptyList()
+            val body = response.body?.string() ?: return@use emptyList()
+            val root = json.parseToJsonElement(body).jsonObject
+            val dataArray = root["data"]?.jsonArray ?: return@use emptyList()
 
-        return dataArray.mapNotNull { element ->
-            val obj = element.jsonObject
-            val id = obj["id"]?.jsonPrimitive?.content ?: return@mapNotNull null
-            val name = obj["name"]?.jsonPrimitive?.content ?: id
-            AiModelInfo(id = id, displayName = name, description = "")
-        }.sortedBy { it.id }
+            dataArray.mapNotNull { element ->
+                val obj = element.jsonObject
+                val id = obj["id"]?.jsonPrimitive?.content ?: return@mapNotNull null
+                val name = obj["name"]?.jsonPrimitive?.content ?: id
+                AiModelInfo(id = id, displayName = name, description = "")
+            }.sortedBy { it.id }
+        }
     }
 
     private fun fetchOpenAiModels(apiKey: String): List<AiModelInfo> {
@@ -91,47 +92,50 @@ class ModelFetcherService @Inject constructor(
             .get()
             .build()
 
-        val response = fetchClient.newCall(request).execute()
-        if (!response.isSuccessful) throw Exception("HTTP ${response.code}: ${response.message}")
+        return fetchClient.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) throw Exception("HTTP ${response.code}: ${response.message}")
 
-        val body = response.body?.string() ?: return emptyList()
-        val root = json.parseToJsonElement(body).jsonObject
-        val dataArray = root["data"]?.jsonArray ?: return emptyList()
+            val body = response.body?.string() ?: return@use emptyList()
+            val root = json.parseToJsonElement(body).jsonObject
+            val dataArray = root["data"]?.jsonArray ?: return@use emptyList()
 
-        return dataArray.mapNotNull { element ->
-            val id = element.jsonObject["id"]?.jsonPrimitive?.content ?: return@mapNotNull null
-            if (id.startsWith("gpt-") || id.startsWith("o1") || id.startsWith("o3") || id.startsWith("chatgpt")) {
-                AiModelInfo(id = id, displayName = id, description = "")
-            } else null
-        }.sortedBy { it.id }
+            dataArray.mapNotNull { element ->
+                val id = element.jsonObject["id"]?.jsonPrimitive?.content ?: return@mapNotNull null
+                if (id.startsWith("gpt-") || id.startsWith("o1") || id.startsWith("o3") || id.startsWith("chatgpt")) {
+                    AiModelInfo(id = id, displayName = id, description = "")
+                } else null
+            }.sortedBy { it.id }
+        }
     }
 
     private fun fetchGeminiModels(apiKey: String): List<AiModelInfo> {
         if (apiKey.isBlank()) throw Exception("API Key Gemini diperlukan untuk mengambil model.")
 
         val request = Request.Builder()
-            .url("https://generativelanguage.googleapis.com/v1beta/models?key=$apiKey")
+            .url("https://generativelanguage.googleapis.com/v1beta/models")
+            .addHeader("x-goog-api-key", apiKey)
             .get()
             .build()
 
-        val response = fetchClient.newCall(request).execute()
-        if (!response.isSuccessful) throw Exception("HTTP ${response.code}: ${response.message}")
+        return fetchClient.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) throw Exception("HTTP ${response.code}: ${response.message}")
 
-        val body = response.body?.string() ?: return emptyList()
-        val root = json.parseToJsonElement(body).jsonObject
-        val modelsArray = root["models"]?.jsonArray ?: return emptyList()
+            val body = response.body?.string() ?: return@use emptyList()
+            val root = json.parseToJsonElement(body).jsonObject
+            val modelsArray = root["models"]?.jsonArray ?: return@use emptyList()
 
-        return modelsArray.mapNotNull { element ->
-            val obj = element.jsonObject
-            val name = obj["name"]?.jsonPrimitive?.content ?: return@mapNotNull null
-            val displayName = obj["displayName"]?.jsonPrimitive?.content ?: name
-            val methods = obj["supportedGenerationMethods"]?.jsonArray?.map { it.jsonPrimitive.content } ?: emptyList()
+            modelsArray.mapNotNull { element ->
+                val obj = element.jsonObject
+                val name = obj["name"]?.jsonPrimitive?.content ?: return@mapNotNull null
+                val displayName = obj["displayName"]?.jsonPrimitive?.content ?: name
+                val methods = obj["supportedGenerationMethods"]?.jsonArray?.map { it.jsonPrimitive.content } ?: emptyList()
 
-            if ("generateContent" in methods && (name.contains("gemini") || name.contains("gemma"))) {
-                val cleanId = name.removePrefix("models/")
-                AiModelInfo(id = cleanId, displayName = displayName, description = "")
-            } else null
-        }.sortedBy { it.id }
+                if ("generateContent" in methods && (name.contains("gemini") || name.contains("gemma"))) {
+                    val cleanId = name.removePrefix("models/")
+                    AiModelInfo(id = cleanId, displayName = displayName, description = "")
+                } else null
+            }.sortedBy { it.id }
+        }
     }
 
     private fun fetchClaudeModels(apiKey: String): List<AiModelInfo> {
@@ -144,19 +148,20 @@ class ModelFetcherService @Inject constructor(
             .get()
             .build()
 
-        val response = fetchClient.newCall(request).execute()
-        if (!response.isSuccessful) throw Exception("HTTP ${response.code}: ${response.message}")
+        return fetchClient.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) throw Exception("HTTP ${response.code}: ${response.message}")
 
-        val body = response.body?.string() ?: return emptyList()
-        val root = json.parseToJsonElement(body).jsonObject
-        val dataArray = root["data"]?.jsonArray ?: return emptyList()
+            val body = response.body?.string() ?: return@use emptyList()
+            val root = json.parseToJsonElement(body).jsonObject
+            val dataArray = root["data"]?.jsonArray ?: return@use emptyList()
 
-        return dataArray.mapNotNull { element ->
-            val obj = element.jsonObject
-            val id = obj["id"]?.jsonPrimitive?.content ?: return@mapNotNull null
-            val name = obj["display_name"]?.jsonPrimitive?.content ?: id
-            AiModelInfo(id = id, displayName = name, description = "")
-        }.sortedBy { it.id }
+            dataArray.mapNotNull { element ->
+                val obj = element.jsonObject
+                val id = obj["id"]?.jsonPrimitive?.content ?: return@mapNotNull null
+                val name = obj["display_name"]?.jsonPrimitive?.content ?: id
+                AiModelInfo(id = id, displayName = name, description = "")
+            }.sortedBy { it.id }
+        }
     }
 
     private fun fetchGroqModels(apiKey: String): List<AiModelInfo> {
@@ -168,21 +173,22 @@ class ModelFetcherService @Inject constructor(
             .get()
             .build()
 
-        val response = fetchClient.newCall(request).execute()
-        if (!response.isSuccessful) throw Exception("HTTP ${response.code}: ${response.message}")
+        return fetchClient.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) throw Exception("HTTP ${response.code}: ${response.message}")
 
-        val body = response.body?.string() ?: return emptyList()
-        val root = json.parseToJsonElement(body).jsonObject
-        val dataArray = root["data"]?.jsonArray ?: return emptyList()
+            val body = response.body?.string() ?: return@use emptyList()
+            val root = json.parseToJsonElement(body).jsonObject
+            val dataArray = root["data"]?.jsonArray ?: return@use emptyList()
 
-        return dataArray.mapNotNull { element ->
-            val obj = element.jsonObject
-            val id = obj["id"]?.jsonPrimitive?.content ?: return@mapNotNull null
-            val active = obj["active"]?.jsonPrimitive?.content != "false"
-            if (active && !id.contains("whisper")) {
-                AiModelInfo(id = id, displayName = id, description = "")
-            } else null
-        }.sortedBy { it.id }
+            dataArray.mapNotNull { element ->
+                val obj = element.jsonObject
+                val id = obj["id"]?.jsonPrimitive?.content ?: return@mapNotNull null
+                val active = obj["active"]?.jsonPrimitive?.content != "false"
+                if (active && !id.contains("whisper")) {
+                    AiModelInfo(id = id, displayName = id, description = "")
+                } else null
+            }.sortedBy { it.id }
+        }
     }
 
     private fun fetchDeepSeekModels(apiKey: String): List<AiModelInfo> {
@@ -194,17 +200,18 @@ class ModelFetcherService @Inject constructor(
             .get()
             .build()
 
-        val response = fetchClient.newCall(request).execute()
-        if (!response.isSuccessful) throw Exception("HTTP ${response.code}: ${response.message}")
+        return fetchClient.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) throw Exception("HTTP ${response.code}: ${response.message}")
 
-        val body = response.body?.string() ?: return emptyList()
-        val root = json.parseToJsonElement(body).jsonObject
-        val dataArray = root["data"]?.jsonArray ?: return emptyList()
+            val body = response.body?.string() ?: return@use emptyList()
+            val root = json.parseToJsonElement(body).jsonObject
+            val dataArray = root["data"]?.jsonArray ?: return@use emptyList()
 
-        return dataArray.mapNotNull { element ->
-            val id = element.jsonObject["id"]?.jsonPrimitive?.content ?: return@mapNotNull null
-            AiModelInfo(id = id, displayName = id, description = "")
-        }.sortedBy { it.id }
+            dataArray.mapNotNull { element ->
+                val id = element.jsonObject["id"]?.jsonPrimitive?.content ?: return@mapNotNull null
+                AiModelInfo(id = id, displayName = id, description = "")
+            }.sortedBy { it.id }
+        }
     }
 
     private fun fetchGlmModels(apiKey: String): List<AiModelInfo> {
@@ -216,17 +223,18 @@ class ModelFetcherService @Inject constructor(
             .get()
             .build()
 
-        val response = fetchClient.newCall(request).execute()
-        if (!response.isSuccessful) throw Exception("HTTP ${response.code}: ${response.message}")
+        return fetchClient.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) throw Exception("HTTP ${response.code}: ${response.message}")
 
-        val body = response.body?.string() ?: return emptyList()
-        val root = json.parseToJsonElement(body).jsonObject
-        val dataArray = root["data"]?.jsonArray ?: return emptyList()
+            val body = response.body?.string() ?: return@use emptyList()
+            val root = json.parseToJsonElement(body).jsonObject
+            val dataArray = root["data"]?.jsonArray ?: return@use emptyList()
 
-        return dataArray.mapNotNull { element ->
-            val id = element.jsonObject["id"]?.jsonPrimitive?.content ?: return@mapNotNull null
-            AiModelInfo(id = id, displayName = id, description = "")
-        }.sortedBy { it.id }
+            dataArray.mapNotNull { element ->
+                val id = element.jsonObject["id"]?.jsonPrimitive?.content ?: return@mapNotNull null
+                AiModelInfo(id = id, displayName = id, description = "")
+            }.sortedBy { it.id }
+        }
     }
 
     private fun fetchCustomModels(apiKey: String, baseUrl: String): List<AiModelInfo> {
@@ -238,17 +246,18 @@ class ModelFetcherService @Inject constructor(
             requestBuilder.addHeader("Authorization", "Bearer $apiKey")
         }
 
-        val response = fetchClient.newCall(requestBuilder.build()).execute()
-        if (!response.isSuccessful) throw Exception("HTTP ${response.code}: ${response.message}")
+        return fetchClient.newCall(requestBuilder.build()).execute().use { response ->
+            if (!response.isSuccessful) throw Exception("HTTP ${response.code}: ${response.message}")
 
-        val body = response.body?.string() ?: return emptyList()
-        val root = json.parseToJsonElement(body).jsonObject
-        val dataArray = root["data"]?.jsonArray ?: root["models"]?.jsonArray ?: return emptyList()
+            val body = response.body?.string() ?: return@use emptyList()
+            val root = json.parseToJsonElement(body).jsonObject
+            val dataArray = root["data"]?.jsonArray ?: root["models"]?.jsonArray ?: return@use emptyList()
 
-        return dataArray.mapNotNull { element ->
-            val obj = element.jsonObject
-            val id = obj["id"]?.jsonPrimitive?.content ?: obj["name"]?.jsonPrimitive?.content ?: return@mapNotNull null
-            AiModelInfo(id = id, displayName = id, description = "")
-        }.sortedBy { it.id }
+            dataArray.mapNotNull { element ->
+                val obj = element.jsonObject
+                val id = obj["id"]?.jsonPrimitive?.content ?: obj["name"]?.jsonPrimitive?.content ?: return@mapNotNull null
+                AiModelInfo(id = id, displayName = id, description = "")
+            }.sortedBy { it.id }
+        }
     }
 }

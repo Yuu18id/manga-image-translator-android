@@ -50,10 +50,9 @@ abstract class MLModule {
         @Singleton
         fun provideOnnxModelManager(
             @ApplicationContext context: Context,
-            env: OrtEnvironment,
-            modelDownloader: com.yuu18id.mangatranslator.data.network.ModelDownloader
+            env: OrtEnvironment
         ): OnnxModelManager {
-            return OnnxModelManager(context, env, modelDownloader)
+            return OnnxModelManager(context, env)
         }
     }
 }

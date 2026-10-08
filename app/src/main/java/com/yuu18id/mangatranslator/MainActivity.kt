@@ -17,6 +17,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.content.IntentCompat
 import com.yuu18id.mangatranslator.ui.navigation.AppNavigation
 import com.yuu18id.mangatranslator.ui.theme.MangaTranslatorTheme
+import androidx.compose.runtime.mutableStateOf
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
@@ -26,15 +27,13 @@ class MainActivity : ComponentActivity() {
         ActivityResultContracts.RequestPermission()
     ) { /* Result handled */ }
 
+    private val sharedImageUriState = mutableStateOf<Uri?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         requestNotificationPermissionIfNeeded()
-
-        var sharedImageUri: Uri? = null
-        if (intent?.action == Intent.ACTION_SEND && intent.type?.startsWith("image/") == true) {
-            sharedImageUri = IntentCompat.getParcelableExtra(intent, Intent.EXTRA_STREAM, Uri::class.java)
-        }
+        handleIntent(intent)
 
         setContent {
             MangaTranslatorTheme {
@@ -42,9 +41,22 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    AppNavigation(initialImageUri = sharedImageUri)
+                    AppNavigation(initialImageUri = sharedImageUriState.value)
                 }
             }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleIntent(intent)
+    }
+
+    private fun handleIntent(intent: Intent?) {
+        if (intent?.action == Intent.ACTION_SEND && intent.type?.startsWith("image/") == true) {
+            val uri = IntentCompat.getParcelableExtra(intent, Intent.EXTRA_STREAM, Uri::class.java)
+            sharedImageUriState.value = uri
         }
     }
 

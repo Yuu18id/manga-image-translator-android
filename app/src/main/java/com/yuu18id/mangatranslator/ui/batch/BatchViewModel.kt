@@ -564,19 +564,7 @@ class BatchViewModel @Inject constructor(
     }
 
     private fun decodeBitmapFromUri(uri: Uri): Bitmap {
-        val source = ImageDecoder.createSource(context.contentResolver, uri)
-        return ImageDecoder.decodeBitmap(source) { decoder, info, _ ->
-            decoder.isMutableRequired = true
-            decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
-            val maxDim = 2048
-            if (info.size.width > maxDim || info.size.height > maxDim) {
-                val scale = maxDim.toFloat() / maxOf(info.size.width, info.size.height)
-                decoder.setTargetSize(
-                    (info.size.width * scale).toInt(),
-                    (info.size.height * scale).toInt()
-                )
-            }
-        }
+        return com.yuu18id.mangatranslator.data.storage.BitmapDecoder.decodeFromUri(context, uri)
     }
 
     private suspend fun saveResultToHistory(

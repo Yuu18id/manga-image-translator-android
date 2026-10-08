@@ -34,6 +34,10 @@ object NetworkModule {
             } else {
                 HttpLoggingInterceptor.Level.NONE
             }
+            redactHeader("Authorization")
+            redactHeader("x-api-key")
+            redactHeader("x-goog-api-key")
+            redactHeader("X-Naver-Client-Secret")
         }
         return OkHttpClient.Builder()
             .connectTimeout(60, TimeUnit.SECONDS)

@@ -1,9 +1,16 @@
 package com.yuu18id.mangatranslator.data.local
 
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "translation_history")
+@Entity(
+    tableName = "translation_history",
+    indices = [
+        Index("timestamp"),
+        Index("batchId")
+    ]
+)
 data class TranslationHistoryEntity(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,

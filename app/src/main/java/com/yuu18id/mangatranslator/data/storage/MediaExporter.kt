@@ -39,11 +39,7 @@ class MediaExporter @Inject constructor(
                 "Pictures/MangaTranslator"
             }
 
-            val sanitizedFileName = if (fileName.endsWith(".png", ignoreCase = true)) {
-                fileName
-            } else {
-                "$fileName.png"
-            }
+            val sanitizedFileName = sanitizeFileName(fileName)
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 val resolver = context.contentResolver
@@ -136,5 +132,20 @@ class MediaExporter @Inject constructor(
 
     private fun sanitizeFolderName(name: String): String {
         return name.replace(Regex("[\\\\/:*?\"<>|]"), "_").trim()
+    }
+
+    private fun sanitizeFileName(name: String): String {
+        val simpleName = File(name).name
+        val sanitized = simpleName.replace(Regex("[\\\\/:*?\"<>|]"), "_").trim()
+        val baseName = if (sanitized.endsWith(".png", ignoreCase = true)) {
+            sanitized
+        } else {
+            "$sanitized.png"
+        }
+        return if (baseName.isBlank() || baseName.equals(".png", ignoreCase = true)) {
+            "translated_${System.currentTimeMillis()}.png"
+        } else {
+            baseName
+        }
     }
 }

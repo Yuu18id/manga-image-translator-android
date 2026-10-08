@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+    <!-- Exclude DataStore preferences and SharedPreferences containing private API keys from legacy full backups -->
+    <exclude domain="file" path="datastore" />
+    <exclude domain="sharedpref" path="." />
+</full-backup-content>

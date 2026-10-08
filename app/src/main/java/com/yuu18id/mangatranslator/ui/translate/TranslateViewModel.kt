@@ -604,20 +604,18 @@ class TranslateViewModel @Inject constructor(
         }
     }
 
+    override fun onCleared() {
+        super.onCleared()
+        translationJob?.cancel()
+        _originalBitmap = null
+        _translatedBitmap = null
+        _inpaintedBitmap = null
+        _pendingRawMask?.recycle()
+        _pendingRawMask = null
+    }
+
     private fun decodeBitmapFromUri(uri: Uri): Bitmap {
-        val source = ImageDecoder.createSource(context.contentResolver, uri)
-        return ImageDecoder.decodeBitmap(source) { decoder, info, _ ->
-            decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
-            decoder.isMutableRequired = true
-            val maxDim = 2048
-            if (info.size.width > maxDim || info.size.height > maxDim) {
-                val scale = maxDim.toFloat() / maxOf(info.size.width, info.size.height)
-                decoder.setTargetSize(
-                    (info.size.width * scale).toInt(),
-                    (info.size.height * scale).toInt()
-                )
-            }
-        }
+        return com.yuu18id.mangatranslator.data.storage.BitmapDecoder.decodeFromUri(context, uri)
     }
 
     private fun saveBitmapToFile(bitmap: Bitmap, prefix: String = "translated_"): File {

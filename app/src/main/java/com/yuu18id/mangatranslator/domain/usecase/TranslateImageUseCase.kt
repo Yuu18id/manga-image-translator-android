@@ -231,7 +231,9 @@ class TranslateImageUseCase @Inject constructor(
             }
             Log.i(TAG, "   Sending ${translatableBlocks.size}/${preFilteredBlocks.size} blocks to ${config.translator.translatorType}... (skipped dots-only=${dotsOnlyIndices.size})")
             val translatedTranslatable = if (translatableBlocks.isNotEmpty()) {
-                translator.translate(translatableBlocks, config.translator)
+                kotlinx.coroutines.withContext(Dispatchers.IO) {
+                    translator.translate(translatableBlocks, config.translator)
+                }
             } else {
                 emptyList()
             }

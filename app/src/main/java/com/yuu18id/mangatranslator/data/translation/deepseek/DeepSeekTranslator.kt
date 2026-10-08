@@ -76,15 +76,16 @@ class DeepSeekTranslator @Inject constructor(
             .post(body)
             .build()
 
-        val response = client.newCall(request).execute()
-        if (!response.isSuccessful) {
-            val errBody = response.body?.string() ?: ""
-            throw Exception("DeepSeek translation failed (${response.code}): $errBody")
-        }
+        val content = client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) {
+                val errBody = response.body?.string() ?: ""
+                throw Exception("DeepSeek translation failed (${response.code}): $errBody")
+            }
 
-        val responseBody = response.body?.string() ?: throw Exception("Empty response body from DeepSeek")
-        val chatResponse = json.decodeFromString<ChatResponse>(responseBody)
-        val content = chatResponse.choices.firstOrNull()?.message?.content ?: ""
+            val responseBody = response.body?.string() ?: throw Exception("Empty response body from DeepSeek")
+            val chatResponse = json.decodeFromString<ChatResponse>(responseBody)
+            chatResponse.choices.firstOrNull()?.message?.content ?: ""
+        }
 
         return com.yuu18id.mangatranslator.data.translation.prompt.LlmResponseParser.applyToBlocks(content, textBlocks)
     }

@@ -93,20 +93,21 @@ class DeepLTranslator @Inject constructor(
             .post(body)
             .build()
 
-        val response = client.newCall(request).execute()
-        val responseBody = response.body?.string() ?: ""
+        val deepLResponse = client.newCall(request).execute().use { response ->
+            val responseBody = response.body?.string() ?: ""
 
-        if (!response.isSuccessful) {
-            val errorMsg = try {
-                val errorObj = json.decodeFromString<DeepLResponse>(responseBody)
-                errorObj.message ?: responseBody
-            } catch (e: Exception) {
-                responseBody
+            if (!response.isSuccessful) {
+                val errorMsg = try {
+                    val errorObj = json.decodeFromString<DeepLResponse>(responseBody)
+                    errorObj.message ?: responseBody
+                } catch (e: Exception) {
+                    responseBody
+                }
+                throw Exception("DeepL Error (${response.code}): $errorMsg")
             }
-            throw Exception("DeepL Error (${response.code}): $errorMsg")
-        }
 
-        val deepLResponse = json.decodeFromString<DeepLResponse>(responseBody)
+            json.decodeFromString<DeepLResponse>(responseBody)
+        }
         val translatedMap = mutableMapOf<Int, String>()
         deepLResponse.translations.forEachIndexed { i, t ->
             if (i < validIndices.size) {

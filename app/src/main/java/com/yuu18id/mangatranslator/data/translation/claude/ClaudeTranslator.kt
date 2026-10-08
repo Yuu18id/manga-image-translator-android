@@ -77,15 +77,16 @@ class ClaudeTranslator @Inject constructor(
             .post(body)
             .build()
 
-        val response = client.newCall(request).execute()
-        if (!response.isSuccessful) {
-            val errBody = response.body?.string() ?: ""
-            throw Exception("Claude translation failed (${response.code}): $errBody")
-        }
+        val content = client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) {
+                val errBody = response.body?.string() ?: ""
+                throw Exception("Claude translation failed (${response.code}): $errBody")
+            }
 
-        val responseBody = response.body?.string() ?: throw Exception("Empty response from Claude")
-        val claudeResponse = json.decodeFromString<ClaudeResponse>(responseBody)
-        val content = claudeResponse.content.firstOrNull()?.text ?: ""
+            val responseBody = response.body?.string() ?: throw Exception("Empty response from Claude")
+            val claudeResponse = json.decodeFromString<ClaudeResponse>(responseBody)
+            claudeResponse.content.firstOrNull()?.text ?: ""
+        }
 
         return com.yuu18id.mangatranslator.data.translation.prompt.LlmResponseParser.applyToBlocks(content, textBlocks)
     }
