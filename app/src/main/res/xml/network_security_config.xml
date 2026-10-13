@@ -1,14 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
-    <base-config cleartextTrafficPermitted="false">
+    <!--
+        Android XML schema does not support IP addresses or wildcards in <domain-config> (domain names only).
+        To allow local self-hosted LLMs (Ollama, LM Studio) on LAN IPs (192.168.x.x, 10.x.x.x, 172.16-31.x.x, 127.0.0.1),
+        cleartext traffic is permitted at the base OS level, while strict HTTPS enforcement for all public domains
+        is enforced at application level via NetworkModule's cleartextSecurityInterceptor across all OkHttp and Coil requests.
+    -->
+    <base-config cleartextTrafficPermitted="true">
         <trust-anchors>
             <certificates src="system" />
         </trust-anchors>
     </base-config>
-    <!-- Allow cleartext HTTP only for local self-hosted LLMs (Ollama / LM Studio) -->
-    <domain-config cleartextTrafficPermitted="true">
-        <domain includeSubdomains="true">localhost</domain>
-        <domain includeSubdomains="true">127.0.0.1</domain>
-        <domain includeSubdomains="true">10.0.2.2</domain>
-    </domain-config>
 </network-security-config>

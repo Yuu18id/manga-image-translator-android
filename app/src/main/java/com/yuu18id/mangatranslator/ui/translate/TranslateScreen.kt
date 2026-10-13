@@ -76,7 +76,12 @@ fun TranslateScreen(
     fun shareTranslatedImage() {
         coroutineScope.launch(Dispatchers.IO) {
             val bitmap = viewModel.getTranslatedBitmap() ?: return@launch
-            val file = File(context.cacheDir, "share_translated_${System.currentTimeMillis()}.png")
+            val shareDir = File(context.cacheDir, "share").apply { if (!exists()) mkdirs() }
+            try {
+                // Clean up previous temporary share files to prevent cache accumulation
+                shareDir.listFiles { _, name -> name.startsWith("share_translated_") }?.forEach { it.delete() }
+            } catch (_: Throwable) {}
+            val file = File(shareDir, "share_translated_${System.currentTimeMillis()}.png")
             FileOutputStream(file).use { out -> bitmap.compress(Bitmap.CompressFormat.PNG, 100, out) }
             val uri = FileProvider.getUriForFile(context, "${context.packageName}.provider", file)
             val shareIntent = Intent(Intent.ACTION_SEND).apply {

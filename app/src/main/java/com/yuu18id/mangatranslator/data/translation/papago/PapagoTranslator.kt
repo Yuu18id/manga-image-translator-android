@@ -5,7 +5,13 @@ import com.yuu18id.mangatranslator.domain.model.TextBlock
 import com.yuu18id.mangatranslator.domain.model.TranslatorConfig
 import com.yuu18id.mangatranslator.domain.model.TranslatorType
 import com.yuu18id.mangatranslator.domain.repository.SettingsRepository
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import okhttp3.FormBody
@@ -60,36 +66,40 @@ class PapagoTranslator @Inject constructor(
             if (it == "eng") "en" else if (it == "jpn") "ja" else if (it == "kor") "ko" else it.take(2)
         } ?: "ko"
 
-        return textBlocks.map { block ->
-            val formBody = FormBody.Builder()
-                .add("source", sourceLangCode)
-                .add("target", targetLangCode)
-                .add("text", block.text)
-                .build()
+        val semaphore = Semaphore(3)
+        return coroutineScope {
+            textBlocks.map { block ->
+                async(Dispatchers.IO) {
+                    if (block.text.isBlank()) return@async block
 
-            val request = Request.Builder()
-                .url("https://openapi.naver.com/v1/papago/n2mt")
-                .addHeader("X-Naver-Client-Id", clientId)
-                .addHeader("X-Naver-Client-Secret", clientSecret)
-                .post(formBody)
-                .build()
+                    semaphore.withPermit {
+                        val formBody = FormBody.Builder()
+                            .add("source", sourceLangCode)
+                            .add("target", targetLangCode)
+                            .add("text", block.text)
+                            .build()
 
-            val response = client.newCall(request).execute()
-            if (!response.isSuccessful) {
-                return@map block
-            }
+                        val request = Request.Builder()
+                            .url("https://openapi.naver.com/v1/papago/n2mt")
+                            .addHeader("X-Naver-Client-Id", clientId)
+                            .addHeader("X-Naver-Client-Secret", clientSecret)
+                            .post(formBody)
+                            .build()
 
-            val responseBody = response.body?.string() ?: return@map block
-            var translatedText = ""
+                        val translatedText = client.newCall(request).execute().use { response ->
+                            if (!response.isSuccessful) {
+                                val errBody = response.body?.string() ?: ""
+                                throw Exception("Papago translation failed (${response.code}): $errBody")
+                            }
+                            val responseBody = response.body?.string() ?: throw Exception("Empty response body from Papago")
+                            val papagoResponse = json.decodeFromString<PapagoResponse>(responseBody)
+                            papagoResponse.message?.result?.translatedText ?: ""
+                        }
 
-            try {
-                val papagoResponse = json.decodeFromString<PapagoResponse>(responseBody)
-                translatedText = papagoResponse.message?.result?.translatedText ?: ""
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-
-            block.copy(translatedText = translatedText)
+                        block.copy(translatedText = translatedText)
+                    }
+                }
+            }.awaitAll()
         }
     }
 

@@ -69,6 +69,8 @@ class ReaderViewModel @Inject constructor(
                     _uiState.update { it.copy(isLoading = false, error = "Invalid history ID") }
                 }
             }
+        } else {
+            _uiState.update { it.copy(isLoading = false, error = "Translation ID not provided") }
         }
     }
 

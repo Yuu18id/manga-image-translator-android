@@ -8,24 +8,15 @@ import org.junit.Test
 
 class TextAlignmentTest {
 
-    private fun computeStartX(alignment: TextAlignment, bounds: RectF, lineWidth: Float): Float {
-        val effectiveAlignment = if (alignment == TextAlignment.AUTO) TextAlignment.CENTER else alignment
-        return when (effectiveAlignment) {
-            TextAlignment.LEFT -> bounds.left + 4f
-            TextAlignment.RIGHT -> bounds.right - lineWidth - 4f
-            else -> bounds.centerX() - lineWidth / 2f
-        }
-    }
-
     @Test
     fun testHorizontalTextAlignmentCalculations() {
         val bounds = RectF(10f, 20f, 210f, 120f) // width = 200, centerX = 110
         val lineWidth = 80f
 
-        val leftX = computeStartX(TextAlignment.LEFT, bounds, lineWidth)
-        val centerX = computeStartX(TextAlignment.CENTER, bounds, lineWidth)
-        val rightX = computeStartX(TextAlignment.RIGHT, bounds, lineWidth)
-        val autoX = computeStartX(TextAlignment.AUTO, bounds, lineWidth)
+        val leftX = MangaTextDrawHelper.computeStartX(TextAlignment.LEFT, bounds, lineWidth)
+        val centerX = MangaTextDrawHelper.computeStartX(TextAlignment.CENTER, bounds, lineWidth)
+        val rightX = MangaTextDrawHelper.computeStartX(TextAlignment.RIGHT, bounds, lineWidth)
+        val autoX = MangaTextDrawHelper.computeStartX(TextAlignment.AUTO, bounds, lineWidth)
 
         // Left alignment: bounds.left + 4f = 14f
         assertEquals(14f, leftX, 0.001f)
@@ -62,9 +53,9 @@ class TextAlignmentTest {
         assertEquals(TextAlignment.RIGHT, effectiveAlignRight)
         assertEquals(TextAlignment.CENTER, effectiveAlignDefault)
 
-        val leftX = computeStartX(effectiveAlignLeft, bounds, lineWidth)
-        val defaultX = computeStartX(effectiveAlignDefault, bounds, lineWidth)
-        val rightX = computeStartX(effectiveAlignRight, bounds, lineWidth)
+        val leftX = MangaTextDrawHelper.computeStartX(effectiveAlignLeft, bounds, lineWidth)
+        val defaultX = MangaTextDrawHelper.computeStartX(effectiveAlignDefault, bounds, lineWidth)
+        val rightX = MangaTextDrawHelper.computeStartX(effectiveAlignRight, bounds, lineWidth)
 
         assertEquals(4f, leftX, 0.001f)
         assertEquals(90f, defaultX, 0.001f) // 150 - 60 = 90

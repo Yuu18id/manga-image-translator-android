@@ -49,14 +49,8 @@ class OnnxModelManager @Inject constructor(
 
     fun getModelFile(type: ModelType): File? {
         val file = File(modelDir, type.filename)
-        val extDir = context.getExternalFilesDir("models")
-        val extFile = if (extDir != null) File(extDir, type.filename) else null
 
-        if (extFile != null && extFile.exists() && extFile.length() > 0) {
-            return extFile
-        }
-
-        // Check if bundled in app assets and extract if missing or size mismatch
+        // 1. Check if bundled in app assets and extract if missing or size mismatch
         try {
             val assetFd = try { context.assets.openFd("models/${type.filename}") } catch (e: Exception) { null }
             val assetSize = assetFd?.length ?: -1L
@@ -70,7 +64,7 @@ class OnnxModelManager @Inject constructor(
                 }
             }
 
-            // Extract from assets
+            // Extract from assets to internal private storage
             val assetStream = try { context.assets.open("models/${type.filename}") } catch (e: Exception) { null }
             if (assetStream != null) {
                 android.util.Log.i(TAG, "Extracting asset model 'models/${type.filename}' to ${file.absolutePath}...")
@@ -92,7 +86,32 @@ class OnnxModelManager @Inject constructor(
             if (file.exists() && file.length() > 0) return file
         }
 
-        return if (file.exists() && file.length() > 0) file else null
+        if (file.exists() && file.length() > 0) {
+            return file
+        }
+
+        // 2. Check external directory for optional/sideloaded models (e.g. INT8 quantized models not bundled in assets)
+        val extDir = context.getExternalFilesDir("models")
+        val extFile = if (extDir != null) File(extDir, type.filename) else null
+        if (extFile != null && extFile.exists() && extFile.length() > 1024) {
+            // Safely copy sideloaded external model into private app storage
+            try {
+                if (!file.exists() || file.length() != extFile.length()) {
+                    android.util.Log.i(TAG, "Copying external model ${extFile.name} to internal secure storage...")
+                    extFile.inputStream().use { input ->
+                        file.outputStream().use { output ->
+                            input.copyTo(output)
+                        }
+                    }
+                }
+                if (file.exists() && file.length() > 0) return file
+            } catch (e: Exception) {
+                android.util.Log.w(TAG, "Failed copying external model to internal storage, falling back to extFile: ${e.message}")
+                return extFile
+            }
+        }
+
+        return null
     }
 
     fun getModelSize(type: ModelType): Long {
@@ -106,10 +125,11 @@ class OnnxModelManager @Inject constructor(
             sessionCache[type]?.let { return it }
 
             val file = getModelFile(type) ?: throw IllegalStateException("Model ${type.filename} not available in assets or storage")
-            val options = configureSessionOptions(type, useNnapi)
             
             android.util.Log.i(TAG, "Creating ONNX Session for ${type.name} (file=${file.name}, size=${file.length() / (1024 * 1024)}MB, useNnapi=$useNnapi)")
-            val session = ortEnvironment.createSession(file.absolutePath, options)
+            val session = configureSessionOptions(type, useNnapi).use { options ->
+                ortEnvironment.createSession(file.absolutePath, options)
+            }
             sessionCache[type] = session
             return session
         }
@@ -118,6 +138,18 @@ class OnnxModelManager @Inject constructor(
     fun releaseSession(type: ModelType) {
         synchronized(sessionCache) {
             sessionCache.remove(type)?.close()
+        }
+    }
+
+    fun releaseHeavySessions() {
+        synchronized(sessionCache) {
+            val encoder = sessionCache.remove(ModelType.MANGA_OCR_ENCODER)
+            val decoder = sessionCache.remove(ModelType.MANGA_OCR_DECODER)
+            encoder?.close()
+            decoder?.close()
+            if (encoder != null || decoder != null) {
+                android.util.Log.i(TAG, "Released heavy Manga-OCR ONNX sessions to reclaim native memory")
+            }
         }
     }
 

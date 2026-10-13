@@ -13,6 +13,8 @@ import com.yuu18id.mangatranslator.domain.model.Quadrilateral
 import com.yuu18id.mangatranslator.domain.model.TextBlock
 import com.yuu18id.mangatranslator.domain.model.TextColor
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -35,6 +37,51 @@ class MangaOcrEngine @Inject constructor(
         private const val TARGET_IMAGE_SIZE = 224
         private const val MAX_GENERATION_LENGTH = 100
         private val mutex = Mutex()
+
+        /**
+         * Detects repetitive token generation loops:
+         * 1. Single token repetition:
+         *    - Punctuation (ellipsis, dots, etc.) is allowed up to 12 consecutive occurrences.
+         *    - Content tokens are restricted to 5 consecutive occurrences.
+         * 2. 2-token cycle repetition: [A, B, A, B, A, B] (3 cycles = 6 tokens).
+         * 3. 3-token cycle repetition: [A, B, C, A, B, C, A, B, C] (3 cycles = 9 tokens).
+         */
+        internal fun hasRepetitiveTokenLoop(
+            generatedTokenIds: List<Long>,
+            nextTokenId: Long,
+            isPunctuation: Boolean
+        ): Boolean {
+            val singleThreshold = if (isPunctuation) 12 else 5
+            if (generatedTokenIds.size >= singleThreshold &&
+                generatedTokenIds.takeLast(singleThreshold).all { it == nextTokenId }) {
+                return true
+            }
+
+            val candidateList = generatedTokenIds + nextTokenId
+
+            // Check 2-token cycle repetition (length 6): [A, B, A, B, A, B]
+            if (candidateList.size >= 6) {
+                val last6 = candidateList.takeLast(6)
+                if (last6[0] == last6[2] && last6[2] == last6[4] &&
+                    last6[1] == last6[3] && last6[3] == last6[5] &&
+                    last6[0] != last6[1]) {
+                    return true
+                }
+            }
+
+            // Check 3-token cycle repetition (length 9): [A, B, C, A, B, C, A, B, C]
+            if (candidateList.size >= 9) {
+                val last9 = candidateList.takeLast(9)
+                if (last9[0] == last9[3] && last9[3] == last9[6] &&
+                    last9[1] == last9[4] && last9[4] == last9[7] &&
+                    last9[2] == last9[5] && last9[5] == last9[8] &&
+                    (last9[0] != last9[1] || last9[1] != last9[2])) {
+                    return true
+                }
+            }
+
+            return false
+        }
 
         /**
          * Determines whether a block is a dense multi-column narrative box requiring line-by-line decoding.
@@ -329,6 +376,7 @@ class MangaOcrEngine @Inject constructor(
                                     }
                                     Log.i(TAG, "      [Manga-OCR Retry Line] size=${lineCrop.width}x${lineCrop.height} => \"$lineText\"")
                                 } catch (e: Exception) {
+                                    if (e is kotlinx.coroutines.CancellationException) throw e
                                     Log.e(TAG, "❌ Manga-OCR retry failed on line: ${e.message}", e)
                                     retryLines.add(line.copy(text = "", prob = 0f))
                                 } finally {
@@ -370,6 +418,7 @@ class MangaOcrEngine @Inject constructor(
                         outBlocks.add(updatedBlock)
 
                     } catch (e: Exception) {
+                        if (e is kotlinx.coroutines.CancellationException) throw e
                         Log.e(TAG, "❌ Manga-OCR failed on bubble crop: ${e.message}", e)
                         outBlocks.add(block.copy(text = ""))
                     } finally {
@@ -414,6 +463,7 @@ class MangaOcrEngine @Inject constructor(
                             }
                             Log.i(TAG, "      [Manga-OCR Line] size=${crop.width}x${crop.height} => \"$lineText\"")
                         } catch (e: Exception) {
+                            if (e is kotlinx.coroutines.CancellationException) throw e
                             Log.e(TAG, "❌ Manga-OCR failed on line crop: ${e.message}", e)
                             updatedLines.add(line.copy(text = "", prob = 0f))
                         } finally {
@@ -440,7 +490,7 @@ class MangaOcrEngine @Inject constructor(
         }
     }
 
-    private fun decodeCrop(
+    private suspend fun decodeCrop(
         crop: Bitmap,
         env: ai.onnxruntime.OrtEnvironment,
         encoderSession: ai.onnxruntime.OrtSession,
@@ -491,6 +541,7 @@ class MangaOcrEngine @Inject constructor(
             )
             try {
                 for (step in 0 until MAX_GENERATION_LENGTH) {
+                    kotlinx.coroutines.currentCoroutineContext().ensureActive()
                     val seqLen = inputIdsList.size
                     val inputIdsArray = arrayOf(inputIdsList.toLongArray())
                     val inputIdsTensor = OnnxTensor.createTensor(
@@ -526,19 +577,14 @@ class MangaOcrEngine @Inject constructor(
                             break // EOS reached
                         }
 
-                        // Avoid infinite single-token loops.
-                        // Punctuation/ellipsis (…, ・, ., 。) may legitimately repeat
-                        // 6-10x as leading "……" prefix before kanji appears, so they
-                        // get threshold 12. Content tokens keep threshold 5 to stop
-                        // hallucination loops early (e.g. 119x168 => "....." case).
+                        // Avoid infinite single-token and multi-token cycle loops.
                         val isPunct = try {
                             tokenizer.isPunctuationToken(bestTokenId)
                         } catch (_: Exception) {
                             false
                         }
-                        val repeatThreshold = if (isPunct) 12 else 5
-                        if (generatedTokenIds.size >= repeatThreshold &&
-                            generatedTokenIds.takeLast(repeatThreshold).all { it == bestTokenId }) {
+                        if (hasRepetitiveTokenLoop(generatedTokenIds, bestTokenId, isPunct)) {
+                            Log.w(TAG, "   [Manga-OCR Early Stopping] Repetitive token loop detected at step $step (token=$bestTokenId, punct=$isPunct)")
                             break
                         }
 

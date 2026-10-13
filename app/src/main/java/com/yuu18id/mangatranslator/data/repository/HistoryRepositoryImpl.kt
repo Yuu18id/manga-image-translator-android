@@ -98,16 +98,16 @@ class HistoryRepositoryImpl @Inject constructor(
         val timestamp = if (result.timestamp > 0) result.timestamp else System.currentTimeMillis()
         
         // Save original image (used as original view and thumbnail)
-        val origFile = File(historyDir, "orig_${timestamp}.png")
+        val origFile = File(historyDir, "orig_${timestamp}.webp")
         saveBitmap(result.originalImage, origFile)
 
         // Save translated image (used as result view)
-        val transFile = File(historyDir, "trans_${timestamp}.png")
+        val transFile = File(historyDir, "trans_${timestamp}.webp")
         saveBitmap(result.translatedImage, transFile)
 
         // Save inpainted background image (clean background without text)
         val inpaintFile = if (result.inpaintedImage != null) {
-            val f = File(historyDir, "inpaint_${timestamp}.png")
+            val f = File(historyDir, "inpaint_${timestamp}.webp")
             saveBitmap(result.inpaintedImage, f)
             f.absolutePath
         } else null
@@ -161,7 +161,7 @@ class HistoryRepositoryImpl @Inject constructor(
         }
 
         // 3. Save new translated image
-        val transFile = File(historyDir, "trans_${timestamp}.png")
+        val transFile = File(historyDir, "trans_${timestamp}.webp")
         saveBitmap(result.translatedImage, transFile)
 
         // 4. Inpainted background image
@@ -169,7 +169,7 @@ class HistoryRepositoryImpl @Inject constructor(
             if (!existing.inpaintedPath.isNullOrBlank() && File(existing.inpaintedPath).exists()) {
                 existing.inpaintedPath
             } else {
-                val f = File(historyDir, "inpaint_${timestamp}.png")
+                val f = File(historyDir, "inpaint_${timestamp}.webp")
                 saveBitmap(result.inpaintedImage, f)
                 f.absolutePath
             }
@@ -245,9 +245,7 @@ class HistoryRepositoryImpl @Inject constructor(
 
     private fun saveBitmap(bitmap: Bitmap, file: File) {
         try {
-            FileOutputStream(file).use { out ->
-                bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
-            }
+            com.yuu18id.mangatranslator.data.storage.BitmapStorage.saveToWebp(bitmap, file)
         } catch (e: Exception) {
             android.util.Log.e("MangaTranslator", "Failed to save history bitmap: ${e.message}", e)
         }

@@ -39,7 +39,12 @@ class MediaExporter @Inject constructor(
                 "Pictures/MangaTranslator"
             }
 
-            val sanitizedFileName = sanitizeFileName(fileName)
+            val sanitizedFileName = sanitizeFileName(fileName, sourceFilePath)
+            val mimeType = when {
+                sanitizedFileName.endsWith(".webp", ignoreCase = true) -> "image/webp"
+                sanitizedFileName.endsWith(".jpg", ignoreCase = true) || sanitizedFileName.endsWith(".jpeg", ignoreCase = true) -> "image/jpeg"
+                else -> "image/png"
+            }
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 val resolver = context.contentResolver
@@ -69,7 +74,7 @@ class MediaExporter @Inject constructor(
 
                 val contentValues = ContentValues().apply {
                     put(MediaStore.Images.Media.DISPLAY_NAME, sanitizedFileName)
-                    put(MediaStore.Images.Media.MIME_TYPE, "image/png")
+                    put(MediaStore.Images.Media.MIME_TYPE, mimeType)
                     put(MediaStore.Images.Media.RELATIVE_PATH, "$relativeSubPath/")
                     put(MediaStore.Images.Media.IS_PENDING, 1)
                 }
@@ -105,7 +110,7 @@ class MediaExporter @Inject constructor(
                 android.media.MediaScannerConnection.scanFile(
                     context,
                     arrayOf(destFile.absolutePath),
-                    arrayOf("image/png"),
+                    arrayOf(mimeType),
                     null
                 )
 
@@ -130,22 +135,28 @@ class MediaExporter @Inject constructor(
         successCount
     }
 
-    private fun sanitizeFolderName(name: String): String {
-        return name.replace(Regex("[\\\\/:*?\"<>|]"), "_").trim()
-    }
-
-    private fun sanitizeFileName(name: String): String {
-        val simpleName = File(name).name
-        val sanitized = simpleName.replace(Regex("[\\\\/:*?\"<>|]"), "_").trim()
-        val baseName = if (sanitized.endsWith(".png", ignoreCase = true)) {
-            sanitized
-        } else {
-            "$sanitized.png"
+    companion object {
+        fun sanitizeFolderName(name: String): String {
+            return name.replace(Regex("[\\\\/:*?\"<>|]"), "_").trim()
         }
-        return if (baseName.isBlank() || baseName.equals(".png", ignoreCase = true)) {
-            "translated_${System.currentTimeMillis()}.png"
-        } else {
-            baseName
+
+        fun sanitizeFileName(name: String, sourceFilePath: String? = null): String {
+            val simpleName = File(name).name
+            val sanitized = simpleName.replace(Regex("[\\\\/:*?\"<>|]"), "_").trim()
+            val defaultExt = if (sourceFilePath?.endsWith(".webp", ignoreCase = true) == true) ".webp" else ".png"
+            val baseName = if (sanitized.endsWith(".png", ignoreCase = true) || 
+                sanitized.endsWith(".webp", ignoreCase = true) || 
+                sanitized.endsWith(".jpg", ignoreCase = true) || 
+                sanitized.endsWith(".jpeg", ignoreCase = true)) {
+                sanitized
+            } else {
+                "$sanitized$defaultExt"
+            }
+            return if (baseName.isBlank() || baseName.startsWith(".")) {
+                "translated_${System.currentTimeMillis()}$defaultExt"
+            } else {
+                baseName
+            }
         }
     }
 }

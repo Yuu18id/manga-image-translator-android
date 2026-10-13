@@ -88,6 +88,15 @@ object MangaTextDrawHelper {
         return totalWidth
     }
 
+    fun computeStartX(alignment: TextAlignment, bounds: RectF, lineWidth: Float): Float {
+        val effectiveAlignment = if (alignment == TextAlignment.AUTO) TextAlignment.CENTER else alignment
+        return when (effectiveAlignment) {
+            TextAlignment.LEFT -> bounds.left + 4f
+            TextAlignment.RIGHT -> bounds.right - lineWidth - 4f
+            else -> bounds.centerX() - lineWidth / 2f
+        }
+    }
+
     /**
      * Draws horizontal text lines with vector-rendered manga hearts matching the font color and stroke.
      */
@@ -100,7 +109,6 @@ object MangaTextDrawHelper {
         alignment: TextAlignment,
         disableFontBorder: Boolean = false
     ) {
-        val effectiveAlignment = if (alignment == TextAlignment.AUTO) TextAlignment.CENTER else alignment
         val fontMetrics = textPaint.fontMetrics
         val textHeight = fontMetrics.descent - fontMetrics.ascent
         val lineSpacing = layoutResult.fontSize * 1.18f
@@ -111,11 +119,7 @@ object MangaTextDrawHelper {
 
         for ((index, line) in layoutResult.lines.withIndex()) {
             val lineWidth = measureLineWidth(line, textPaint)
-            val startX = when (effectiveAlignment) {
-                TextAlignment.LEFT -> bounds.left + 4f
-                TextAlignment.RIGHT -> bounds.right - lineWidth - 4f
-                else -> bounds.centerX() - lineWidth / 2f
-            }
+            val startX = computeStartX(alignment, bounds, lineWidth)
             val lineY = firstLineBaseline + index * lineSpacing
 
             if (!line.contains("♥") && !line.contains("♡")) {

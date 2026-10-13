@@ -39,17 +39,18 @@ object DetectionPostProcessor {
         val mask = Mat.zeros(yMaxInt - yMinInt + 1, xMaxInt - xMinInt + 1, CvType.CV_8UC1)
         val shiftedPoints = points.map { Point(it.x - xMinInt, it.y - yMinInt) }
         val matOfPoint = MatOfPoint().apply { fromList(shiftedPoints) }
+        var submat: Mat? = null
         
-        Imgproc.fillPoly(mask, listOf(matOfPoint), Scalar(255.0))
-        
-        val submat = bitmap.submat(yMinInt, yMaxInt + 1, xMinInt, xMaxInt + 1)
-        val mean = Core.mean(submat, mask)
-        
-        mask.release()
-        submat.release()
-        matOfPoint.release()
-        
-        return mean.`val`[0].toFloat()
+        return try {
+            Imgproc.fillPoly(mask, listOf(matOfPoint), Scalar(255.0))
+            submat = bitmap.submat(yMinInt, yMaxInt + 1, xMinInt, xMaxInt + 1)
+            val mean = Core.mean(submat, mask)
+            mean.`val`[0].toFloat()
+        } finally {
+            mask.release()
+            submat?.release()
+            matOfPoint.release()
+        }
     }
 
     fun unclipContour(contour: MatOfPoint, unclipRatio: Float): List<Point> {

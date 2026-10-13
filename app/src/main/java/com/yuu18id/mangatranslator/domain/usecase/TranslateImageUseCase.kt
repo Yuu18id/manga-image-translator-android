@@ -72,28 +72,17 @@ class TranslateImageUseCase @Inject constructor(
 
             if (detections.textlines.isEmpty()) {
                 Log.w(TAG, "⚠ No textlines detected in image. Skipping remaining stages.")
-                val endTime = System.currentTimeMillis()
-                emit(
-                    PipelineState.Completed(
-                        TranslationResult(
-                            originalImage = image,
-                            translatedImage = image,
-                            textBlocks = emptyList(),
-                            config = config,
-                            timestamp = startTime,
-                            processingTimeMs = endTime - startTime
-                        )
-                    )
-                )
+                emit(PipelineState.Completed(createEmptyResult(image, config, startTime)))
                 return@flow
             }
 
             executePipelineInternal(image, detections.textlines, detections.mask, config, startTime).collect {
                 emit(it)
             }
-        } catch (exception: Exception) {
-            Log.e(TAG, "❌ PIPELINE ERROR at stage $currentStage: ${exception.message}", exception)
-            emit(PipelineState.Error(currentStage, exception.message ?: "Unknown error", exception))
+        } catch (t: Throwable) {
+            val (errorMessage, causeException) = formatPipelineError(t)
+            Log.e(TAG, "❌ PIPELINE ERROR at stage $currentStage: $errorMessage", t)
+            emit(PipelineState.Error(currentStage, errorMessage, causeException))
         }
     }.flowOn(Dispatchers.Default)
 
@@ -109,19 +98,7 @@ class TranslateImageUseCase @Inject constructor(
         Log.i(TAG, "==================================================")
 
         if (customTextlines.isEmpty()) {
-            val endTime = System.currentTimeMillis()
-            emit(
-                PipelineState.Completed(
-                    TranslationResult(
-                        originalImage = image,
-                        translatedImage = image,
-                        textBlocks = emptyList(),
-                        config = config,
-                        timestamp = startTime,
-                        processingTimeMs = endTime - startTime
-                    )
-                )
-            )
+            emit(PipelineState.Completed(createEmptyResult(image, config, startTime)))
             return@flow
         }
 
@@ -129,9 +106,10 @@ class TranslateImageUseCase @Inject constructor(
             executePipelineInternal(image, customTextlines, rawMask, config, startTime).collect {
                 emit(it)
             }
-        } catch (exception: Exception) {
-            Log.e(TAG, "❌ PIPELINE ERROR from custom detections: ${exception.message}", exception)
-            emit(PipelineState.Error(PipelineStage.OCR, exception.message ?: "Unknown error", exception))
+        } catch (t: Throwable) {
+            val (errorMessage, causeException) = formatPipelineError(t)
+            Log.e(TAG, "❌ PIPELINE ERROR from custom detections: $errorMessage", t)
+            emit(PipelineState.Error(PipelineStage.OCR, errorMessage, causeException))
         }
     }.flowOn(Dispatchers.Default)
 
@@ -148,18 +126,7 @@ class TranslateImageUseCase @Inject constructor(
             // Concurrently start Inpainting in background only for lightweight CTC OCR
             val inpaintingDeferred = if (!isMangaOcr) {
                 async(Dispatchers.Default) {
-                    val maskStart = System.currentTimeMillis()
-                    val refinedMask = maskRefinement.refine(rawMask, textlines, config.inpainter, image.width, image.height)
-                    if (rawMask != null && !rawMask.isRecycled) {
-                        try { rawMask.recycle() } catch (_: Throwable) {}
-                    }
-                    Log.i(TAG, "✓ [ASYNC MASK REFINEMENT] Completed in ${System.currentTimeMillis() - maskStart}ms")
-
-                    val inpaintStart = System.currentTimeMillis()
-                    val inpainted = inpainter.inpaint(image, refinedMask, config.inpainter)
-                    refinedMask.recycle()
-                    Log.i(TAG, "✓ [ASYNC INPAINTING] Completed in ${System.currentTimeMillis() - inpaintStart}ms")
-                    inpainted
+                    performInpainting(image, textlines, rawMask, config.inpainter, isAsync = true)
                 }
             } else null
 
@@ -286,22 +253,8 @@ class TranslateImageUseCase @Inject constructor(
 
             // Await or execute inpainting completion
             emit(PipelineState.Progress(PipelineStage.INPAINTING, 0.85f, "Finishing inpainting and preparing layout..."))
-            val inpaintedImage = if (inpaintingDeferred != null) {
-                inpaintingDeferred.await()
-            } else {
-                val maskStart = System.currentTimeMillis()
-                val refinedMask = maskRefinement.refine(rawMask, textlines, config.inpainter, image.width, image.height)
-                if (rawMask != null && !rawMask.isRecycled) {
-                    try { rawMask.recycle() } catch (_: Throwable) {}
-                }
-                Log.i(TAG, "✓ [SEQUENTIAL MASK REFINEMENT] Completed in ${System.currentTimeMillis() - maskStart}ms")
-
-                val inpaintStart = System.currentTimeMillis()
-                val inpainted = inpainter.inpaint(image, refinedMask, config.inpainter)
-                refinedMask.recycle()
-                Log.i(TAG, "✓ [SEQUENTIAL INPAINTING] Completed in ${System.currentTimeMillis() - inpaintStart}ms")
-                inpainted
-            }
+            val inpaintedImage = inpaintingDeferred?.await()
+                ?: performInpainting(image, textlines, rawMask, config.inpainter, isAsync = false)
 
             // 7. Rendering
             currentStage = PipelineStage.RENDERING
@@ -332,4 +285,49 @@ class TranslateImageUseCase @Inject constructor(
             )
         }
     }.flowOn(Dispatchers.Default)
+
+    private fun createEmptyResult(image: Bitmap, config: TranslationConfig, startTime: Long): TranslationResult {
+        val endTime = System.currentTimeMillis()
+        return TranslationResult(
+            originalImage = image,
+            translatedImage = image,
+            textBlocks = emptyList(),
+            config = config,
+            timestamp = startTime,
+            processingTimeMs = endTime - startTime
+        )
+    }
+
+    private fun formatPipelineError(t: Throwable): Pair<String, Exception> {
+        val errorMessage = if (t is OutOfMemoryError) {
+            System.gc()
+            "Memori tidak mencukupi untuk memproses gambar (Out of Memory). Coba gunakan gambar dengan resolusi lebih kecil."
+        } else {
+            t.message ?: "Unknown error"
+        }
+        val causeException = if (t is Exception) t else Exception(errorMessage, t)
+        return errorMessage to causeException
+    }
+
+    private suspend fun performInpainting(
+        image: Bitmap,
+        textlines: List<Quadrilateral>,
+        rawMask: Bitmap?,
+        config: com.yuu18id.mangatranslator.domain.model.InpaintConfig,
+        isAsync: Boolean
+    ): Bitmap {
+        val mode = if (isAsync) "ASYNC" else "SEQUENTIAL"
+        val maskStart = System.currentTimeMillis()
+        val refinedMask = maskRefinement.refine(rawMask, textlines, config, image.width, image.height)
+        if (rawMask != null && !rawMask.isRecycled) {
+            try { rawMask.recycle() } catch (_: Throwable) {}
+        }
+        Log.i(TAG, "✓ [$mode MASK REFINEMENT] Completed in ${System.currentTimeMillis() - maskStart}ms")
+
+        val inpaintStart = System.currentTimeMillis()
+        val inpainted = inpainter.inpaint(image, refinedMask, config)
+        refinedMask.recycle()
+        Log.i(TAG, "✓ [$mode INPAINTING] Completed in ${System.currentTimeMillis() - inpaintStart}ms")
+        return inpainted
+    }
 }

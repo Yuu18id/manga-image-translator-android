@@ -2,6 +2,7 @@ package com.yuu18id.mangatranslator.ui.batch
 
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -48,7 +49,7 @@ fun BatchScreen(
     val context = LocalContext.current
 
     val multiImagePicker = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetMultipleContents()
+        contract = ActivityResultContracts.PickMultipleVisualMedia()
     ) { uris: List<Uri> ->
         if (uris.isNotEmpty()) {
             viewModel.addImages(uris)
@@ -148,7 +149,11 @@ fun BatchScreen(
             floatingActionButton = {
                 if (!uiState.isProcessing && uiState.pages.isNotEmpty()) {
                     FloatingActionButton(
-                        onClick = { multiImagePicker.launch("image/*") },
+                        onClick = {
+                            multiImagePicker.launch(
+                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                            )
+                        },
                         containerColor = MaterialTheme.colorScheme.primaryContainer,
                         contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
                         modifier = Modifier.padding(bottom = if (uiState.completedCount < uiState.pages.size) 76.dp else 8.dp)
@@ -199,7 +204,11 @@ fun BatchScreen(
                         )
                         Spacer(modifier = Modifier.height(24.dp))
                         Button(
-                            onClick = { multiImagePicker.launch("image/*") },
+                            onClick = {
+                                multiImagePicker.launch(
+                                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                                )
+                            },
                             contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp)
                         ) {
                             Icon(Icons.Default.AddPhotoAlternate, contentDescription = null)
@@ -479,10 +488,17 @@ fun BatchPageCard(
     onRetry: () -> Unit = {}
 ) {
     val context = LocalContext.current
-    val imageRequest = remember(item.uriString) {
+    val imageSource = remember(item.uriString, item.resultPath, item.status) {
+        if (item.status == BatchPageStatus.COMPLETED && !item.resultPath.isNullOrBlank()) {
+            java.io.File(item.resultPath)
+        } else {
+            Uri.parse(item.uriString)
+        }
+    }
+    val imageRequest = remember(imageSource) {
         ImageRequest.Builder(context)
-            .data(Uri.parse(item.uriString))
-            .crossfade(false)
+            .data(imageSource)
+            .crossfade(true)
             .size(160, 220)
             .build()
     }

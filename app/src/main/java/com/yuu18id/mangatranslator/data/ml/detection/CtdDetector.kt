@@ -41,10 +41,6 @@ class CtdDetector @Inject constructor(
         val originalW = image.width
         val originalH = image.height
 
-        val mat = Mat()
-        Utils.bitmapToMat(image, mat)
-        Imgproc.cvtColor(mat, mat, Imgproc.COLOR_RGBA2RGB)
-
         val inputTensorInfo = session.inputInfo.values.firstOrNull()?.info as? ai.onnxruntime.TensorInfo
         val shape = inputTensorInfo?.shape
         val modelTargetH = shape?.getOrNull(2)?.takeIf { it > 0 }?.toInt() ?: TARGET_SIZE
@@ -53,43 +49,11 @@ class CtdDetector @Inject constructor(
         val newW = (originalW * scale).toInt()
         val newH = (originalH * scale).toInt()
 
-        val resizedMat = Mat()
-        Imgproc.resize(mat, resizedMat, Size(newW.toDouble(), newH.toDouble()))
-
-        val dw = targetSize - newW
-        val dh = targetSize - newH
-        val paddedMat = Mat()
-        Core.copyMakeBorder(resizedMat, paddedMat, 0, dh, 0, dw, Core.BORDER_CONSTANT, org.opencv.core.Scalar(127.5, 127.5, 127.5))
-
-        val byteBuffer = java.nio.ByteBuffer.allocateDirect(3 * targetSize * targetSize * 4)
-            .order(java.nio.ByteOrder.nativeOrder())
-        val floatBuffer = byteBuffer.asFloatBuffer()
-
-        val bytes = ByteArray(targetSize * targetSize * 3)
-        paddedMat.get(0, 0, bytes)
-
-        val planeSize = targetSize * targetSize
-        val inv255 = 1.0f / 255.0f
-        for (h in 0 until targetSize) {
-            val rowOffset = h * targetSize
-            for (w in 0 until targetSize) {
-                val baseIdx = (rowOffset + w) * 3
-                val r = (bytes[baseIdx].toInt() and 0xFF) * inv255
-                val g = (bytes[baseIdx + 1].toInt() and 0xFF) * inv255
-                val b = (bytes[baseIdx + 2].toInt() and 0xFF) * inv255
-                
-                val pixelOffset = rowOffset + w
-                floatBuffer.put(pixelOffset, r)
-                floatBuffer.put(planeSize + pixelOffset, g)
-                floatBuffer.put(2 * planeSize + pixelOffset, b)
-            }
-        }
-        floatBuffer.position(0)
-
-        var inputTensor: OnnxTensor? = null
-        var result: ai.onnxruntime.OrtSession.Result? = null
-        val maskMat = Mat(targetSize, targetSize, CvType.CV_32FC1)
-        val linesMat = Mat(targetSize, targetSize, CvType.CV_32FC1)
+        var mat: Mat? = null
+        var resizedMat: Mat? = null
+        var paddedMat: Mat? = null
+        var maskMat: Mat? = null
+        var linesMat: Mat? = null
         var maskCropped: Mat? = null
         var linesCropped: Mat? = null
         val maskCropped8u = Mat()
@@ -97,8 +61,49 @@ class CtdDetector @Inject constructor(
         var binaryLines: Mat? = null
         val hierarchy = Mat()
         val mask8u = Mat()
+        var inputTensor: OnnxTensor? = null
+        var result: ai.onnxruntime.OrtSession.Result? = null
 
         try {
+            mat = Mat()
+            Utils.bitmapToMat(image, mat)
+            Imgproc.cvtColor(mat, mat, Imgproc.COLOR_RGBA2RGB)
+
+            resizedMat = Mat()
+            Imgproc.resize(mat, resizedMat, Size(newW.toDouble(), newH.toDouble()))
+
+            val dw = targetSize - newW
+            val dh = targetSize - newH
+            paddedMat = Mat()
+            Core.copyMakeBorder(resizedMat, paddedMat, 0, dh, 0, dw, Core.BORDER_CONSTANT, org.opencv.core.Scalar(127.5, 127.5, 127.5))
+
+            val byteBuffer = java.nio.ByteBuffer.allocateDirect(3 * targetSize * targetSize * 4)
+                .order(java.nio.ByteOrder.nativeOrder())
+            val floatBuffer = byteBuffer.asFloatBuffer()
+
+            val bytes = ByteArray(targetSize * targetSize * 3)
+            paddedMat.get(0, 0, bytes)
+
+            val planeSize = targetSize * targetSize
+            val inv255 = 1.0f / 255.0f
+            for (h in 0 until targetSize) {
+                val rowOffset = h * targetSize
+                for (w in 0 until targetSize) {
+                    val baseIdx = (rowOffset + w) * 3
+                    val r = (bytes[baseIdx].toInt() and 0xFF) * inv255
+                    val g = (bytes[baseIdx + 1].toInt() and 0xFF) * inv255
+                    val b = (bytes[baseIdx + 2].toInt() and 0xFF) * inv255
+                    
+                    val pixelOffset = rowOffset + w
+                    floatBuffer.put(pixelOffset, r)
+                    floatBuffer.put(planeSize + pixelOffset, g)
+                    floatBuffer.put(2 * planeSize + pixelOffset, b)
+                }
+            }
+            floatBuffer.position(0)
+
+            maskMat = Mat(targetSize, targetSize, CvType.CV_32FC1)
+            linesMat = Mat(targetSize, targetSize, CvType.CV_32FC1)
             inputTensor = OnnxTensor.createTensor(
                 env,
                 floatBuffer,
@@ -183,11 +188,11 @@ class CtdDetector @Inject constructor(
         } finally {
             inputTensor?.close()
             result?.close()
-            mat.release()
-            resizedMat.release()
-            paddedMat.release()
-            maskMat.release()
-            linesMat.release()
+            mat?.release()
+            resizedMat?.release()
+            paddedMat?.release()
+            maskMat?.release()
+            linesMat?.release()
             maskCropped?.release()
             linesCropped?.release()
             maskCropped8u.release()

@@ -32,7 +32,11 @@ import com.yuu18id.mangatranslator.ui.translate.TranslateScreen
 sealed class Screen(val route: String) {
     object Home : Screen("home")
     object Translate : Screen("translate?imageUri={imageUri}") {
-        fun createRoute(imageUri: String?) = "translate?imageUri=${imageUri ?: ""}"
+        fun createRoute(imageUri: String?): String {
+            if (imageUri.isNullOrBlank()) return "translate"
+            val encoded = java.net.URLEncoder.encode(imageUri, java.nio.charset.StandardCharsets.UTF_8.name())
+            return "translate?imageUri=$encoded"
+        }
     }
     object Batch : Screen("batch")
     object Reader : Screen("reader/{translationId}") {
@@ -53,11 +57,7 @@ fun AppNavigation(initialImageUri: android.net.Uri? = null) {
         Screen.Gallery.route
     )
 
-    val startDestination = if (initialImageUri != null) {
-        Screen.Translate.createRoute(initialImageUri.toString())
-    } else {
-        Screen.Home.route
-    }
+    val startDestination = Screen.Home.route
 
     androidx.compose.runtime.LaunchedEffect(initialImageUri) {
         if (initialImageUri != null) {
@@ -160,7 +160,14 @@ fun AppNavigation(initialImageUri: android.net.Uri? = null) {
                 route = Screen.Translate.route,
                 arguments = listOf(navArgument("imageUri") { type = NavType.StringType; nullable = true; defaultValue = null })
             ) { backStackEntry ->
-                val imageUri = backStackEntry.arguments?.getString("imageUri")
+                val rawUri = backStackEntry.arguments?.getString("imageUri")
+                val imageUri = if (!rawUri.isNullOrBlank()) {
+                    try {
+                        java.net.URLDecoder.decode(rawUri, java.nio.charset.StandardCharsets.UTF_8.name())
+                    } catch (_: Exception) {
+                        rawUri
+                    }
+                } else null
                 TranslateScreen(
                     imageUri = imageUri,
                     onNavigateBack = { navController.popBackStack() },

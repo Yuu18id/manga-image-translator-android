@@ -1,0 +1,669 @@
+package com.yuu18id.mangatranslator.service
+
+import android.content.Context
+import android.graphics.Bitmap
+import android.net.Uri
+import android.provider.OpenableColumns
+import androidx.compose.ui.graphics.asImageBitmap
+import com.yuu18id.mangatranslator.data.ml.OnnxModelManager
+import com.yuu18id.mangatranslator.data.ml.TextRenderer
+import com.yuu18id.mangatranslator.domain.model.*
+import com.yuu18id.mangatranslator.domain.repository.HistoryRepository
+import com.yuu18id.mangatranslator.domain.repository.SettingsRepository
+import com.yuu18id.mangatranslator.domain.usecase.TranslateImageUseCase
+import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.util.*
+import javax.inject.Inject
+import javax.inject.Singleton
+
+/**
+ * Singleton manager for batch manga translation.
+ * Holds state and executes translation independently of UI screen lifecycles,
+ * allowing batch operations to continue uninterrupted in the background.
+ */
+@Singleton
+class BatchTranslationManager @Inject constructor(
+    private val translateImageUseCase: TranslateImageUseCase,
+    private val textRenderer: TextRenderer,
+    private val settingsRepository: SettingsRepository,
+    private val historyRepository: HistoryRepository,
+    @ApplicationContext private val context: Context,
+    private val onnxModelManager: OnnxModelManager
+) {
+
+    private val managerScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
+    private val _uiState = MutableStateFlow(BatchUiState())
+    val uiState: StateFlow<BatchUiState> = _uiState.asStateFlow()
+
+    private var batchJob: Job? = null
+    private var detectionReviewDeferred: CompletableDeferred<List<Quadrilateral>?>? = null
+    private var currentReviewRawMask: Bitmap? = null
+
+    private var currentEditingInpaintedBitmap: Bitmap? = null
+    private var currentEditingOriginalBitmap: Bitmap? = null
+
+    init {
+        managerScope.launch {
+            val config = settingsRepository.getTranslationConfig().first()
+            _uiState.update {
+                it.copy(
+                    sourceLang = config.translator.sourceLang,
+                    targetLang = config.translator.targetLang,
+                    translatorType = config.translator.translatorType
+                )
+            }
+        }
+    }
+
+    fun addImages(uris: List<Uri>) {
+        if (uris.isEmpty()) return
+        managerScope.launch(Dispatchers.IO) {
+            val currentPages = _uiState.value.pages.toMutableList()
+            val startIndex = currentPages.size
+            uris.forEachIndexed { i, uri ->
+                try {
+                    context.contentResolver.takePersistableUriPermission(
+                        uri,
+                        android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    )
+                } catch (_: SecurityException) {
+                    // Some providers do not support persistable permissions
+                } catch (_: Throwable) {}
+
+                val fileName = queryFileName(uri) ?: "Page_${startIndex + i + 1}.jpg"
+                val item = BatchPageItem(
+                    id = UUID.randomUUID().toString(),
+                    uriString = uri.toString(),
+                    fileName = fileName,
+                    orderIndex = startIndex + i + 1
+                )
+                currentPages.add(item)
+            }
+            _uiState.update { it.copy(pages = currentPages) }
+        }
+    }
+
+    fun movePageUp(index: Int) {
+        if (index <= 0 || index >= _uiState.value.pages.size) return
+        val pages = _uiState.value.pages.toMutableList()
+        val item = pages.removeAt(index)
+        pages.add(index - 1, item)
+        updateOrderIndices(pages)
+    }
+
+    fun movePageDown(index: Int) {
+        if (index < 0 || index >= _uiState.value.pages.size - 1) return
+        val pages = _uiState.value.pages.toMutableList()
+        val item = pages.removeAt(index)
+        pages.add(index + 1, item)
+        updateOrderIndices(pages)
+    }
+
+    fun removePage(pageId: String) {
+        val pages = _uiState.value.pages.filter { it.id != pageId }.toMutableList()
+        updateOrderIndices(pages)
+    }
+
+    fun sortByFileName() {
+        val pages = _uiState.value.pages.sortedWith(NaturalOrderComparator { it.fileName }).toMutableList()
+        updateOrderIndices(pages)
+    }
+
+    private fun updateOrderIndices(pages: MutableList<BatchPageItem>) {
+        val reindexed = pages.mapIndexed { i, p -> p.copy(orderIndex = i + 1) }
+        _uiState.update { it.copy(pages = reindexed) }
+    }
+
+    fun clearAll() {
+        if (_uiState.value.isProcessing) {
+            cancelBatchTranslation()
+        }
+        onnxModelManager.releaseHeavySessions()
+        _uiState.update {
+            it.copy(
+                pages = emptyList(),
+                isProcessing = false,
+                currentProcessingIndex = -1,
+                overallProgress = 0f,
+                completedCount = 0,
+                failedCount = 0,
+                error = null,
+                currentBatchId = null,
+                currentBatchName = ""
+            )
+        }
+    }
+
+    fun updateAlbumName(newName: String) {
+        val trimmed = newName.trim()
+        if (trimmed.isBlank()) return
+        val batchId = _uiState.value.currentBatchId
+        val completedIds = _uiState.value.pages.mapNotNull { it.historyId }
+
+        _uiState.update { it.copy(currentBatchName = trimmed) }
+
+        managerScope.launch(Dispatchers.IO) {
+            if (!batchId.isNullOrBlank()) {
+                historyRepository.updateBatchName(batchId, trimmed)
+            } else if (completedIds.isNotEmpty()) {
+                historyRepository.updateBatchNameByIds(completedIds, trimmed)
+            }
+        }
+    }
+
+    fun setSourceLang(lang: Language?) {
+        _uiState.update { it.copy(sourceLang = lang) }
+    }
+
+    fun setTargetLang(lang: Language) {
+        _uiState.update { it.copy(targetLang = lang) }
+    }
+
+    fun setTranslatorType(type: TranslatorType) {
+        _uiState.update { it.copy(translatorType = type) }
+    }
+
+    fun toggleReviewMode() {
+        _uiState.update { it.copy(isReviewModeEnabled = !it.isReviewModeEnabled) }
+    }
+
+    // Detection Review Handling
+    fun confirmDetections(curatedQuads: List<Quadrilateral>) {
+        _uiState.update {
+            it.copy(
+                isShowingDetectionEditor = false,
+                reviewImageBitmap = null,
+                pendingDetections = emptyList(),
+                reviewPageIndex = -1
+            )
+        }
+        detectionReviewDeferred?.complete(curatedQuads)
+        detectionReviewDeferred = null
+    }
+
+    fun dismissDetectionEditor() {
+        _uiState.update {
+            it.copy(
+                isShowingDetectionEditor = false,
+                reviewImageBitmap = null,
+                pendingDetections = emptyList(),
+                reviewPageIndex = -1
+            )
+        }
+        detectionReviewDeferred?.complete(null)
+        detectionReviewDeferred = null
+    }
+
+    // Render Typeset Editor Handling
+    fun openRenderEditor(pageIndex: Int) {
+        val page = _uiState.value.pages.getOrNull(pageIndex) ?: return
+        val historyId = page.historyId ?: return
+
+        managerScope.launch(Dispatchers.IO) {
+            val record = historyRepository.getFullHistoryRecord(historyId)
+            if (record != null && record.inpaintedBitmap != null) {
+                currentEditingInpaintedBitmap = record.inpaintedBitmap
+                currentEditingOriginalBitmap = record.originalBitmap ?: record.inpaintedBitmap
+                _uiState.update {
+                    it.copy(
+                        isShowingRenderEditor = true,
+                        renderEditorOriginalBitmap = record.originalBitmap?.asImageBitmap() ?: record.inpaintedBitmap.asImageBitmap(),
+                        renderEditorInpaintedBitmap = record.inpaintedBitmap.asImageBitmap(),
+                        renderEditorBlocks = record.textBlocks,
+                        editingHistoryId = historyId,
+                        editingPageIndex = pageIndex
+                    )
+                }
+            }
+        }
+    }
+
+    fun dismissRenderEditor() {
+        _uiState.update {
+            it.copy(
+                isShowingRenderEditor = false,
+                renderEditorOriginalBitmap = null,
+                renderEditorInpaintedBitmap = null,
+                renderEditorBlocks = emptyList(),
+                editingHistoryId = null,
+                editingPageIndex = -1
+            )
+        }
+        currentEditingInpaintedBitmap = null
+        currentEditingOriginalBitmap = null
+    }
+
+    fun applyEditedRender(updatedBlocks: List<TextBlock>) {
+        val inpainted = currentEditingInpaintedBitmap ?: return
+        val historyId = _uiState.value.editingHistoryId ?: return
+        val pageIndex = _uiState.value.editingPageIndex
+
+        dismissRenderEditor()
+
+        managerScope.launch {
+            try {
+                val savedConfig = settingsRepository.getTranslationConfig().first()
+                val (newFinalImage, finalizedBlocks) = withContext(Dispatchers.Default) {
+                    textRenderer.renderWithUpdatedBlocks(inpainted, updatedBlocks, savedConfig.render)
+                }
+
+                val original = currentEditingOriginalBitmap ?: inpainted
+                val updatedResult = TranslationResult(
+                    originalImage = original,
+                    translatedImage = newFinalImage,
+                    textBlocks = finalizedBlocks,
+                    config = savedConfig,
+                    timestamp = System.currentTimeMillis(),
+                    processingTimeMs = 0L,
+                    inpaintedImage = inpainted
+                )
+                historyRepository.updateTranslation(historyId, updatedResult)
+
+                if (pageIndex in _uiState.value.pages.indices) {
+                    _uiState.update { current ->
+                        val updatedList = current.pages.toMutableList()
+                        updatedList[pageIndex] = updatedList[pageIndex].copy(
+                            status = BatchPageStatus.COMPLETED,
+                            stageMessage = ""
+                        )
+                        current.copy(pages = updatedList)
+                    }
+                }
+            } catch (e: Exception) {
+                _uiState.update { it.copy(error = "Typeset update error: ${e.message}") }
+            }
+        }
+    }
+
+    fun startBatchTranslation(singlePageIndex: Int? = null) {
+        val state = _uiState.value
+        val pagesToProcess = state.pages
+        if (pagesToProcess.isEmpty() || state.isProcessing) return
+
+        batchJob?.cancel()
+        batchJob = managerScope.launch {
+            val initialCompletedCount = pagesToProcess.count { it.status == BatchPageStatus.COMPLETED }
+            val total = pagesToProcess.size
+            val initialProgress = if (total > 0) (initialCompletedCount.toFloat() / total.toFloat()).coerceIn(0f, 1f) else 0f
+
+            // Prepare pages: reset FAILED / CANCELLED status for pages to be translated
+            val preparedPages = pagesToProcess.mapIndexed { index, page ->
+                if (singlePageIndex != null) {
+                    if (index == singlePageIndex && page.status != BatchPageStatus.COMPLETED) {
+                        page.copy(status = BatchPageStatus.QUEUED, errorMessage = null, stageMessage = "")
+                    } else page
+                } else {
+                    if (page.status != BatchPageStatus.COMPLETED) {
+                        page.copy(status = BatchPageStatus.QUEUED, errorMessage = null, stageMessage = "")
+                    } else page
+                }
+            }
+
+            val remainingFailed = preparedPages.count { it.status == BatchPageStatus.FAILED }
+
+            _uiState.update {
+                it.copy(
+                    isProcessing = true,
+                    pages = preparedPages,
+                    completedCount = initialCompletedCount,
+                    failedCount = remainingFailed,
+                    overallProgress = initialProgress,
+                    error = null
+                )
+            }
+
+            val savedConfig = settingsRepository.getTranslationConfig().first()
+            val config = savedConfig.copy(
+                translator = savedConfig.translator.copy(
+                    translatorType = state.translatorType,
+                    targetLang = state.targetLang,
+                    sourceLang = state.sourceLang
+                )
+            )
+
+            val currentBatchId = _uiState.value.currentBatchId ?: "batch_${System.currentTimeMillis()}"
+            val currentBatchName = if (_uiState.value.currentBatchName.isNotBlank()) {
+                _uiState.value.currentBatchName
+            } else {
+                "Chapter ($total Pages)"
+            }
+
+            _uiState.update {
+                it.copy(
+                    currentBatchId = currentBatchId,
+                    currentBatchName = currentBatchName
+                )
+            }
+
+            // Start Foreground Service with WakeLock
+            BatchTranslationService.start(context, total)
+            BatchTranslationService.updateProgress(
+                context,
+                initialCompletedCount,
+                total,
+                initialProgress,
+                ""
+            )
+
+            try {
+                for (i in pagesToProcess.indices) {
+                    val page = _uiState.value.pages[i]
+                    if (page.status == BatchPageStatus.COMPLETED) {
+                        continue
+                    }
+                    if (singlePageIndex != null && i != singlePageIndex) {
+                        continue
+                    }
+
+                    _uiState.update { current ->
+                        val updatedList = current.pages.toMutableList()
+                        updatedList[i] = page.copy(
+                            status = BatchPageStatus.PROCESSING,
+                            progress = 0f,
+                            stageMessage = "Loading..."
+                        )
+                        current.copy(
+                            pages = updatedList,
+                            currentProcessingIndex = i
+                        )
+                    }
+
+                    var originalBitmap: Bitmap? = null
+                    try {
+                        originalBitmap = withContext(Dispatchers.IO) {
+                            decodeBitmapFromUri(Uri.parse(page.uriString))
+                        }
+
+                        val pipelineFlow: Flow<PipelineState> = if (state.isReviewModeEnabled) {
+                            // 1. Detection Only
+                            _uiState.update { current ->
+                                val updatedList = current.pages.toMutableList()
+                                updatedList[i] = updatedList[i].copy(
+                                    stageMessage = "Detecting text bubbles...",
+                                    progress = 0.15f
+                                )
+                                current.copy(pages = updatedList)
+                            }
+
+                            val detResult = translateImageUseCase.detectOnly(originalBitmap, config.detector)
+                            currentReviewRawMask = detResult.mask
+
+                            val deferred = CompletableDeferred<List<Quadrilateral>?>()
+                            detectionReviewDeferred = deferred
+
+                            _uiState.update {
+                                it.copy(
+                                    isShowingDetectionEditor = true,
+                                    reviewImageBitmap = originalBitmap.asImageBitmap(),
+                                    pendingDetections = detResult.textlines,
+                                    reviewPageIndex = i
+                                )
+                            }
+
+                            // Wait for user review response
+                            val curatedQuads = deferred.await()
+                            val finalQuads = curatedQuads ?: detResult.textlines
+
+                            translateImageUseCase.executeFromDetections(
+                                image = originalBitmap,
+                                customTextlines = finalQuads,
+                                config = config,
+                                rawMask = currentReviewRawMask
+                            )
+                        } else {
+                            translateImageUseCase(originalBitmap, config)
+                        }
+
+                        pipelineFlow.collect { pipelineState ->
+                            when (pipelineState) {
+                                is PipelineState.Progress -> {
+                                    _uiState.update { current ->
+                                        val updatedList = current.pages.toMutableList()
+                                        updatedList[i] = updatedList[i].copy(
+                                            currentStage = pipelineState.stage,
+                                            progress = pipelineState.progress,
+                                            stageMessage = pipelineState.message
+                                        )
+                                        val pageProgressContribution = pipelineState.progress / total.toFloat()
+                                        val currentOverall = ((current.completedCount.toFloat() / total.toFloat()) + pageProgressContribution).coerceIn(0f, 1f)
+                                        BatchTranslationService.updateProgress(
+                                            context,
+                                            current.completedCount,
+                                            total,
+                                            currentOverall,
+                                            pipelineState.message
+                                        )
+                                        current.copy(
+                                            pages = updatedList,
+                                            overallProgress = currentOverall
+                                        )
+                                    }
+                                }
+                                is PipelineState.Completed -> {
+                                    val result = pipelineState.result
+                                    val (historyId, savedResultPath) = withContext(Dispatchers.IO) {
+                                        val id = saveResultToHistory(result, currentBatchId, currentBatchName, i)
+                                        val path = historyRepository.getTranslationById(id)?.resultPath
+                                        Pair(id, path)
+                                    }
+
+                                    // Safely and deterministically recycle native memory for page bitmaps now that they are persisted on disk
+                                    try {
+                                        if (!result.translatedImage.isRecycled) {
+                                            result.translatedImage.recycle()
+                                        }
+                                        result.inpaintedImage?.let {
+                                            if (!it.isRecycled) it.recycle()
+                                        }
+                                    } catch (_: Throwable) {}
+
+                                    _uiState.update { current ->
+                                        val updatedList = current.pages.toMutableList()
+                                        val updatedCompleted = current.completedCount + 1
+                                        val remainingFailedCount = updatedList.count { it.status == BatchPageStatus.FAILED }
+                                        updatedList[i] = updatedList[i].copy(
+                                            status = BatchPageStatus.COMPLETED,
+                                            progress = 1.0f,
+                                            stageMessage = "",
+                                            historyId = historyId,
+                                            resultPath = savedResultPath
+                                        )
+                                        val currentOverall = (updatedCompleted.toFloat() / total.toFloat()).coerceIn(0f, 1f)
+                                        BatchTranslationService.updateProgress(
+                                            context,
+                                            updatedCompleted,
+                                            total,
+                                            currentOverall,
+                                            ""
+                                        )
+                                        current.copy(
+                                            pages = updatedList,
+                                            completedCount = updatedCompleted,
+                                            failedCount = remainingFailedCount,
+                                            overallProgress = currentOverall
+                                        )
+                                    }
+                                }
+                                is PipelineState.Error -> {
+                                    throw Exception(pipelineState.message)
+                                }
+                            }
+                        }
+                    } catch (e: Exception) {
+                        if (e is kotlinx.coroutines.CancellationException) throw e
+                        _uiState.update { current ->
+                            val updatedList = current.pages.toMutableList()
+                            updatedList[i] = updatedList[i].copy(
+                                status = BatchPageStatus.FAILED,
+                                progress = 0f,
+                                errorMessage = e.message ?: "Translation error"
+                            )
+                            current.copy(
+                                pages = updatedList,
+                                failedCount = current.failedCount + 1
+                            )
+                        }
+                        // Back off if rate limit / quota exceeded to avoid cascading failures on subsequent pages
+                        if (e.message?.contains("429") == true || e.message?.contains("rate", ignoreCase = true) == true) {
+                            kotlinx.coroutines.delay(2000L)
+                        }
+                    } finally {
+                        try {
+                            currentReviewRawMask?.recycle()
+                            currentReviewRawMask = null
+                            originalBitmap?.recycle()
+                            originalBitmap = null
+                        } catch (_: Throwable) {}
+                        // Cooperative inter-page delay to yield CPU, facilitate GC, and avoid bursting cloud rate limits
+                        if (coroutineContext.isActive) {
+                            kotlinx.coroutines.delay(200L)
+                        }
+                    }
+                }
+            } finally {
+                onnxModelManager.releaseHeavySessions()
+                val finalState = _uiState.value
+                val finalCompleted = finalState.pages.count { it.status == BatchPageStatus.COMPLETED }
+                val finalFailed = finalState.pages.count { it.status == BatchPageStatus.FAILED }
+                val isCancelled = batchJob?.isCancelled == true || !coroutineContext.isActive || finalState.pages.any { it.status == BatchPageStatus.CANCELLED }
+                val isSuccess = computeBatchSuccess(
+                    finalCompleted = finalCompleted,
+                    finalFailed = finalFailed,
+                    total = total,
+                    isCancelled = isCancelled,
+                    singlePageIndex = singlePageIndex,
+                    singlePageStatus = singlePageIndex?.let { finalState.pages.getOrNull(it)?.status }
+                )
+                BatchTranslationService.stop(
+                    context,
+                    isSuccess = isSuccess,
+                    completed = finalCompleted,
+                    total = total
+                )
+            }
+
+            _uiState.update { current ->
+                val finalCompleted = current.pages.count { it.status == BatchPageStatus.COMPLETED }
+                val finalFailed = current.pages.count { it.status == BatchPageStatus.FAILED }
+                current.copy(
+                    isProcessing = false,
+                    currentProcessingIndex = -1,
+                    completedCount = finalCompleted,
+                    failedCount = finalFailed,
+                    overallProgress = if (total > 0) (finalCompleted.toFloat() / total.toFloat()).coerceIn(0f, 1f) else 1f
+                )
+            }
+        }
+    }
+
+    fun cancelBatchTranslation() {
+        batchJob?.cancel()
+        dismissDetectionEditor()
+        onnxModelManager.releaseHeavySessions()
+        BatchTranslationService.stop(context, isSuccess = false, completed = 0, total = 0)
+        _uiState.update { current ->
+            val updatedList = current.pages.map { page ->
+                if (page.status == BatchPageStatus.PROCESSING || page.status == BatchPageStatus.QUEUED) {
+                    page.copy(status = BatchPageStatus.CANCELLED, stageMessage = "Cancelled")
+                } else page
+            }
+            current.copy(
+                isProcessing = false,
+                currentProcessingIndex = -1,
+                pages = updatedList
+            )
+        }
+    }
+
+    private fun queryFileName(uri: Uri): String? {
+        var name: String? = null
+        try {
+            if (uri.scheme == "content") {
+                context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                    val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                    if (nameIndex != -1 && cursor.moveToFirst()) {
+                        name = cursor.getString(nameIndex)
+                    }
+                }
+            }
+            if (name == null) {
+                name = uri.lastPathSegment
+            }
+        } catch (_: Exception) {}
+        return name
+    }
+
+    private fun decodeBitmapFromUri(uri: Uri): Bitmap {
+        return com.yuu18id.mangatranslator.data.storage.BitmapDecoder.decodeFromUri(context, uri)
+    }
+
+    private suspend fun saveResultToHistory(
+        result: TranslationResult,
+        batchId: String,
+        batchName: String,
+        pageIndex: Int
+    ): Long {
+        return historyRepository.saveTranslation(
+            result = result,
+            batchId = batchId,
+            batchName = batchName,
+            pageIndex = pageIndex
+        )
+    }
+
+    companion object {
+        internal fun computeBatchSuccess(
+            finalCompleted: Int,
+            finalFailed: Int,
+            total: Int,
+            isCancelled: Boolean,
+            singlePageIndex: Int? = null,
+            singlePageStatus: BatchPageStatus? = null
+        ): Boolean {
+            return if (singlePageIndex != null) {
+                !isCancelled && singlePageStatus == BatchPageStatus.COMPLETED
+            } else {
+                !isCancelled && finalFailed == 0 && finalCompleted == total && total > 0
+            }
+        }
+
+        class NaturalOrderComparator<T>(private val selector: (T) -> String) : Comparator<T> {
+            override fun compare(o1: T, o2: T): Int {
+                val s1 = selector(o1)
+                val s2 = selector(o2)
+                var i = 0
+                var j = 0
+                while (i < s1.length && j < s2.length) {
+                    val c1 = s1[i]
+                    val c2 = s2[j]
+                    if (c1.isDigit() && c2.isDigit()) {
+                        val start1 = i
+                        while (i < s1.length && s1[i].isDigit()) i++
+                        val start2 = j
+                        while (j < s2.length && s2[j].isDigit()) j++
+                        val num1 = s1.substring(start1, i).toLongOrNull() ?: 0L
+                        val num2 = s2.substring(start2, j).toLongOrNull() ?: 0L
+                        val diff = num1.compareTo(num2)
+                        if (diff != 0) return diff
+                    } else {
+                        val diff = c1.lowercaseChar().compareTo(c2.lowercaseChar())
+                        if (diff != 0) return diff
+                        i++
+                        j++
+                    }
+                }
+                return s1.length - s2.length
+            }
+        }
+    }
+}

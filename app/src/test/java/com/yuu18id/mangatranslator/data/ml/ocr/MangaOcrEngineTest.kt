@@ -109,4 +109,65 @@ class MangaOcrEngineTest {
         ), text = "", boundingBox = dummyBox, isVertical = true)
         assertTrue(MangaOcrEngine.isDenseMultiLineBlock(block4))
     }
+
+    @Test
+    fun testHasRepetitiveTokenLoopSingleTokenContentThreshold() {
+        val existing = listOf(50L, 50L, 50L, 50L) // 4 tokens
+        assertFalse(
+            "4 identical content tokens should not trigger loop breaker yet",
+            MangaOcrEngine.hasRepetitiveTokenLoop(existing, 50L, isPunctuation = false)
+        )
+
+        val existing5 = listOf(50L, 50L, 50L, 50L, 50L) // 5 tokens
+        assertTrue(
+            "5 identical content tokens must trigger loop breaker",
+            MangaOcrEngine.hasRepetitiveTokenLoop(existing5, 50L, isPunctuation = false)
+        )
+    }
+
+    @Test
+    fun testHasRepetitiveTokenLoopSingleTokenPunctuationThreshold() {
+        // Punctuation can legitimately repeat up to 12 times in manga (e.g. "……")
+        val punctTokens = List(6) { 10L }
+        assertFalse(
+            "6 consecutive ellipsis dots should be permitted in manga",
+            MangaOcrEngine.hasRepetitiveTokenLoop(punctTokens, 10L, isPunctuation = true)
+        )
+
+        val punctTokens12 = List(12) { 10L }
+        assertTrue(
+            "12 consecutive ellipsis dots must trigger early loop break",
+            MangaOcrEngine.hasRepetitiveTokenLoop(punctTokens12, 10L, isPunctuation = true)
+        )
+    }
+
+    @Test
+    fun testHasRepetitiveTokenLoop2TokenCycle() {
+        // Alternating pattern: [100, 200, 100, 200, 100] + 200 => [100, 200, 100, 200, 100, 200]
+        val cycling = listOf(100L, 200L, 100L, 200L, 100L)
+        assertTrue(
+            "2-token alternating cycle (3 full cycles = 6 tokens) must trigger early loop break",
+            MangaOcrEngine.hasRepetitiveTokenLoop(cycling, 200L, isPunctuation = false)
+        )
+
+        assertFalse(
+            "Breaking the cycle with a new token must not trigger loop breaker",
+            MangaOcrEngine.hasRepetitiveTokenLoop(cycling, 300L, isPunctuation = false)
+        )
+    }
+
+    @Test
+    fun testHasRepetitiveTokenLoop3TokenCycle() {
+        // 3-token pattern: [1, 2, 3, 1, 2, 3, 1, 2] + 3 => [1, 2, 3, 1, 2, 3, 1, 2, 3]
+        val cycling3 = listOf(1L, 2L, 3L, 1L, 2L, 3L, 1L, 2L)
+        assertTrue(
+            "3-token repeating cycle (3 full cycles = 9 tokens) must trigger early loop break",
+            MangaOcrEngine.hasRepetitiveTokenLoop(cycling3, 3L, isPunctuation = false)
+        )
+
+        assertFalse(
+            "Different next token must not trigger 3-token cycle break",
+            MangaOcrEngine.hasRepetitiveTokenLoop(cycling3, 99L, isPunctuation = false)
+        )
+    }
 }

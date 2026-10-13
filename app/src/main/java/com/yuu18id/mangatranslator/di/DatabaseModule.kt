@@ -27,7 +27,22 @@ object DatabaseModule {
             context,
             AppDatabase::class.java,
             AppDatabase.DATABASE_NAME
-        ).fallbackToDestructiveMigration().build()
+        )
+            .addCallback(object : androidx.room.RoomDatabase.Callback() {
+                override fun onDestructiveMigration(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                    super.onDestructiveMigration(db)
+                    // If destructive migration ever occurs, clean up orphaned history image files
+                    // from internal storage to prevent permanent storage leakage.
+                    try {
+                        val historyDir = java.io.File(context.filesDir, "history")
+                        if (historyDir.exists()) {
+                            historyDir.listFiles()?.forEach { it.delete() }
+                        }
+                    } catch (_: Throwable) {}
+                }
+            })
+            .fallbackToDestructiveMigration()
+            .build()
     }
 
     @Provides

@@ -59,17 +59,26 @@ class SettingsDataStore @Inject constructor(
         }
     }
 
-    suspend fun saveApiKey(service: String, apiKey: String) {
+    suspend fun saveApiKey(service: String, apiKey: String): Boolean {
         val key = stringPreferencesKey("api_key_$service")
-        dataStore.edit { preferences ->
-            preferences[key] = apiKey
+        val encryptionResult = com.yuu18id.mangatranslator.data.security.SecurityCrypto.encryptDetailed(apiKey)
+        if (!encryptionResult.isEncrypted && apiKey.isNotBlank()) {
+            android.util.Log.w(
+                "SettingsDataStore",
+                "KeyStore encryption failed for $service: ${encryptionResult.error?.message}. Storing fallback plaintext."
+            )
         }
+        dataStore.edit { preferences ->
+            preferences[key] = encryptionResult.result
+        }
+        return encryptionResult.isEncrypted
     }
 
     fun getApiKey(service: String): Flow<String> {
         val key = stringPreferencesKey("api_key_$service")
         return dataStore.data.map { preferences ->
-            preferences[key] ?: ""
+            val stored = preferences[key] ?: ""
+            com.yuu18id.mangatranslator.data.security.SecurityCrypto.decrypt(stored)
         }
     }
 }

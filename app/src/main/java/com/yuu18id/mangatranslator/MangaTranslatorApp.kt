@@ -12,9 +12,15 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import org.opencv.android.OpenCVLoader
+import javax.inject.Inject
+import javax.inject.Provider
+import okhttp3.OkHttpClient
 
 @HiltAndroidApp
 class MangaTranslatorApp : Application(), ImageLoaderFactory {
+
+    @Inject
+    lateinit var okHttpClientProvider: Provider<OkHttpClient>
 
     override fun onCreate() {
         super.onCreate()
@@ -22,7 +28,13 @@ class MangaTranslatorApp : Application(), ImageLoaderFactory {
     }
 
     override fun newImageLoader(): ImageLoader {
+        val client = if (::okHttpClientProvider.isInitialized) {
+            okHttpClientProvider.get()
+        } else {
+            OkHttpClient()
+        }
         return ImageLoader.Builder(this)
+            .okHttpClient(client)
             .memoryCache {
                 MemoryCache.Builder(this)
                     .maxSizePercent(0.25)

@@ -1,4 +1,4 @@
-﻿package com.yuu18id.mangatranslator.data.translation
+package com.yuu18id.mangatranslator.data.translation
 
 import com.yuu18id.mangatranslator.data.ml.CloudTranslator
 import com.yuu18id.mangatranslator.data.translation.claude.ClaudeTranslator
@@ -45,7 +45,16 @@ class TranslatorFactory @Inject constructor(
             TranslatorType.CUSTOM -> customOpenAiTranslatorProvider.get()
             TranslatorType.GOOGLE -> googleTranslatorProvider.get()
             TranslatorType.PAPAGO -> papagoTranslatorProvider.get()
+            TranslatorType.NONE -> NoOpTranslator
             else -> throw IllegalArgumentException("Unsupported translator type: $type")
         }
+    }
+
+    private object NoOpTranslator : CloudTranslator {
+        override suspend fun translate(textBlocks: List<com.yuu18id.mangatranslator.domain.model.TextBlock>, config: com.yuu18id.mangatranslator.domain.model.TranslatorConfig): List<com.yuu18id.mangatranslator.domain.model.TextBlock> {
+            return textBlocks
+        }
+
+        override fun isAvailable(): Boolean = true
     }
 }

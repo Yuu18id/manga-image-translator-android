@@ -28,4 +28,27 @@ class TextPostProcessorTest {
         val actual = TextPostProcessor.processText(input)
         assertEquals(expected, actual)
     }
+
+    @Test
+    fun testIsDotsOnlyOrEmptyReturnsTrueForDotsAndEmpty() {
+        org.junit.Assert.assertTrue(TextPostProcessor.isDotsOnlyOrEmpty(""))
+        org.junit.Assert.assertTrue(TextPostProcessor.isDotsOnlyOrEmpty("   "))
+        org.junit.Assert.assertTrue(TextPostProcessor.isDotsOnlyOrEmpty("....."))
+        org.junit.Assert.assertTrue(TextPostProcessor.isDotsOnlyOrEmpty("……"))
+        org.junit.Assert.assertTrue(TextPostProcessor.isDotsOnlyOrEmpty("… …"))
+        org.junit.Assert.assertTrue(TextPostProcessor.isDotsOnlyOrEmpty("・・・"))
+        org.junit.Assert.assertTrue(TextPostProcessor.isDotsOnlyOrEmpty("..."))
+        org.junit.Assert.assertTrue(TextPostProcessor.isDotsOnlyOrEmpty("。。。"))
+        org.junit.Assert.assertTrue(TextPostProcessor.isDotsOnlyOrEmpty("... , ..."))
+    }
+
+    @Test
+    fun testIsDotsOnlyOrEmptyReturnsFalseForRealTextOrSymbols() {
+        org.junit.Assert.assertFalse(TextPostProcessor.isDotsOnlyOrEmpty("!!!"))
+        org.junit.Assert.assertFalse(TextPostProcessor.isDotsOnlyOrEmpty("???"))
+        org.junit.Assert.assertFalse(TextPostProcessor.isDotsOnlyOrEmpty("!?!"))
+        org.junit.Assert.assertFalse(TextPostProcessor.isDotsOnlyOrEmpty("♥"))
+        org.junit.Assert.assertFalse(TextPostProcessor.isDotsOnlyOrEmpty("Wait..."))
+        org.junit.Assert.assertFalse(TextPostProcessor.isDotsOnlyOrEmpty("123"))
+    }
 }

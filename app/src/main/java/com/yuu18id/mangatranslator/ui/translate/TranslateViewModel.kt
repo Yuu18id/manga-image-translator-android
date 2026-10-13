@@ -76,7 +76,8 @@ class TranslateViewModel @Inject constructor(
     private val textPostProcessor: TextPostProcessor,
     private val settingsRepository: SettingsRepository,
     private val historyRepository: HistoryRepository,
-    @ApplicationContext private val context: Context
+    @ApplicationContext private val context: Context,
+    private val onnxModelManager: com.yuu18id.mangatranslator.data.ml.OnnxModelManager
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(TranslateUiState())
@@ -123,11 +124,12 @@ class TranslateViewModel @Inject constructor(
                 val bitmap = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                     decodeBitmapFromUri(uri)
                 }
+                recycleBitmaps()
                 _originalBitmap = bitmap
                 _translatedBitmap = null
                 _inpaintedBitmap = null
                 _currentTextBlocks = emptyList()
-                _pendingRawMask?.recycle()
+                _pendingRawMask?.takeIf { !it.isRecycled }?.recycle()
                 _pendingRawMask = null
                 _uiState.update {
                     it.copy(
@@ -161,6 +163,7 @@ class TranslateViewModel @Inject constructor(
             try {
                 val record = historyRepository.getFullHistoryRecord(historyId)
                 if (record != null) {
+                    recycleBitmaps()
                     _originalBitmap = record.originalBitmap
                     _translatedBitmap = record.translatedBitmap
                     _inpaintedBitmap = record.inpaintedBitmap
@@ -168,7 +171,7 @@ class TranslateViewModel @Inject constructor(
                         b.copy(translatedText = textPostProcessor.process(b.translatedText, b.text))
                     }
                     _currentTextBlocks = sanitizedBlocks
-                    _pendingRawMask?.recycle()
+                    _pendingRawMask?.takeIf { !it.isRecycled }?.recycle()
                     _pendingRawMask = null
 
                     _uiState.update {
@@ -607,11 +610,33 @@ class TranslateViewModel @Inject constructor(
     override fun onCleared() {
         super.onCleared()
         translationJob?.cancel()
+        recycleBitmaps()
+        try {
+            _pendingRawMask?.takeIf { !it.isRecycled }?.recycle()
+        } catch (_: Throwable) {}
+        _pendingRawMask = null
+        onnxModelManager.releaseHeavySessions()
+    }
+
+    private fun recycleBitmaps() {
+        _uiState.update {
+            it.copy(
+                originalImage = null,
+                translatedImage = null,
+                inpaintedImage = null
+            )
+        }
+        val bitmaps = listOfNotNull(_originalBitmap, _translatedBitmap, _inpaintedBitmap).distinct()
         _originalBitmap = null
         _translatedBitmap = null
         _inpaintedBitmap = null
-        _pendingRawMask?.recycle()
-        _pendingRawMask = null
+        for (bmp in bitmaps) {
+            try {
+                if (!bmp.isRecycled) {
+                    bmp.recycle()
+                }
+            } catch (_: Throwable) {}
+        }
     }
 
     private fun decodeBitmapFromUri(uri: Uri): Bitmap {
@@ -620,12 +645,7 @@ class TranslateViewModel @Inject constructor(
 
     private fun saveBitmapToFile(bitmap: Bitmap, prefix: String = "translated_"): File {
         val dir = File(context.filesDir, "translations")
-        if (!dir.exists()) dir.mkdirs()
-        
-        val file = File(dir, "${prefix}${System.currentTimeMillis()}.png")
-        FileOutputStream(file).use { out ->
-            bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
-        }
-        return file
+        val file = File(dir, "${prefix}${System.currentTimeMillis()}.webp")
+        return com.yuu18id.mangatranslator.data.storage.BitmapStorage.saveToWebp(bitmap, file)
     }
 }

@@ -10,6 +10,8 @@
 .idea/navEditor.xml
 .idea/assetWizardSettings.xml
 .DS_Store
+Thumbs.db
+Desktop.ini
 /build
 */build
 captures/
@@ -18,13 +20,27 @@ captures/
 *.apk
 *.aab
 *.ap_
+*.dm
 
-# Keystore files
+# Kotlin & KSP caches
+.kotlin/
+
+# Assistant / Tool workspaces
+.kilo/
+
+# Keystore & Signing properties
 *.jks
 *.keystore
+*.p12
+*.bks
+signing.properties
+keystore.properties
 
 # Google Services (if any)
 google-services.json
+
+# Internal Quality & Audit Reports
+docs/quality/
 
 # Large AI Model files (Download from GitHub Releases or Export locally)
 *.onnx
@@ -49,4 +65,7 @@ venv/
 .venv/
 *.log
 *.tmp
-
+*.swp
+*.swo
+*~
+*.bak
