@@ -96,8 +96,8 @@ class SettingsRepositoryImpl @Inject constructor(
         return settingsDataStore.getApiKey(translatorType.name)
     }
 
-    override suspend fun saveApiKey(translatorType: TranslatorType, key: String) {
-        settingsDataStore.saveApiKey(translatorType.name, key)
+    override suspend fun saveApiKey(translatorType: TranslatorType, key: String): Boolean {
+        return settingsDataStore.saveApiKey(translatorType.name, key)
     }
 
     override fun getModel(translatorType: TranslatorType): Flow<String> {

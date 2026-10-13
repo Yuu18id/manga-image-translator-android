@@ -87,7 +87,7 @@ object NetworkModule {
                     Thread.sleep(delayMs)
                 } catch (_: InterruptedException) {
                     Thread.currentThread().interrupt()
-                    break
+                    throw java.io.InterruptedIOException("Backoff sleep interrupted during HTTP retry")
                 }
                 response = chain.proceed(request)
             }

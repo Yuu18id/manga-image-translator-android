@@ -155,7 +155,10 @@ class SettingsViewModel @Inject constructor(
 
     fun saveApiKey(translatorType: TranslatorType, key: String) {
         viewModelScope.launch {
-            settingsRepository.saveApiKey(translatorType, key.trim())
+            val isEncrypted = settingsRepository.saveApiKey(translatorType, key.trim())
+            if (!isEncrypted && key.isNotBlank()) {
+                android.util.Log.w("SettingsViewModel", "API key for $translatorType was saved unencrypted due to KeyStore hardware unavailability")
+            }
             _uiState.update { state ->
                 val newKeys = state.apiKeys.toMutableMap().apply { put(translatorType, key.trim()) }
                 state.copy(apiKeys = newKeys)

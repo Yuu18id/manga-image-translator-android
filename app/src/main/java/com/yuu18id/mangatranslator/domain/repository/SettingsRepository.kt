@@ -10,7 +10,7 @@ interface SettingsRepository {
     suspend fun saveTranslationConfig(config: TranslationConfig)
     
     fun getApiKey(translatorType: TranslatorType): Flow<String>
-    suspend fun saveApiKey(translatorType: TranslatorType, key: String)
+    suspend fun saveApiKey(translatorType: TranslatorType, key: String): Boolean
     
     fun getModel(translatorType: TranslatorType): Flow<String>
     suspend fun saveModel(translatorType: TranslatorType, modelId: String)

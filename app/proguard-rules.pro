@@ -37,3 +37,11 @@
 -keepclasseswithmembernames class * {
     native <methods>;
 }
+
+# Strip debug and info logs in release builds to prevent user content / comic dialogue leakage
+-assumenosideeffects class android.util.Log {
+    public static boolean isLoggable(java.lang.String, int);
+    public static int v(...);
+    public static int d(...);
+    public static int i(...);
+}

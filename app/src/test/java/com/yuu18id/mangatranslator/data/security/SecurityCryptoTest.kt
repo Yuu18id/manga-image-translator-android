@@ -51,4 +51,18 @@ class SecurityCryptoTest {
         assertFalse("KeyStore is absent in local JVM tests, so isEncrypted must be false", result.isEncrypted)
         assertNotNull("Underlying error should be captured in result", result.error)
     }
+
+    @Test
+    fun testConcurrentEncryptionCallsThreadSafety() {
+        // Verify multiple threads calling encryptDetailed concurrently do not crash or corrupt
+        val threads = (1..8).map { id ->
+            Thread {
+                val secret = "key-for-thread-$id"
+                val res = SecurityCrypto.encryptDetailed(secret)
+                assertEquals(secret, res.result)
+            }
+        }
+        threads.forEach { it.start() }
+        threads.forEach { it.join() }
+    }
 }

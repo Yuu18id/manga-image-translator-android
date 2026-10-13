@@ -499,14 +499,20 @@ class BatchTranslationManager @Inject constructor(
                                 }
                             }
                         }
-                    } catch (e: Exception) {
-                        if (e is kotlinx.coroutines.CancellationException) throw e
+                    } catch (t: Throwable) {
+                        if (t is kotlinx.coroutines.CancellationException) throw t
+                        if (t is OutOfMemoryError) System.gc()
+                        val errMsg = if (t is OutOfMemoryError) {
+                            "Out of Memory (resolusi gambar terlalu tinggi)"
+                        } else {
+                            t.message ?: "Translation error"
+                        }
                         _uiState.update { current ->
                             val updatedList = current.pages.toMutableList()
                             updatedList[i] = updatedList[i].copy(
                                 status = BatchPageStatus.FAILED,
                                 progress = 0f,
-                                errorMessage = e.message ?: "Translation error"
+                                errorMessage = errMsg
                             )
                             current.copy(
                                 pages = updatedList,
@@ -514,7 +520,7 @@ class BatchTranslationManager @Inject constructor(
                             )
                         }
                         // Back off if rate limit / quota exceeded to avoid cascading failures on subsequent pages
-                        if (e.message?.contains("429") == true || e.message?.contains("rate", ignoreCase = true) == true) {
+                        if (t.message?.contains("429") == true || t.message?.contains("rate", ignoreCase = true) == true) {
                             kotlinx.coroutines.delay(2000L)
                         }
                     } finally {

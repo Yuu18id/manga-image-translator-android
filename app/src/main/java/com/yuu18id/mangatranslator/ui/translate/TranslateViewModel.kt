@@ -145,8 +145,13 @@ class TranslateViewModel @Inject constructor(
                         pendingDetections = emptyList()
                     )
                 }
-            } catch (e: Exception) {
-                _uiState.update { it.copy(error = "Failed to load image: ${e.message}") }
+            } catch (t: Throwable) {
+                if (t is OutOfMemoryError) {
+                    System.gc()
+                    _uiState.update { it.copy(error = "Memori tidak mencukupi untuk memuat gambar (Out of Memory). Gunakan gambar dengan resolusi lebih kecil.") }
+                } else {
+                    _uiState.update { it.copy(error = "Failed to load image: ${t.message ?: "Unknown error"}") }
+                }
             }
         }
     }

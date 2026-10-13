@@ -32,6 +32,7 @@ object SecurityCrypto {
         val error: Throwable? = null
     )
 
+    @Synchronized
     private fun getOrCreateSecretKey(forceRecreate: Boolean = false): SecretKey {
         val keyStore = KeyStore.getInstance(ANDROID_KEYSTORE).apply { load(null) }
         if (!forceRecreate) {
